@@ -1,0 +1,329 @@
+<html>
+    <head>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.0/jquery.min.js"></script>
+        <style>
+            canvas {
+                background-color: #222222; // TODO(henk): Remove this
+            }
+            .highscore {
+                position: fixed;
+                color: white;
+                top: 10;
+                right: 10;
+                width: 300px;
+                background-color: rgba(150,150,150,0.1);
+                //border: 3px solid #73AD21;
+            }
+            .highscoreEntry {
+                margin:5px;
+            }
+            html, body {
+              width:  100%;
+              height: 100%;
+              margin: 0px;
+            }
+        </style>
+    </head>
+
+    <body>
+        <canvas id="canvas">Sorry, your browser doesn't support canvas.</canvas>
+        <div class="highscore" id="highscore" />
+        <script type="text/javascript">
+            var sock = null;
+            var wsuri = "ws://127.0.0.1:1234";
+
+            var bots = {};
+            var botInfos = {};
+            var toxins = {};
+            var foods = {};
+
+            var colors = [
+                "rgba(255,  20, 147, 1)",
+                "rgba(255,   0,   0, 1)",
+                "rgba(255,  69,   0, 1)",
+                "rgba(255, 255,   0, 1)",
+                "rgba(0  ,  80,   0, 1)",
+                "rgba(0  , 255, 255, 1)",
+                "rgba(0  , 191, 255, 1)",
+                "rgba(0  ,   0, 255, 1)",
+                "rgba(255,   0, 255, 1)",
+                "rgba(128,   0, 128, 1)",
+                "rgba(0  , 255,   0, 1)",
+            ];
+
+            // GuiMessagePurpose
+            var gmpCreateOrUpdate = "createOrUpdate";
+            var gmpDelete         = "delete";
+
+            // DataType
+            var dtFood      = "food";
+            var dtToxin     = "toxin";
+            var dtBot       = "bot";
+            var dtBotInfo   = "botInfo";
+
+            if (!String.prototype.format) {
+              String.prototype.format = function() {
+                var args = arguments;
+                return this.replace(/{(\d+)}/g, function(match, number) {
+                  return typeof args[number] != 'undefined'
+                    ? args[number]
+                    : match
+                  ;
+                });
+              };
+            }
+
+            function makeCSSColor(color) {
+                return "rgb({0}, {1}, {2})".format(color.R, color.G, color.B);
+            }
+
+            window.onload = function() {
+                //
+                // Canvas
+                //
+                var canvas = document.getElementById('canvas');
+                canvas.width  = window.innerWidth;
+                canvas.height = window.innerHeight;
+
+                //
+                // Rendering
+                //
+                setInterval(render, 33);
+                //
+                // Connection
+                //
+                sock = new WebSocket(wsuri);
+
+                sock.onopen = function() {
+                    console.log("connected to " + wsuri);
+                }
+
+                sock.onclose = function(e) {
+                    console.log("connection closed (" + e.code + ")");
+                }
+                sock.onmessage = function(e) {
+
+                    // Just ignore this message. It's to test, if the
+                    // connection is alive at server side.
+                    if (e.data == "alive_test") {
+                        return
+                    }
+
+                    var message = JSON.parse(e.data);
+                    var  guiUpdatedNeeded = false;
+
+                    for (var botId in message.createdOrUpdatedBotInfos) {
+                        botInfos[botId] = message.createdOrUpdatedBotInfos[botId];
+                        guiUpdatedNeeded = true;
+                    }
+
+                    for (var i = 0; i < message.deletedBotInfos.length; i++) {
+                        var botId = message.deletedBotInfos[i];
+                        delete botInfos[botId];
+                    }
+
+                    for (var botId in message.createdOrUpdatedBots) {
+                        bots[botId] = message.createdOrUpdatedBots[botId];
+                    }
+
+                    for (var i = 0; i < message.deletedBots.length; i++) {
+                        var botId = message.deletedBots[i];
+                        delete bots[botId];
+                    }
+
+                    for (var foodId in message.createdOrUpdatedFoods) {
+                        foods[foodId] = message.createdOrUpdatedFoods[foodId];
+                    }
+
+                    for (var i = 0; i < message.deletedFoods.length; i++) {
+                        var foodId = message.deletedFoods[i];
+                        delete foods[foodId];
+                    }
+
+                    for (var toxinId in message.createdOrUpdatedToxins) {
+                        toxins[toxinId] = message.createdOrUpdatedToxins[toxinId];
+                    }
+
+                    for (var i = 0; i < message.deletedToxins.length; i++) {
+                        var toxinId = message.deletedToxins[i];
+                        delete toxins[toxinId];
+                    }
+
+                    updateHighscore(botInfos, bots);
+
+                }
+            };
+
+            function mapSize(map) {
+                count = 0
+                for (i in map) {
+                    if (map.hasOwnProperty(i)) {
+                        count++;
+                    }
+                }
+                return count
+            };
+
+            function send(msg) {
+                sock.send(msg);
+            };
+
+            function radius(mass) {
+                return Math.max(1, Math.sqrt(mass / Math.PI)); // TODO(henk): Maybe remove the max(1, ...), when we talked about the sizes of stuff.
+            }
+
+            function render() {
+                var canvas = document.getElementById('canvas');
+                var context = canvas.getContext('2d');
+
+                context.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Render foods
+                for (var key in foods) {
+                    var food = foods[key];
+
+                    const FOOD_SIZE = 6;
+
+                    context.strokeStyle = "rgb(0, 0, 0)";
+                    context.fillStyle = "rgb(128, 128, 128)";
+
+                    context.beginPath();
+                    context.arc(food.pos.X, food.pos.Y, FOOD_SIZE, 0, 2 * Math.PI, false);
+                    context.fill();
+
+                    context.lineWidth = 1;
+                    context.stroke();
+
+                    //context.fillStyle = "white";
+                    //context.font="12px Arial";
+                    //context.fillText(String(Math.round(food.mass*10)/10), food.pos.X-8, food.pos.Y-8);
+                }
+
+                // Render toxins
+                for (var key in toxins) {
+                    var toxin = toxins[key];
+
+                    context.strokeStyle = "green";
+                    context.fillStyle = colors[10];
+
+                    context.beginPath();
+                    context.arc(toxin.pos.X, toxin.pos.Y, radius(toxin.mass), 0, 2 * Math.PI, false);
+                    context.fill();
+
+                    context.lineWidth = 5;
+                    context.stroke();
+                }
+
+                // Render bots
+                for (var botId in bots) {
+                    var bot = bots[botId];
+
+                    for (var blobId in bot.blobs) {
+                        var blob = bot.blobs[blobId];
+
+                        context.strokeStyle = "white";
+                        if (botId in botInfos) {
+                            context.fillStyle = makeCSSColor(botInfos[botId].color);
+                        } else {
+                            // Render Error
+                            context.fillStyle = "rgb(255, 0, 0)";
+                            context.font="12px Arial";
+                            context.fillText("Couldn't find the BotInfo", blob.pos.X, blob.pos.Y + 20);
+
+                            context.fillStyle = "rgb(255, 0, 0)";
+                        }
+
+                        context.beginPath();
+
+                        context.arc(blob.pos.X, blob.pos.Y, radius(blob.mass), 0, 2 * Math.PI, false);
+                        context.fill();
+
+                        context.lineWidth = 1;
+                        context.stroke();
+
+                        //context.fillStyle = "rgb(255, 255, 255)";
+                        //context.font="12px Arial";
+                        //context.fillText("(" + blob.pos.X + ", " + blob.pos.Y + ")", blob.pos.X, blob.pos.Y);
+                    }
+
+                    //context.fillStyle = "rgb(255, 255, 255)";
+                    //context.rect(bot.viewWindow.pos.X, bot.viewWindow.pos.Y, bot.viewWindow.size.X, bot.viewWindow.size.Y);
+                    //context.stroke();
+                }
+            }
+
+            function updateHighscore(botInfos, bots) {
+                var highscore = $("#highscore");
+                highscore.empty();
+
+                var massTuples = [];
+                var maxMass = 0;
+                for (var botInfoId in botInfos) {
+                    var botInfo = botInfos[botInfoId];
+                    var mass = 0;
+                    if (botInfoId in bots) {
+                        for (var blobId in bots[botInfoId].blobs) {
+                            mass += bots[botInfoId].blobs[blobId].mass;
+                        }
+                    }
+                    massTuples.push({ id: botInfoId, mass: mass });
+                    if (mass > maxMass) {
+                        maxMass = mass;
+                    }
+                }
+
+                massTuples.sort(function(a, b) {
+                    return b.mass - a.mass;
+                });
+
+                for (var i = 0; i < massTuples.length; i++) {
+                    var massTuple = massTuples[i];
+                    var botInfoId = massTuple.id;
+                    var mass = massTuple.mass;
+                    var botInfo = botInfos[botInfoId];
+                    var shortName = botInfo.name.substr(botInfo.name.length - 10);
+                    var extendedName = shortName + " (id: " + botInfoId + ") ";
+
+                    var containerNode = $("<div></div>");
+                    containerNode.css({
+                        position: "relative",
+                        height: 40,
+                    });
+                    containerNode.addClass("highscoreEntry");
+
+                    var nameNode = $("<div></div>");
+                    nameNode.css({
+                        position: "relative",
+                        float: "left", // To position the elements next to each other
+                    });
+                    nameNode.html(extendedName);
+
+                    var pointsNode = $("<div></div>");
+                    pointsNode.css({
+                        position: "relative",
+                        left: 50
+                    });
+                    pointsNode.html(String(Math.round(mass*100)/100));
+
+                    var barNode = $("<div></div>");
+                    barNode.css({
+                        position: "relative",
+                        background: makeCSSColor(botInfo.color),
+                        top: 10,
+                        width: 280 * (mass / maxMass),
+                        height: 10,
+                        "border-style": "solid",
+                        "border-width": "1px",
+                        "border-color": "gray",
+                    });
+
+                    containerNode.append(nameNode);
+                    containerNode.append(pointsNode);
+                    containerNode.append(barNode);
+
+                    highscore.append(containerNode);
+                }
+            }
+        </script>
+    </body>
+</html>
