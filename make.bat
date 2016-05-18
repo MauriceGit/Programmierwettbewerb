@@ -1,7 +1,7 @@
 @echo off
 
 set GOPATH=%~dp0Go
-set GOBIN=%~dp0bin\win
+set GOBIN=%~dp0bin
 
 mkdir bin
 

@@ -22,12 +22,61 @@
               height: 100%;
               margin: 0px;
             }
+
+            .dropbtn {
+                //position: absolute;
+                background-color: #4CAF50;
+                color: white;
+                padding: 8px;
+                font-size: 12px;
+                border: none;
+                cursor: pointer;
+            }
+
+            .dropbtn:hover, .dropbtn:focus {
+                background-color: #3e8e41;
+            }
+
+            .dropdown {
+                top: 10;
+                left: 10;
+                position: absolute;
+                display: inline-block;
+            }
+
+            .dropdown-content {
+                display: none;
+                position: absolute;
+                background-color: #f9f9f9;
+                min-width: 300px;
+                overflow: auto;
+                box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            }
+
+            .dropdown-content a {
+                color: black;
+                padding: 4px 16px;
+                text-decoration: none;
+                display: block;
+            }
+
+            .dropdown a:hover {background-color: #f1f1f1}
+
+            .show {display:block;}
         </style>
     </head>
 
     <body>
+        <div class="dropdown">
+            <button onclick="cameraDropDownHandler()" class="dropbtn">Camera</button>
+            <div id="cameraDropDown" class="dropdown-content">
+            </div>
+        </div>
+
         <canvas id="canvas">Sorry, your browser doesn't support canvas.</canvas>
+        
         <div class="highscore" id="highscore" />
+
         <script type="text/javascript">
             var sock = null;
             var wsuri = "ws://127.0.0.1:1234";
@@ -36,6 +85,10 @@
             var botInfos = {};
             var toxins = {};
             var foods = {};
+
+            var frametimes = [];
+            var numFrametimes = 10;
+            var currentFrametime = 0;
 
             var colors = [
                 "rgba(255,  20, 147, 1)",
@@ -61,6 +114,38 @@
             var dtBot       = "bot";
             var dtBotInfo   = "botInfo";
 
+            // Camera
+            var cmShowAll     = 0;
+            var cmShowBot     = 1;
+            var cameraMode = cmShowAll;
+            var cameraBotToFollow = -1;
+
+            function cameraDropDownHandler() {
+                document.getElementById("cameraDropDown").classList.toggle("show");
+            }
+
+            window.onclick = function(event) {
+                if (!event.target.matches('.dropbtn')) {
+                    var dropdowns = document.getElementsByClassName("dropdown-content");
+                    var i;
+                    for (i = 0; i < dropdowns.length; i++) {
+                        var openDropdown = dropdowns[i];
+                        if (openDropdown.classList.contains('show')) {
+                            openDropdown.classList.remove('show');
+                        }
+                    }
+                }
+            }
+
+            function showAll() {
+                cameraMode = cmShowAll;
+            }
+
+            function showBot(id) {
+                cameraMode = cmShowBot;
+                cameraBotToFollow = id;
+            }
+
             if (!String.prototype.format) {
               String.prototype.format = function() {
                 var args = arguments;
@@ -82,13 +167,25 @@
                 // Canvas
                 //
                 var canvas = document.getElementById('canvas');
-                canvas.width  = window.innerWidth;
-                canvas.height = window.innerHeight;
-
+                var resizeCanvas = function() {
+                    canvas.width  = window.innerWidth;
+                    canvas.height = window.innerHeight;
+                };
+                window.onresize = function(event) {
+                    resizeCanvas();
+                };
+                resizeCanvas();
+    
                 //
                 // Rendering
                 //
-                setInterval(render, 33);
+                setInterval(render, 1000 / 60);
+
+                //
+                // Updating the highscore
+                //
+                setInterval(updateHighscore, 1000 / 5);
+
                 //
                 // Connection
                 //
@@ -102,7 +199,6 @@
                     console.log("connection closed (" + e.code + ")");
                 }
                 sock.onmessage = function(e) {
-
                     // Just ignore this message. It's to test, if the
                     // connection is alive at server side.
                     if (e.data == "alive_test") {
@@ -120,6 +216,7 @@
                     for (var i = 0; i < message.deletedBotInfos.length; i++) {
                         var botId = message.deletedBotInfos[i];
                         delete botInfos[botId];
+                        guiUpdatedNeeded = true;
                     }
 
                     for (var botId in message.createdOrUpdatedBots) {
@@ -149,8 +246,20 @@
                         delete toxins[toxinId];
                     }
 
-                    updateHighscore(botInfos, bots);
-
+                    if (guiUpdatedNeeded) {
+                        var dropdown = $("#cameraDropDown");
+                        dropdown.empty();
+                        dropdown.append("<a href=\"#\" onclick=\"showAll()\">Show All</a>");
+                        $.each(botInfos, function (botId, value) {
+                            var botInfo = botInfos[botId];
+                            var item = $("<a href=\"#\">" + botInfo.name + " (" + botId + ")" + "</a>");
+                            item.css("background-color", makeCSSColor(botInfo.color));
+                            item.click(function() {
+                                showBot(botId);
+                            });
+                            dropdown.append(item);
+                        });
+                    }
                 }
             };
 
@@ -170,13 +279,35 @@
 
             function radius(mass) {
                 return Math.max(1, Math.sqrt(mass / Math.PI)); // TODO(henk): Maybe remove the max(1, ...), when we talked about the sizes of stuff.
-            }
+            }           
 
             function render() {
                 var canvas = document.getElementById('canvas');
                 var context = canvas.getContext('2d');
 
+                context.setTransform(1, 0, 0, 1, 0, 0);
                 context.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Find center of all the blobs
+                if (cameraMode == cmShowBot) {
+                    if (cameraBotToFollow in bots) {
+                        var centerX = 0;
+                        var centerY = 0;
+                        var numBlobs = 0;
+                        var bot = bots[cameraBotToFollow];
+                        for (var blobId in bot.blobs) {
+                            var blob = bot.blobs[blobId];
+                            ++numBlobs;
+                            centerX += blob.pos.X;
+                            centerY += blob.pos.Y;
+                        }
+                        centerX /= numBlobs;
+                        centerY /= numBlobs;
+                        context.setTransform(1, 0, 0, 1, -centerX + window.innerWidth/2, -centerY + window.innerHeight/2);
+                    } else {
+                        cameraMode = cmShowAll;
+                    }
+                }
 
                 // Render foods
                 for (var key in foods) {
@@ -252,11 +383,8 @@
                 }
             }
 
-            function updateHighscore(botInfos, bots) {
-                var highscore = $("#highscore");
-                highscore.empty();
-
-                var massTuples = [];
+            function calculateHighscore() {
+                var tuples = [];
                 var maxMass = 0;
                 for (var botInfoId in botInfos) {
                     var botInfo = botInfos[botInfoId];
@@ -266,19 +394,30 @@
                             mass += bots[botInfoId].blobs[blobId].mass;
                         }
                     }
-                    massTuples.push({ id: botInfoId, mass: mass });
+                    tuples.push({ id: botInfoId, mass: mass });
                     if (mass > maxMass) {
                         maxMass = mass;
                     }
                 }
 
-                massTuples.sort(function(a, b) {
+                tuples.sort(function(a, b) {
                     return b.mass - a.mass;
                 });
 
-                for (var i = 0; i < massTuples.length; i++) {
-                    var massTuple = massTuples[i];
-                    var botInfoId = massTuple.id;
+                return [tuples, maxMass];
+            }
+
+            function updateHighscore() {
+                var highscore = $("#highscore");
+                highscore.empty();
+
+                var scores = calculateHighscore();   
+                var tuples = scores[0];
+                var maxMass = scores[1];
+
+                for (var i = 0; i < tuples.length; i++) {
+                    var massTuple = tuples[i];
+                    var botInfoId = tuples[i].id;
                     var mass = massTuple.mass;
                     var botInfo = botInfos[botInfoId];
                     var shortName = botInfo.name.substr(botInfo.name.length - 10);
