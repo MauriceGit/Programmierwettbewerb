@@ -1,0 +1,36 @@
+﻿
+
+Bot:
+
+Renderer und Browser:
+- Neuer Renderer mit guter Performance.
+
+Gameplay:
+- Bot-Spawnpunkt fair setzen
+- Middleware/Server: Channel überschreiben mit neuen Daten
+- Gui N Nachrichten pro Sekunde beliefern
+- Gui muss zwischen Spielständen interpolieren! (Z.B. über 2-3 Spielstände!) (Idee uU. verworfen, da das nicht gut aussieht)
+
+Finalisieren:
+- Größeanpassung, Geschwindigkeitsanpassung, etc...
+
+Statistik:
+- Auf dem Serversystem eine Statistik betreiben, wer wie gut ist
+- Eventuell einen speziellen Preis für den, der auf dem Testsystem kontinuierlich am Besten war
+- Statistik pro Namen. In Klammern das SVN-Repos.
+
+Orga:
+- Simples Makefile vorgeben mit: make name == svn-repos (pwb_15)
+- Einzeilige Datei (bot.names) mit Testnamen für den Testserver. Eine Zeile ist: pwb_15, kann angepasst werden.
+    Unter allen Namen aus bot.names kann der Bot auf dem Testsystem getestet werden!
+
+
+
+
+
+
+
+
+
+
+
