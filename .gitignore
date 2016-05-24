@@ -1,9 +1,0 @@
-bin/
-Go/pkg/
-BotCpp/BotCpp/Debug/
-BotCpp/BotCpp.sdf
-BotCpp/.vs/BotCpp/v14/.suo
-BotCpp/BotCpp/BotCpp.vcxproj.filters
-BotCpp/BotCpp/BotCpp.vcxproj.user
-BotCpp/Debug/
-Go/src/golang.org
