@@ -54,7 +54,7 @@ type Blob struct {
     Mass         float32    `json:"mass"`
     VelocityFac  float32
     ReunionTime  float32
-    TargetPos    Vec2
+    IndividualTargetVec    Vec2
 }
 
 func Radius(mass float32) float32 {
@@ -493,7 +493,7 @@ func checkAllValuesOnNaN(prefix string) {
         checkNaNV(bot.ViewWindow.Size, prefix, "bot.ViewWindow.Size")
         for _,blob := range bot.Blobs {
             checkNaNV(blob.Position, prefix, "blob.Position")
-            checkNaNV(blob.TargetPos, prefix, "blob.TargetPos")
+            checkNaNV(blob.IndividualTargetVec, prefix, "blob.IndividualTargetVec")
             checkNaNF(blob.Mass, prefix, "blob.Mass")
             checkNaNF(blob.ReunionTime, prefix, "blob.ReunionTime")
             checkNaNF(blob.VelocityFac, prefix, "blob.VelocityFac")
@@ -592,18 +592,18 @@ func (app* Application) startUpdateLoop() {
                 time        := dt * 50
                 newVelocity := Muls(velocity, time)
                 newPosition := Add (oldPosition, newVelocity)
-                newPosition =  Add (newPosition, blob.TargetPos)
+                newPosition =  Add (newPosition, blob.IndividualTargetVec)
 
                 //Logf(LtDebug, "old: %v; new: %v, velocity: %v, time: %v\n", oldPosition, newPosition, velocity, time)
 
                 blob.Position = newPosition
 
-                //singleBlob.Position = Add(singleBlob.Position, Muls(calcBlobVelocity(&singleBlob, blob.TargetPos), dt * 100))
+                //singleBlob.Position = Add(singleBlob.Position, Muls(calcBlobVelocity(&singleBlob, blob.IndividualTargetVec), dt * 100))
                 blob.Mass = calcBlobbMassLoss(blob.Mass, dt)
                 blob.VelocityFac = blob.VelocityFac * velocityDecreaseFactor
 
                 // So this is not added all the time but just for a short moment!
-                blob.TargetPos = Muls(blob.TargetPos, 20.0*dt)
+                blob.IndividualTargetVec = Muls(blob.IndividualTargetVec, velocityDecreaseFactor)
 
                 if blob.ReunionTime > 0.0 {
                     blob.ReunionTime -= dt
@@ -900,8 +900,6 @@ func (app* Application) startUpdateLoop() {
             }
         }
 
-        //checkAllValuesOnNaN("thorth")
-
         //
         // Eating blobs
         //
@@ -1146,7 +1144,7 @@ func createStartingBot(ws *websocket.Conn, botInfo BotInfo) Bot {
         Mass:           100.0,
         VelocityFac:    1.0,
         ReunionTime:    0.0,
-        TargetPos:      NullVec2(),
+        IndividualTargetVec:      NullVec2(),
     }
     return Bot{
         Info:                   botInfo,

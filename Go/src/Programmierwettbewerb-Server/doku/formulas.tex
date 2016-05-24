@@ -22,10 +22,23 @@
 	  if one blob is larger or longer in play.
 \item Food and Toxins are randomly added during play. It is possible, that a toxin spawns 
       inside a blob and causing it to explode (Will not happen very often!).
-
+\item All blobs of a bot have exactly one target they all move to reach.
+\item The new position of a blob is calculated, using the following formula:
+	  \begin{align*}	  
+      \text{Velocity}            &= \text{Velocity calculated using the universal Target and Mass.}\\
+      \text{IndividialTargetVec} &= \text{Vector created for exploding or splitting blobs. Are only temporary.}\\
+      NewPos              &= OldPos + Velocity + IndividualTargetVec
+      \end{align*}
 \end{itemize}      
       
-\section{Splitting/Exploding/Throwing}
+      
+\section{Splitting/Exploding}
+\begin{itemize}
+\item When a blob explodes or splits, the new blobs will have
+      an additional movement vector.
+\end{itemize}
+      
+\section{Throwing/Toxin-Split}
 \begin{itemize}
 \item When a blob explodes, a blob/toxin splits or food is thrown, the new blobs/food/toxin will be given an
       additional velocity, which will be added to the normal movement.
@@ -34,7 +47,8 @@
       This is identical for blobs, food and toxin.	
 \item The following velocities will be added: \newline
       food:  150 \newline
-      toxin: 
+      toxin: 100 \newline
+      
 \end{itemize}
 
 \section{Toxin Calculations}
