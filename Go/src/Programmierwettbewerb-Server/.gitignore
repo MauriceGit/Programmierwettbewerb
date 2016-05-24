@@ -1,0 +1,3 @@
+git ignore "*.log"
+git ignore "*.aux"
+git ignore "*.synctex.gz"

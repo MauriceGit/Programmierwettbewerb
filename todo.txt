@@ -1,15 +1,10 @@
 ﻿
-
-Bot:
-
 Renderer und Browser:
 - Neuer Renderer mit guter Performance.
 
 Gameplay:
 - Bot-Spawnpunkt fair setzen
 - Middleware/Server: Channel überschreiben mit neuen Daten
-- Gui N Nachrichten pro Sekunde beliefern
-- Gui muss zwischen Spielständen interpolieren! (Z.B. über 2-3 Spielstände!) (Idee uU. verworfen, da das nicht gut aussieht)
 
 Finalisieren:
 - Größeanpassung, Geschwindigkeitsanpassung, etc...
@@ -17,16 +12,43 @@ Finalisieren:
 Statistik:
 - Auf dem Serversystem eine Statistik betreiben, wer wie gut ist
 - Eventuell einen speziellen Preis für den, der auf dem Testsystem kontinuierlich am Besten war
-- Statistik pro Namen. In Klammern das SVN-Repos.
 
 Orga:
-- Simples Makefile vorgeben mit: make name == svn-repos (pwb_15)
-- Einzeilige Datei (bot.names) mit Testnamen für den Testserver. Eine Zeile ist: pwb_15, kann angepasst werden.
-    Unter allen Namen aus bot.names kann der Bot auf dem Testsystem getestet werden!
+- Simples Makefile vorgeben mit: make name == svn-repos (bsp: pwb_15)
 
+========================================================================
 
+Neue ToDos - Stand 12.05.:
 
+!- --> Done!
+-  --> Not done yet!
 
+Server:
+!- Genau 30fps.
+- Statistik in Datei schreiben (Achtung, Synchronisation - Variable mit fileInUse müsste reichen)
+- Statistik-Daten in einem eigenen Format an die Gui schicken. Evtl. alle 1-n Sekunden.
+- Wiedervereinen von Blobs muss länger dauern (bleibt konstant, unabhängig der Masse!)
+- Evtl. ein Levelsystem. Hauptsächlich bestehend aus einer Positionierung von Food/Toxin!
+!- Toxin neu spawnen, wenn gefressen!
+!- Toxin neu spawnen generell. Mit einer Obergrenze!
+!- Food neu spawnen generell. Mit einer Obergrenze!
+
+Gui:
+!- Canvas neu zeichnen bei Fenstergrößenänderungen
+- Der aktuelle Sichtbereich im Fenster muss folgende drei Modi wahlweise unterstützen:
+    - Alle Blobs sind immer sichtbar!
+    - Eine bestimmte Bot-ID verfolgen (Dieser ist im Zentrum [Oder der Schwerpunkt aller Blobs])
+    - Eine bestimmte Team-ID verfolgen. Alle Bots dieses Teams müssen im Sichtbereich sein!
+- Statistik in der Gui auffrischen, performanter machen und evtl. schicker (?) (Henk)
+- Statistik-Daten vom Server empfangen und cachen.
+
+Formeln für die Teilnehmer:
+- Formel für Kontakt zwischen Blob und Blob/Food/Toxin (Entfernung, wann wird was gefressen!)
+- Basisgeschwindigkeitsvektor (Was ist das und so)
+- Beim Splitten/Explodieren kommt ein zusätzlicher Vektor ins Spiel, der auf die Basisgeschwindigkeit addiert wird
+- Der Split-Vektor wird in jedem Zeitschritt *= 0.95 (oder so) genommen.
+- Eventuell Formel, wann ca. 90% der maximalen Split-Entfernung erreicht wurde (20 Frames oder so)
+- Formeln für Food abwerfen / Toxin-Split. Evtl. den gleichen Split-Vektor nehmen?!
 
 
 

@@ -1,0 +1,52 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[latin1]{inputenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\author{Maurice Tollmien}
+\title{Formulas for the programming Contest 2016}
+\begin{document}
+
+\thispagestyle{empty}
+\begin{center}
+\textbf{\large{Some principles and formulas we use in the Agar-Server, that you use in your bots logic}}
+\end{center}
+
+\section{General Information}
+\begin{itemize}
+\item The server runs with consistently 30fps (So $\delta t = 0.03$). \newline
+      When calculations take too long and 30fps are not possible, there will be less calculations per second
+      but $\delta t$ will still be corrected to 0.03.
+\item The calculation order is non-deterministic. That means, that there is no advantage over another player 
+	  if one blob is larger or longer in play.
+\item Food and Toxins are randomly added during play. It is possible, that a toxin spawns 
+      inside a blob and causing it to explode (Will not happen very often!).
+
+\end{itemize}      
+      
+\section{Splitting/Exploding/Throwing}
+\begin{itemize}
+\item When a blob explodes, a blob/toxin splits or food is thrown, the new blobs/food/toxin will be given an
+      additional velocity, which will be added to the normal movement.
+\item The additional velocity decreases over time. At every timestep the velocity is multiplied by $0.95$. \newline
+      So: $newVelocity = oldVelocity * 0.95$ \newline
+      This is identical for blobs, food and toxin.	
+\item The following velocities will be added: \newline
+      food:  150 \newline
+      toxin: 
+\end{itemize}
+
+\section{Toxin Calculations}
+\begin{itemize}
+\item When a toxin is split and moving, it will adopt the velocity of the last food that is thrown into the toxin.
+\end{itemize}
+
+\section{Food Calculations}
+\begin{itemize}
+\item When a food is thrown, it will always move in the direction of the bots target.
+\item Every blob (when exploded or split) of one bot will throw a food. This can result in multiple foods thrown 
+      in one time step.
+\end{itemize}
+
+\end{document}

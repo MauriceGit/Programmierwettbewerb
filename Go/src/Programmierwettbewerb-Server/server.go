@@ -1,9 +1,9 @@
 package main
 
 import (
-    . "Programmierwettbewerb-Server/vector"
-    . "Programmierwettbewerb-Server/shared"
-    . "Programmierwettbewerb-Server/organisation"
+    . "github.com/hpatjens/Programmierwettbewerb-Server/vector"
+    . "github.com/hpatjens/Programmierwettbewerb-Server/shared"
+    . "github.com/hpatjens/Programmierwettbewerb-Server/organisation"
 
     "golang.org/x/net/websocket"
     //"fmt"
@@ -25,13 +25,20 @@ const (
     thrownFoodMass = 10
     massToBeAllowedToThrow = 120
     foodCount = 300  // TODO(henk): How do we decide how much food there is?
-    toxinCount = 30
+    foodCountMax = 500
+    toxinCount = 100
+    toxinCountMax = 200
     botMinMass = 10
     botMaxMass = 4000.0
+    blobReunionTime = 10.0
+    blobSplitMass   = 100.0
+    blobSplitVelocity = float32(1.5)
     toxinMassMin = 100
     toxinMassMax = 150
     windowMin = 100
     windowMax = 400
+
+    velocityDecreaseFactor = 0.95
 
     mwMessageEvery = 1
     guiMessageEvery = 1
@@ -136,7 +143,7 @@ func (app* Application) initialize() {
     }
 
     for i := 0; i < toxinCount; i++ {
-        app.toxins[ToxinId(i)] = Toxin{true, false, Mulv(RandomVec2(), app.fieldSize), 100, RandomVec2()}
+        app.toxins[ToxinId(i)] = Toxin{true, false, Mulv(RandomVec2(), app.fieldSize), toxinMassMin, RandomVec2()}
     }
 }
 
@@ -362,7 +369,7 @@ func splitAllBlobsOfBot(bot *Bot) {
     var newBlobMap = make(map[BlobId]Blob)
     for subBlobToSplit, subBlob := range (*bot).Blobs {
         // Just split if bigger than 100
-        if (*bot).Blobs[subBlobToSplit].Mass >= 100 {
+        if (*bot).Blobs[subBlobToSplit].Mass >= blobSplitMass {
             var newMass = subBlob.Mass / 2.0
 
             // Override the old mass and time to reunion, so it is not eaten right away.
@@ -372,7 +379,7 @@ func splitAllBlobsOfBot(bot *Bot) {
             (*bot).Blobs[subBlobToSplit] = tmp
 
             var newIndex = app.createBlobId()
-            newBlobMap[newIndex] = Blob{ subBlob.Position, newMass, float32(1.5), 10.0, NullVec2()}
+            newBlobMap[newIndex] = Blob{ subBlob.Position, newMass, blobSplitVelocity, blobReunionTime, NullVec2()}
         }
     }
 
@@ -391,7 +398,7 @@ func throwAllBlobsOfBot(bot *Bot) bool {
             if Length(sub) <= 0.01 {
                 sub = RandomVec2()
             }
-            targetDirection := NormalizeOrZero(sub) // TODO(henk): Throw in the direction of the target or in the move-direction of the individual Blobs?
+            targetDirection := NormalizeOrZero(sub)
             food := Food{
                 IsNew:    true,
                 IsMoving: true,
@@ -505,7 +512,7 @@ func checkAllValuesOnNaN(prefix string) {
 }
 
 func (app* Application) startUpdateLoop() {
-    ticker := time.NewTicker(time.Millisecond * 10)
+    ticker := time.NewTicker(time.Millisecond * 30)
     var lastTime = time.Now()
 
     var fpsAdd float32
@@ -519,8 +526,14 @@ func (app* Application) startUpdateLoop() {
         var dt = float32(t.Sub(lastTime).Nanoseconds()) / 1e9
         lastTime = t
 
-        if fpsCnt == 9 {
-            //Logf(LtDebug, "fps: %v\n", fpsAdd / float32(fpsCnt+1))
+        //CheckPotentialPlayer("nick2")
+
+        if dt >= 0.03 {
+            dt = 0.03
+        }
+
+        if fpsCnt == 30 {
+            Logf(LtDebug, "fps: %v\n", fpsAdd / float32(fpsCnt+1))
             fpsAdd = 0
             fpsCnt = 0
         }
@@ -587,7 +600,7 @@ func (app* Application) startUpdateLoop() {
 
                 //singleBlob.Position = Add(singleBlob.Position, Muls(calcBlobVelocity(&singleBlob, blob.TargetPos), dt * 100))
                 blob.Mass = calcBlobbMassLoss(blob.Mass, dt)
-                blob.VelocityFac = blob.VelocityFac / 1.05
+                blob.VelocityFac = blob.VelocityFac * velocityDecreaseFactor
 
                 // So this is not added all the time but just for a short moment!
                 blob.TargetPos = Muls(blob.TargetPos, 20.0*dt)
@@ -650,13 +663,26 @@ func (app* Application) startUpdateLoop() {
         //checkAllValuesOnNaN("first")
 
         ////////////////////////////////////////////////////////////////
+        // POSSIBLY ADD A FOOD OR TOXIN
+        ////////////////////////////////////////////////////////////////
+        if rand.Intn(100) <= 5 && len(app.toxins) < toxinCountMax {
+            newToxinId := app.createToxinId()
+            app.toxins[newToxinId] = Toxin{true, false, Mulv(RandomVec2(), app.fieldSize), toxinMassMin, RandomVec2()}
+        }
+        if rand.Intn(100) <= 5 && len(app.foods) < foodCountMax {
+            newFoodId := app.createFoodId()
+            mass := foodMassMin + rand.Float32() * (foodMassMax - foodMassMin)
+            app.foods[newFoodId] = Food{ true, false, false, mass, Mulv(RandomVec2(), app.fieldSize), RandomVec2() }
+        }
+
+        ////////////////////////////////////////////////////////////////
         // UPDATE FOOD POSITION
         ////////////////////////////////////////////////////////////////
         for foodId, food := range app.foods {
             if food.IsMoving {
                 food.Position = Add(food.Position, Muls(food.Velocity, dt))
                 limitPosition(&food.Position)
-                food.Velocity = Muls(food.Velocity, 0.98)
+                food.Velocity = Muls(food.Velocity, velocityDecreaseFactor)
                 app.foods[foodId] = food
                 if Length(food.Velocity) <= 0.001 {
                     food.IsMoving = false
@@ -671,7 +697,7 @@ func (app* Application) startUpdateLoop() {
             if toxin.IsMoving {
                 toxin.Position = Add(toxin.Position, Muls(toxin.Velocity, dt))
                 limitPosition(&toxin.Position)
-                toxin.Velocity = Muls(toxin.Velocity, 0.95)
+                toxin.Velocity = Muls(toxin.Velocity, velocityDecreaseFactor)
                 app.toxins[toxinId] = toxin
                 if Length(toxin.Velocity) <= 0.001 {
                     toxin.IsMoving = false
@@ -750,7 +776,6 @@ func (app* Application) startUpdateLoop() {
         for tId,_ := range app.toxins {
             var toxin = app.toxins[tId]
 
-
             for botId, _ := range app.bots {
                 bot := app.bots[botId]
 
@@ -775,8 +800,12 @@ func (app* Application) startUpdateLoop() {
                         }
 
                         blobsToDelete = append(blobsToDelete, blobId)
-                        eatenToxins = append(eatenToxins, tId)
-                        delete(app.toxins, tId)
+                        //eatenToxins = append(eatenToxins, tId)
+
+                        toxin.Position = Mulv(RandomVec2(), app.fieldSize)
+                        toxin.IsNew = true
+                        toxin.Mass = toxinMassMin
+                        //delete(app.toxins, tId)
                     }
                 }
 
@@ -795,6 +824,7 @@ func (app* Application) startUpdateLoop() {
                 }
             }
 
+            app.toxins[tId] = toxin
 
         }
 
