@@ -74,7 +74,7 @@
         </div>
 
         <canvas id="canvas">Sorry, your browser doesn't support canvas.</canvas>
-        
+
         <div class="highscore" id="highscore" />
 
         <script type="text/javascript">
@@ -175,7 +175,7 @@
                     resizeCanvas();
                 };
                 resizeCanvas();
-    
+
                 //
                 // Rendering
                 //
@@ -279,7 +279,7 @@
 
             function radius(mass) {
                 return Math.max(1, Math.sqrt(mass / Math.PI)); // TODO(henk): Maybe remove the max(1, ...), when we talked about the sizes of stuff.
-            }           
+            }
 
             function render() {
                 var canvas = document.getElementById('canvas');
@@ -411,7 +411,7 @@
                 var highscore = $("#highscore");
                 highscore.empty();
 
-                var scores = calculateHighscore();   
+                var scores = calculateHighscore();
                 var tuples = scores[0];
                 var maxMass = scores[1];
 

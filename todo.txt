@@ -37,7 +37,7 @@ Gui:
 !- Canvas neu zeichnen bei Fenstergrößenänderungen
 - Der aktuelle Sichtbereich im Fenster muss folgende drei Modi wahlweise unterstützen:
     - Alle Blobs sind immer sichtbar!
-    - Eine bestimmte Bot-ID verfolgen (Dieser ist im Zentrum [Oder der Schwerpunkt aller Blobs])
+!   - Eine bestimmte Bot-ID verfolgen (Dieser ist im Zentrum [Oder der Schwerpunkt aller Blobs])
     - Eine bestimmte Team-ID verfolgen. Alle Bots dieses Teams müssen im Sichtbereich sein!
 - Statistik in der Gui auffrischen, performanter machen und evtl. schicker (?) (Henk)
 - Statistik-Daten vom Server empfangen und cachen.
