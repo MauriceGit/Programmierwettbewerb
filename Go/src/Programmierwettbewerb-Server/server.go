@@ -1,9 +1,9 @@
 package main
 
 import (
-    . "github.com/hpatjens/Programmierwettbewerb-Server/vector"
-    . "github.com/hpatjens/Programmierwettbewerb-Server/shared"
-    . "github.com/hpatjens/Programmierwettbewerb-Server/organisation"
+    . "Programmierwettbewerb-Server/vector"
+    . "Programmierwettbewerb-Server/shared"
+    . "Programmierwettbewerb-Server/organisation"
 
     "golang.org/x/net/websocket"
     //"fmt"
