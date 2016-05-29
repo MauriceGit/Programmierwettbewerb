@@ -773,14 +773,10 @@ func (app* Application) startUpdateLoop() {
                 }
                 app.toxins[newId] = newToxin
 
-                if toxin.IsSplit {
-                    possibleBot, foundIt := app.bots[BotId(toxin.IsSplitBy)]
-                    if foundIt {
-                        Logf(LtDebug, "YAAY, BOT NOW SPLIT A TOXIN :)\n")
-                        possibleBot.StatisticsThisGame.ToxinThrow += 1
-                        app.bots[BotId(toxin.IsSplitBy)] = possibleBot
-                    }
-                    Logf(LtDebug, "Why isn't it working?\n")
+                possibleBot, foundIt := app.bots[BotId(toxin.IsSplitBy)]
+                if foundIt {
+                    possibleBot.StatisticsThisGame.ToxinThrow += 1
+                    app.bots[BotId(toxin.IsSplitBy)] = possibleBot
                 }
 
             }
