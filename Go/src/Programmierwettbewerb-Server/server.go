@@ -43,6 +43,7 @@ const (
 
     mwMessageEvery = 1
     guiMessageEvery = 1
+    guiStatisticsMessageEvery = 1
 
 )
 
@@ -202,6 +203,8 @@ type ServerGuiUpdateMessage struct {
     DeletedFoods                []FoodId                        `json:"deletedFoods"`
     CreatedOrUpdatedToxins      map[string]ServerGuiToxin       `json:"createdOrUpdatedToxins"`
     DeletedToxins               []ToxinId                       `json:"deletedToxins"`
+    StatisticsThisGame          map[string]Statistics           `json:"statisticsLocal"`
+    StatisticsGlobal            map[string]Statistics           `json:"statisticsGlobal"`
 }
 
 func newServerGuiUpdateMessage() ServerGuiUpdateMessage {
@@ -214,6 +217,8 @@ func newServerGuiUpdateMessage() ServerGuiUpdateMessage {
         DeletedFoods:               make([]FoodId, 0),
         CreatedOrUpdatedToxins:     make(map[string]ServerGuiToxin),
         DeletedToxins:              make([]ToxinId, 0),
+        StatisticsThisGame:         make(map[string]Statistics),
+        StatisticsGlobal:           make(map[string]Statistics),
     }
 }
 
@@ -533,6 +538,7 @@ func (app* Application) startUpdateLoop() {
 
     var guiMessageCounter = 0
     var mWMessageCounter = 0
+    var guiStatisticsMessageCounter = 0
 
     for t := range ticker.C {
         var dt = float32(t.Sub(lastTime).Nanoseconds()) / 1e9
@@ -731,7 +737,7 @@ func (app* Application) startUpdateLoop() {
         // Split command received - Creating new Blob with same ID.
 
         for botId, bot := range app.bots {
-            if bot.Command.Action == BatSplit {
+            if bot.Command.Action == BatSplit && len(bot.Blobs) <= 10 {
                 Logln(LtDebug, "Split!")
 
                 var bot = app.bots[botId]
@@ -1078,9 +1084,13 @@ func (app* Application) startUpdateLoop() {
                     message.CreatedOrUpdatedBots[key] = makeServerGuiBot(bot)
                 }
 
+                if guiStatisticsMessageCounter % guiStatisticsMessageEvery == 0 {
+                    message.StatisticsThisGame[key] = bot.StatisticsThisGame
+                    // @Todo: The global one MUCH more rarely!
+                    message.StatisticsGlobal[key] = bot.StatisticsOverall
+                }
+
             }
-
-
 
             for _, botId := range deadBots {
                 message.DeletedBots = append(message.DeletedBots, botId)
@@ -1149,6 +1159,7 @@ func (app* Application) startUpdateLoop() {
         }
         guiMessageCounter += 1
         mWMessageCounter += 1
+        guiStatisticsMessageCounter += 1
     }
 }
 
