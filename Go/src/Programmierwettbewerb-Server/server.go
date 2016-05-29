@@ -37,6 +37,7 @@ const (
     toxinMassMax = 150
     windowMin = 100
     windowMax = 400
+    massLossFactor = 10.0
 
     velocityDecreaseFactor = 0.95
 
@@ -53,6 +54,7 @@ type Blob struct {
     Position     Vec2       `json:"pos"`
     Mass         float32    `json:"mass"`
     VelocityFac  float32
+    IsSplit      bool
     ReunionTime  float32
     IndividualTargetVec    Vec2
 }
@@ -82,6 +84,10 @@ type Bot struct {
     GuiNeedsInfoUpdate  bool
     ViewWindow          ViewWindow
     Blobs               map[BlobId]Blob
+    // This is updated regulary during the game
+    StatisticsThisGame  Statistics
+    // This is updated once the bot dies and will be up to date for the next game
+    StatisticsOverall   Statistics
     Command             BotCommand
     Connection          *websocket.Conn
     ConnectionAlive     bool                // TODO(henk): What shall we do when the connection is lost?
@@ -101,6 +107,9 @@ type MwInfo struct {
 
     createNewBot            bool
     botInfo                 BotInfo
+
+    statistics              Statistics
+
     ws                      *websocket.Conn
 }
 
@@ -139,11 +148,11 @@ func (app* Application) initialize() {
 
     for i := FoodId(0); i < foodCount; i++ {
         mass := foodMassMin + rand.Float32() * (foodMassMax - foodMassMin)
-        app.foods[i] = Food{ true, false, false, mass, Mulv(RandomVec2(), app.fieldSize), RandomVec2() }
+        app.foods[i] = Food{ true, false, false, 0, mass, Mulv(RandomVec2(), app.fieldSize), RandomVec2() }
     }
 
     for i := 0; i < toxinCount; i++ {
-        app.toxins[ToxinId(i)] = Toxin{true, false, Mulv(RandomVec2(), app.fieldSize), toxinMassMin, RandomVec2()}
+        app.toxins[ToxinId(i)] = Toxin{true, false, Mulv(RandomVec2(), app.fieldSize), false, 0, toxinMassMin, RandomVec2()}
     }
 }
 
@@ -302,7 +311,7 @@ func calcBlobVelocity(blob *Blob, targetPos Vec2) Vec2 {
 
 func calcBlobbMassLoss(mass float32, dt float32) float32 {
     if mass > botMinMass {
-        return mass - (mass/botMaxMass)*dt*50.0
+        return mass - (mass/botMaxMass)*dt*massLossFactor
     }
     return mass
 }
@@ -353,6 +362,7 @@ func calcSubblobReunion(killedBlobs *IdsContainer, botId BotId, bot *Bot) {
                     // Merge them together.
                     var tmp = (*bot).Blobs[k]
                     tmp.Mass += (*bot).Blobs[k2].Mass
+                    tmp.IsSplit = false
                     (*bot).Blobs[k] = tmp
 
                     // Delete blob
@@ -379,7 +389,7 @@ func splitAllBlobsOfBot(bot *Bot) {
             (*bot).Blobs[subBlobToSplit] = tmp
 
             var newIndex = app.createBlobId()
-            newBlobMap[newIndex] = Blob{ subBlob.Position, newMass, blobSplitVelocity, blobReunionTime, NullVec2()}
+            newBlobMap[newIndex] = Blob{ subBlob.Position, newMass, blobSplitVelocity, true, blobReunionTime, NullVec2()}
         }
     }
 
@@ -389,7 +399,7 @@ func splitAllBlobsOfBot(bot *Bot) {
     }
 }
 
-func throwAllBlobsOfBot(bot *Bot) bool {
+func throwAllBlobsOfBot(bot *Bot, botId BotId) bool {
     somebodyThrew := false
     for blobId, blob := range (*bot).Blobs {
         if blob.Mass > massToBeAllowedToThrow {
@@ -403,6 +413,7 @@ func throwAllBlobsOfBot(bot *Bot) bool {
                 IsNew:    true,
                 IsMoving: true,
                 IsThrown: true,
+                IsThrownBy: uint32(botId),
                 Mass:     thrownFoodMass,
                 Position: Add(blob.Position, Muls(targetDirection, 1.5*(blob.Radius() + Radius(thrownFoodMass)))),
                 Velocity: Muls(targetDirection, 150),
@@ -443,6 +454,7 @@ func explodeBlob(botId BotId, blobId BlobId, newMap *map[BlobId]Blob)  {
             // try to push them apart in the first step. Otherwise we have the exact same
             // position and the diff-Vector is undefined/null. Can't push them apart!
             blob.VelocityFac+0.1,
+            false,
             10.0,
             // Random Vector with about same length. Should be uniformly divided!
             randomVecOnCircle(splitRadius),
@@ -526,14 +538,18 @@ func (app* Application) startUpdateLoop() {
         var dt = float32(t.Sub(lastTime).Nanoseconds()) / 1e9
         lastTime = t
 
-        //CheckPotentialPlayer("nick2")
-
         if dt >= 0.03 {
             dt = 0.03
         }
 
-        if fpsCnt == 30 {
-            Logf(LtDebug, "fps: %v\n", fpsAdd / float32(fpsCnt+1))
+        // Once every 10 seconds
+        if fpsCnt == 300 {
+            //Logf(LtDebug, "fps: %v\n", fpsAdd / float32(fpsCnt+1))
+
+            for _,bot := range app.bots {
+                go WriteStatisticToFile(bot.Info.Name, bot.StatisticsThisGame)
+            }
+
             fpsAdd = 0
             fpsCnt = 0
         }
@@ -561,7 +577,7 @@ func (app* Application) startUpdateLoop() {
                         app.bots[mwInfo.botId] = bot
                     }
                     if mwInfo.createNewBot {
-                        app.bots[mwInfo.botId] = createStartingBot(mwInfo.ws, mwInfo.botInfo)
+                        app.bots[mwInfo.botId] = createStartingBot(mwInfo.ws, mwInfo.botInfo, mwInfo.statistics)
                     }
 
                 } else {
@@ -667,12 +683,12 @@ func (app* Application) startUpdateLoop() {
         ////////////////////////////////////////////////////////////////
         if rand.Intn(100) <= 5 && len(app.toxins) < toxinCountMax {
             newToxinId := app.createToxinId()
-            app.toxins[newToxinId] = Toxin{true, false, Mulv(RandomVec2(), app.fieldSize), toxinMassMin, RandomVec2()}
+            app.toxins[newToxinId] = Toxin{true, false, Mulv(RandomVec2(), app.fieldSize), false, 0, toxinMassMin, RandomVec2()}
         }
         if rand.Intn(100) <= 5 && len(app.foods) < foodCountMax {
             newFoodId := app.createFoodId()
             mass := foodMassMin + rand.Float32() * (foodMassMax - foodMassMin)
-            app.foods[newFoodId] = Food{ true, false, false, mass, Mulv(RandomVec2(), app.fieldSize), RandomVec2() }
+            app.foods[newFoodId] = Food{ true, false, false, 0, mass, Mulv(RandomVec2(), app.fieldSize), RandomVec2() }
         }
 
         ////////////////////////////////////////////////////////////////
@@ -719,13 +735,14 @@ func (app* Application) startUpdateLoop() {
                 Logln(LtDebug, "Split!")
 
                 var bot = app.bots[botId]
+                bot.StatisticsThisGame.SplitCount += 1
                 var botRef = &bot
                 splitAllBlobsOfBot(botRef)
                 app.bots[botId] = *botRef
 
             } else if bot.Command.Action == BatThrow {
                 bot := app.bots[botId]
-                somebodyThrew := throwAllBlobsOfBot(&bot)
+                somebodyThrew := throwAllBlobsOfBot(&bot, botId)
                 if somebodyThrew {
                     Logln(LtDebug, "Throw!")
                 }
@@ -749,10 +766,23 @@ func (app* Application) startUpdateLoop() {
                     IsNew: true,
                     IsMoving: true,
                     Position: toxin.Position,
+                    IsSplit: true,
+                    IsSplitBy: toxin.IsSplitBy,
                     Mass: toxinMassMin,
                     Velocity: toxin.Velocity,
                 }
                 app.toxins[newId] = newToxin
+
+                if toxin.IsSplit {
+                    possibleBot, foundIt := app.bots[BotId(toxin.IsSplitBy)]
+                    if foundIt {
+                        Logf(LtDebug, "YAAY, BOT NOW SPLIT A TOXIN :)\n")
+                        possibleBot.StatisticsThisGame.ToxinThrow += 1
+                        app.bots[BotId(toxin.IsSplitBy)] = possibleBot
+                    }
+                    Logf(LtDebug, "Why isn't it working?\n")
+                }
+
             }
             app.toxins[toxinId] = toxin
         }
@@ -791,6 +821,14 @@ func (app* Application) startUpdateLoop() {
                     if Dist(singleBlob.Position, toxin.Position) < singleBlob.Radius() && singleBlob.Mass >= 400 {
                         subMap := make(map[BlobId]Blob)
 
+                        if toxin.IsSplit {
+                            possibleBot, foundIt := app.bots[BotId(toxin.IsSplitBy)]
+                            if foundIt {
+                                possibleBot.StatisticsThisGame.SuccessfulToxin += 1
+                                app.bots[BotId(toxin.IsSplitBy)] = possibleBot
+                            }
+                        }
+
                         explodeBlob(botId, blobId, &subMap)
                         exploded = true
 
@@ -822,6 +860,8 @@ func (app* Application) startUpdateLoop() {
                         bot.Blobs[i] = b
                     }
                 }
+
+                app.bots[botId] = bot
             }
 
             app.toxins[tId] = toxin
@@ -886,6 +926,7 @@ func (app* Application) startUpdateLoop() {
                     if Length(food.Velocity) <= 0.01 {
                         food.Velocity = RandomVec2()
                     }
+                    toxin.IsSplitBy = food.IsThrownBy
                     toxin.Velocity = Muls(NormalizeOrZero(food.Velocity), 100)
                     if food.IsThrown {
                         delete(app.foods, foodId)
@@ -900,21 +941,15 @@ func (app* Application) startUpdateLoop() {
             }
         }
 
-        //
         // Eating blobs
-        //
-        // ToDo(Maurice|Henk): Die Schleifen müssen umgestellt werden, dass keine Blob-Daten
-        // innerhalb der inneren Schleife/n geändert/gelöscht werden. Damit machen wir uns unter Umständen
-        // den Iterator der obersten Schleife kaputt!!!
-        //
-        // Nein machen wir nicht: https://golang.org/doc/effective_go.html#for  :-D
-        //
         deadBots := make([]BotId, 0)
 
-        for botId1, _ := range app.bots {
-            bot1 := app.bots[botId1]
+        for botId1, bot1 := range app.bots {
+
+            var bot1Mass float32
             for blobId1, blob1 := range app.bots[botId1].Blobs {
                 //blob1 := bot1.Blobs[blobId1]
+                bot1Mass += blob1.Mass
 
                 for botId2, bot2 := range app.bots {
                     if botId1 != botId2 {
@@ -928,6 +963,12 @@ func (app* Application) startUpdateLoop() {
                             if smaller && inRadius {
                                 blob1.Mass = blob1.Mass + blob2.Mass
 
+                                bot1.StatisticsThisGame.BlobKillCount += 1
+
+                                if blob1.IsSplit {
+                                    bot1.StatisticsThisGame.SuccessfulSplit += 1
+                                }
+
                                 killedBlobs.insert(botId2, blobId2)
 
                                 delete(app.bots[botId2].Blobs, blobId2)
@@ -935,6 +976,11 @@ func (app* Application) startUpdateLoop() {
                                 // Completely delete this bot.
                                 if len(app.bots[botId2].Blobs) <= 0 {
                                     deadBots = append(deadBots, botId2)
+
+                                    bot1.StatisticsThisGame.BotKillCount += 1
+
+                                    go WriteStatisticToFile(bot2.Info.Name, bot2.StatisticsThisGame)
+
                                     bot2.Connection.Close()
                                     delete(app.bots, botId2)
                                     break
@@ -945,13 +991,18 @@ func (app* Application) startUpdateLoop() {
                     }
                 }
 
-
                 app.bots[botId1].Blobs[blobId1] = blob1
             }
+
+            stats := bot1.StatisticsThisGame
+            stats.MaxSize = float32(math.Max(float64(stats.MaxSize), float64(bot1Mass)))
+            stats.MaxSurvivalTime += dt
+
+            bot1.StatisticsThisGame = stats
             app.bots[botId1] = bot1
         }
 
-
+        //Logf(LtDebug, "deadBots: %v\n", deadBots)
 
         ////////////////////////////////////////////////////////////////
         // CHECK ANYTHING ON NaN VALUES
@@ -1138,19 +1189,35 @@ func handleGui(ws *websocket.Conn) {
     }
 }
 
-func createStartingBot(ws *websocket.Conn, botInfo BotInfo) Bot {
+func createStartingBot(ws *websocket.Conn, botInfo BotInfo, statistics Statistics) Bot {
     blob := Blob {
         Position:       Mulv(RandomVec2(), app.fieldSize),  // TODO(henk): How do we decide this?
         Mass:           100.0,
         VelocityFac:    1.0,
+        IsSplit:        false,
         ReunionTime:    0.0,
         IndividualTargetVec:      NullVec2(),
     }
+    statisticNew := Statistics{
+        MaxSize:            100.0,
+        MaxSurvivalTime:    0.0,
+        BlobKillCount:      0,
+        BotKillCount:       0,
+        ToxinThrow:         0,
+        SuccessfulToxin:    0,
+        SplitCount:         0,
+        SuccessfulSplit:    0,
+        SuccessfulTeam:     0,
+        BadTeaming:         0,
+}
+
     return Bot{
         Info:                   botInfo,
         GuiNeedsInfoUpdate:     true,
         ViewWindow:             ViewWindow{ Position: Vec2{0,0}, Size:Vec2{100,100} },
         Blobs:                  map[BlobId]Blob{ 0: blob },
+        StatisticsThisGame:     statisticNew,
+        StatisticsOverall:      statistics,
         Command:                BotCommand{ BatNone, RandomVec2(), },
         Connection:             ws,
         ConnectionAlive:        true,
@@ -1176,7 +1243,17 @@ func handleMiddleware(ws *websocket.Conn) {
             // In case the bot did not send a BotInfo for registration before the connection was lost, it's not in the map.
             var cmd BotCommand
             var bi  BotInfo
-            app.mwInfo <- MwInfo {botId, cmd, false, false, bi, nil}
+
+            //app.mwInfo <- MwInfo {botId, cmd, false, false, bi, nil, nil}
+            app.mwInfo <- MwInfo {
+                            botId:                  botId,
+                            command:                cmd,
+                            connectionAlive:        false,
+                            createNewBot:           false,
+                            botInfo:                bi,
+                            statistics:             Statistics{},
+                            ws:                     nil,
+                          }
 
             return
         }
@@ -1188,7 +1265,16 @@ func handleMiddleware(ws *websocket.Conn) {
             if message.BotCommand != nil {
 
                 var bi  BotInfo
-                app.mwInfo <- MwInfo{botId, *message.BotCommand, true, false, bi, nil}
+                //app.mwInfo <- MwInfo{botId, *message.BotCommand, true, false, bi, nil, nil}
+                app.mwInfo <- MwInfo{
+                                botId:              botId,
+                                command:            *message.BotCommand,
+                                connectionAlive:    true,
+                                createNewBot:       false,
+                                botInfo:            bi,
+                                statistics:         Statistics{},
+                                ws:                 nil,
+                              }
 
 
             } else {
@@ -1197,8 +1283,28 @@ func handleMiddleware(ws *websocket.Conn) {
         } else if message.Type == MmstBotInfo {
             if message.BotInfo != nil {
 
+                // Check, if a player with this name is actually allowed to play
+                // So we take the time to sort out old statistics from files here and not
+                // in the main game loop (so adding, say, 100 bots, doesn't affect the other, normal computations!)
+                isAllowed, statisticsOverall := CheckPotentialPlayer(message.BotInfo.Name)
+
+                if !isAllowed {
+                    Logf(LtDebug, "The player %v is not allowed to play. Please add %v to your bot.names.\n", message.BotInfo.Name, message.BotInfo.Name)
+                    ws.Close()
+                    return
+                }
+
                 var cmd BotCommand
-                app.mwInfo <- MwInfo{botId, cmd, true, true, *message.BotInfo, ws}
+                //app.mwInfo <- MwInfo{botId, cmd, true, true, *message.BotInfo, statistics, ws}
+                app.mwInfo <- MwInfo{
+                                botId:              botId,
+                                command:            cmd,
+                                connectionAlive:    true,
+                                createNewBot:       true,
+                                botInfo:            *message.BotInfo,
+                                statistics:         statisticsOverall,
+                                ws:                 ws,
+                              }
 
                 Logf(LtDebug, "Bot %v registered: %v.\n", botId, *message.BotInfo)
             } else {
@@ -1214,6 +1320,8 @@ func main() {
     SetLoggingVerbose(false)
 
     app.initialize()
+
+    InitOrganisation()
 
     UpdateAllSVN()
 

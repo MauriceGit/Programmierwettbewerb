@@ -7,13 +7,13 @@ import (
     "io/ioutil"
     "os/exec"
     "os"
+    "math"
     "bufio"
 )
 
-
 type PlayerData struct {
-    Nicknames   []string  `json:"nicknames"`
-    Score       int       `json:"playerScore"`
+    Nicknames   []string    `json:"nicknames"`
+    Statistics  Statistics  `json:"statistics"`
     // ...
 }
 
@@ -22,14 +22,21 @@ type SvnPlayerData struct {
 }
 
 var botNames = "bot.names"
+var statisticsPath = "../Statistics/"
 var playerStatsFile = "playerStats.json"
-var svnBasePath = "/home/maurice/Uni"
+var svnBasePath = "../SVN/"
 // Old date, so it updates the data the very first time.
 var lastUpdate = time.Date(2016, time.January, 1, 1, 1, 1, 1, time.FixedZone("Europe", 1))
 var playerData SvnPlayerData
 
+// I can access the file, when I can read true from the channel.
+// When I am finished, I write true into the empty channel.
+// So whenever the file is in use, the channel is empty.
+// When the file is not in use, the channel is full.
+var fileNotInUse = make(chan bool, 1)
+
 func updateAllData()  {
-    file, e := ioutil.ReadFile(playerStatsFile)
+    file, e := ioutil.ReadFile(statisticsPath + playerStatsFile)
     if e != nil {
         Logf(LtDebug, "File error while updating player data: %v\n", e)
         return
@@ -54,11 +61,11 @@ func pullSVN(pathToSvn string) {
     // This will be "svn update" in the end
     //cmd := exec.Command("git", "pull")
     // This is just for debugging purposes!
-    cmd := exec.Command("ls")
+    cmd := exec.Command("svn update")
     cmd.Dir = pathToSvn
-    cmd.CombinedOutput() // returnes: output, err := ...
+    output, _ := cmd.CombinedOutput() // returnes: output, err := ...
     //printError(err)
-    //printOutput(output)
+    printOutput(output)
 }
 
 // readLines reads a whole file into memory
@@ -100,7 +107,7 @@ func updateJsonFile(pathToSvn string, repos string) {
 
     // Reading the JSON file with playerdata
     var tmpData SvnPlayerData
-    file, e := ioutil.ReadFile(playerStatsFile)
+    file, e := ioutil.ReadFile(statisticsPath + playerStatsFile)
     if e != nil {
         Logf(LtDebug, "File error while reading player data: %v\n", e)
         return
@@ -109,12 +116,32 @@ func updateJsonFile(pathToSvn string, repos string) {
 
     reposData := tmpData.SvnReposInformation[repos]
 
+    // So old names are discarted and cannot be used any more
+    reposData.Nicknames = make([]string, 0)
+
     // Check, if we have a new nickname!
     for _, newNick := range lines {
+
+        // validate, that no other repos contains this nickname!
+        duplicateFound := false
+        for svnName,svn := range tmpData.SvnReposInformation {
+            for _,nick := range svn.Nicknames {
+                if svnName != repos {
+                    if newNick == nick {
+                        duplicateFound = true
+                    }
+                }
+            }
+        }
+        if duplicateFound {
+            continue
+        }
+
         found := false
         for _,nick := range reposData.Nicknames {
             if nick == newNick {
                 found = true
+                break
             }
         }
         if !found {
@@ -123,13 +150,17 @@ func updateJsonFile(pathToSvn string, repos string) {
         }
     }
 
+    if tmpData.SvnReposInformation == nil {
+        tmpData.SvnReposInformation = map[string]PlayerData{}
+    }
+
     // Write changed data back
     tmpData.SvnReposInformation[repos] = reposData
 
     // Writing back to file
     b, err := json.Marshal(tmpData)
 
-    f, err := os.Create(playerStatsFile)
+    f, err := os.Create(statisticsPath + playerStatsFile)
     if err != nil {
         Logf(LtDebug, "Something went wront when creating the new file...: %v\n", err)
     }
@@ -141,18 +172,67 @@ func updateJsonFile(pathToSvn string, repos string) {
 
 func UpdateAllSVN() {
 
+    <- fileNotInUse
     files, _ := ioutil.ReadDir(svnBasePath)
     for _, f := range files {
         if f.IsDir() {
             pullSVN(svnBasePath + "/" + f.Name())
             updateJsonFile(svnBasePath + "/" + f.Name(), f.Name())
+
         }
     }
 
     updateAllData()
+    fileNotInUse <- true
     lastUpdate = time.Now()
 }
 
+func WriteStatisticToFile(botName string, stats Statistics) {
+
+    var repos string
+
+    for svnName,svn := range playerData.SvnReposInformation {
+        for _,nick := range svn.Nicknames {
+            if botName == nick {
+                repos = svnName
+            }
+        }
+    }
+    if repos == "" {
+        Logf(LtDebug, "Something went wrong, the repos for %v is not found " +
+            "while trying to save your statistics... Please do not change your bot.names while testing!\n", botName)
+        return
+    }
+
+    <- fileNotInUse
+
+    tmpData := playerData.SvnReposInformation[repos]
+    tmpData.Statistics.MaxSize = float32(math.Max(float64(tmpData.Statistics.MaxSize), float64(stats.MaxSize)))
+    tmpData.Statistics.MaxSurvivalTime = float32(math.Max(float64(tmpData.Statistics.MaxSurvivalTime), float64(stats.MaxSurvivalTime)))
+    tmpData.Statistics.BlobKillCount = Max(tmpData.Statistics.BlobKillCount, stats.BlobKillCount)
+    tmpData.Statistics.BotKillCount = Max(tmpData.Statistics.BotKillCount, stats.BotKillCount)
+    tmpData.Statistics.ToxinThrow = Max(tmpData.Statistics.ToxinThrow, stats.ToxinThrow)
+    tmpData.Statistics.SuccessfulToxin = Max(tmpData.Statistics.SuccessfulToxin, stats.SuccessfulToxin)
+    tmpData.Statistics.SplitCount = Max(tmpData.Statistics.SplitCount, stats.SplitCount)
+    tmpData.Statistics.SuccessfulSplit = Max(tmpData.Statistics.SuccessfulSplit, stats.SuccessfulSplit)
+    tmpData.Statistics.SuccessfulTeam = Max(tmpData.Statistics.SuccessfulTeam, stats.SuccessfulTeam)
+    tmpData.Statistics.BadTeaming = Max(tmpData.Statistics.BadTeaming, stats.BadTeaming)
+    playerData.SvnReposInformation[repos] = tmpData
+
+    // Writing back to file
+    b, err := json.Marshal(playerData)
+
+    f, err := os.Create(statisticsPath + playerStatsFile)
+    if err != nil {
+        Logf(LtDebug, "Something went wront when creating or appending the file...: %v\n", err)
+    }
+
+    f.Write(b)
+    f.Sync()
+    f.Close()
+
+    fileNotInUse <- true
+}
 
 // If the last SVN-Update is older than 10 Minutes, update SVN-Repositories.
 // And always when the server is first started!
@@ -160,13 +240,12 @@ func UpdateAllSVN() {
 // ATTENTION:
 // Please take care, that the global path variables are correctly set (Especially: svnBasePath)!
 // --> The svnBasePath contains all the SVN-directories, for example: pwb_14/
-// --> The server is started in the same directory ideally but can vary.
-// --> Every SVN directory must (or should normally, nothing breaks if it isn't there) contain a bot.names file!
-// --> The playerStatsFile must be in the same directory as the server!
+// --> The server is started in the GOBIN path!!!
+// --> Every SVN directory must contain a bot.names file (or should normally, nothing breaks if it isn't there)!
 //
 // This function checks, if the given nickname is a valid one, (from at least one bot.names).
 // Right now, it updates itself automatically (svn update, file update, data update) every 1 minutes (maximum but only when this function is called).
-func CheckPotentialPlayer(playerNickname string) bool {
+func CheckPotentialPlayer(playerNickname string) (bool, Statistics) {
 
     if time.Now().Sub(lastUpdate).Minutes() > 1 {
         UpdateAllSVN()
@@ -176,14 +255,19 @@ func CheckPotentialPlayer(playerNickname string) bool {
         for _,nick := range svn.Nicknames {
             if nick == playerNickname {
                 i=i
-                //Logf(LtDebug, "The player %v can be associated with the svn-repos %v\n", playerNickname, i)
-                return true
+                Logf(LtDebug, "The player %v can be associated with the svn-repos %v\n", playerNickname, i)
+                return true, svn.Statistics
             }
         }
     }
 
     Logf(LtDebug, "The player %v can not be associated with any svn-repos!\n", playerNickname)
-    return false
+    return false, Statistics{}
+}
+
+// This must be called once before any other function of this module is called!
+func InitOrganisation() {
+    fileNotInUse <- true
 }
 
 

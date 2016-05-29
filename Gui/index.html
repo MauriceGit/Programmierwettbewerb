@@ -358,7 +358,7 @@
                         } else {
                             // Render Error
                             context.fillStyle = "rgb(255, 0, 0)";
-                            context.font="12px Arial";
+                            context.font="12px Courir";
                             context.fillText("Couldn't find the BotInfo", blob.pos.X, blob.pos.Y + 20);
 
                             context.fillStyle = "rgb(255, 0, 0)";
@@ -420,8 +420,10 @@
                     var botInfoId = tuples[i].id;
                     var mass = massTuple.mass;
                     var botInfo = botInfos[botInfoId];
-                    var shortName = botInfo.name.substr(botInfo.name.length - 10);
-                    var extendedName = shortName + " (id: " + botInfoId + ") ";
+                    var paddedName = botInfo.name + "________________________________"
+                    var shortName = paddedName.substr(0, 13);
+                    var paddedID = " (id: " + botInfoId + "__________________________"
+                    var extendedName = shortName + paddedID.substr(0, 10) + ") ";
 
                     var containerNode = $("<div></div>");
                     containerNode.css({
@@ -434,6 +436,8 @@
                     nameNode.css({
                         position: "relative",
                         float: "left", // To position the elements next to each other
+                        fontSize: "14px",
+                        fontFamily: "Courier New"
                     });
                     nameNode.html(extendedName);
 

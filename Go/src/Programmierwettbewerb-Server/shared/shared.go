@@ -37,6 +37,30 @@ type BotCommand struct {
     Target  Vec2
 }
 
+type Statistics struct {
+    // Maximum size achieved
+    MaxSize         float32     `json:"size"`                           // check.
+    // Longest survival time achieved
+    MaxSurvivalTime float32     `json:"survivalTime"`                   // check.
+    // How many blobs it killed overall
+    BlobKillCount   int         `json:"blobKillCount"`                  // check.
+    // How many bots it killed overall (No surviving blob of that bot!)
+    BotKillCount    int         `json:"botKillCount"`                   // check.
+    // How often it duplicated a toxin
+    ToxinThrow      int         `json:"toxinThrow"`                     // check.
+    // How often the duplicated toxin actually exploded another blob!
+    SuccessfulToxin int         `json:"successfulToxin"`                // check.
+    // How often it has split
+    SplitCount      int         `json:"splitCount"`                     // check.
+    // How often the splitted blob ate at least one other blob! (Only immediately, not 10s later!)
+    SuccessfulSplit int         `json:"successfulSplit"`                // check.
+    // We have to talk about that one ;)
+    // Probably like feeding a team mate, resulting in eating an enemy blob or similar
+    SuccessfulTeam  int         `json:"successfulTeaming"`              //
+    // For example eating a complete bot of the own team...
+    BadTeaming      int         `json:"badTeaming"`                     //
+}
+
 type BotInfo struct {
     Name        string  `json:"name"`
     Color       Color   `json:"color"`
@@ -53,6 +77,8 @@ type Food struct {
     IsNew       bool    `json:"new"`
     IsMoving    bool    `json:"moving"`
     IsThrown    bool    `json:"thrown"`
+    // We need the bot-ID here for statistic reasons
+    IsThrownBy  uint32
     Mass        float32 `json:"mass"`
     Position    Vec2    `json:"pos"`
     Velocity    Vec2    `json:"vel"`
@@ -62,6 +88,8 @@ type Toxin struct {
     IsNew      bool     `json:"new"`
     IsMoving   bool     `json:"moving"`
     Position   Vec2     `json:"pos"`
+    IsSplit    bool
+    IsSplitBy  uint32
     Mass       float32  `json:"mass"`
     Velocity   Vec2     `json:"vel"`
 }
@@ -136,7 +164,7 @@ func log(f LogFun, logType LogType, format string, a ...interface{}) (n int, err
     }
     if len(globalPrefix) > 0 {
         fmt.Printf("%s ", globalPrefix)
-    }    
+    }
     if globalPrintLineNumber {
         _, _, line, _ := runtime.Caller(2)
         fmt.Printf("(%d) ", line)
@@ -156,4 +184,18 @@ func Logf(logType LogType, format string, a ...interface{}) (n int, err error) {
         return fmt.Printf(format, a...)
     }
     return log(f, logType, format, a...)
+}
+
+func Max(a, b int) int {
+    if a > b {
+        return a
+    }
+    return b
+}
+
+func Min(a, b int) int {
+    if a < b {
+        return a
+    }
+    return b
 }

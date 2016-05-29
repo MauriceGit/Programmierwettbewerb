@@ -78,6 +78,7 @@ type ParseResult struct {
     debug       bool
     verbose     bool
     mute        bool
+    botPath     string
     botName     string
     numBots     int
     serverURL   string
@@ -89,7 +90,8 @@ func parseArguments() (parseResult ParseResult, e error) {
     var debugFlag       = flag.Bool("debug", false, "Running in debug mode.")
     var verboseFlag     = flag.Bool("verbose", false, "Printing more stuff than unsual.")
     var muteFlag        = flag.Bool("mute", false, "Mute the output.")
-    var botFlag         = flag.String("bot", "", "Path to the bot")
+    var botPath         = flag.String("bot", "", "Path to the bot")
+    var botName         = flag.String("name", "", "Test name")
     var numBotsFlag     = flag.Int("numBots", 1, "Number of bots to start.")
     var serverURLFlag   = flag.String("connection", "", "URL to connect to the server")
 
@@ -99,17 +101,20 @@ func parseArguments() (parseResult ParseResult, e error) {
         debug:      *debugFlag,
         verbose:    *verboseFlag,
         mute:       *muteFlag,
-        botName:    *botFlag,
+        botPath:    *botPath,
+        botName:    *botName,
         numBots:    *numBotsFlag,
         serverURL:  *serverURLFlag,
     }
 
-    if result.botName == "" {
-        return result, errors.New("No bot name was given.")
+    Logf(LtDebug, "name given: '%v'\n", *botName)
+
+    if result.botPath == "" {
+        return result, errors.New("No bot path was given.")
     }
 
-    if _, err := os.Stat(result.botName); os.IsNotExist(err) {
-        return result, errors.New(fmt.Sprintf("Could not find the bot %s", result.botName))
+    if _, err := os.Stat(result.botPath); os.IsNotExist(err) {
+        return result, errors.New(fmt.Sprintf("Could not find the bot %v", result.botPath))
     }
 
     return result, nil
@@ -132,7 +137,7 @@ type Bot struct {
 }
 
 func startBot(parseResults ParseResult) (bot Bot, error error) {
-    bot.process = exec.Command(parseResults.botName)
+    bot.process = exec.Command(parseResults.botPath)
 
     stdin, err := bot.process.StdinPipe()
     if err != nil {
@@ -170,7 +175,7 @@ func stopBot(bot Bot) {
     bot.stderr.Close()
 
     if err := bot.process.Process.Kill(); err != nil {
-        Logf(LtAlways, "Could not kill the bot. Error: %s\n", err.Error())
+        Logf(LtAlways, "Could not kill the bot. Error: %v\n", err.Error())
         os.Exit(ecBotProblem)
     }
 }
@@ -181,7 +186,7 @@ func terminateNonBlocking(runningState chan(bool), test string) {
     case runningState <- false:
     default:
         // Aaaaand it didn't work.
-        Logf(LtDebug, "Not sending a close: %s\n", test)
+        Logf(LtDebug, "Not sending a close: %v\n", test)
     }
 }
 
@@ -215,7 +220,7 @@ func setupServerConnection(address string, botInfo BotInfo, runningState chan(bo
     origin := "http://localhost/" // TODO(henk): What is the origin?
     ws, err := websocket.Dial(address, "", origin)
     if err != nil {
-        return connection, errors.New(fmt.Sprintf("Could not connect to server:  %s\n", err.Error()))
+        return connection, errors.New(fmt.Sprintf("Could not connect to server:  %v\n", err.Error()))
     }
 
     //
@@ -246,7 +251,7 @@ func setupServerConnection(address string, botInfo BotInfo, runningState chan(bo
             err := websocket.JSON.Receive(ws, &message)
 
             if err != nil {
-                Logf(LtDebug, "Receive failed: %s\n", err.Error())
+                Logf(LtDebug, "Receive failed: %v\n", err.Error())
                 terminateNonBlocking(runningState, "from Server 2")
                 break
             }
@@ -257,7 +262,7 @@ func setupServerConnection(address string, botInfo BotInfo, runningState chan(bo
 
             select {
             case connection.GameStateFromServer <- message: // Put message in the channel unless it is full
-                Logf(LtDebug | LtVerbose, "Added to channel 'fromServer': \"%s\"\n", messageString)
+                Logf(LtDebug | LtVerbose, "Added to channel 'fromServer': \"%v\"\n", messageString)
             default:
                 //Logln(LtDebug, "Channel for messages from the server is full.")
 
@@ -309,7 +314,7 @@ func setupServerConnection(address string, botInfo BotInfo, runningState chan(bo
             err := websocket.JSON.Send(ws, message)
             if err != nil {
                 terminateNonBlocking(runningState, "to Server 2")
-                Logf(LtDebug, "Send failed: %s\n", err.Error())
+                Logf(LtDebug, "Send failed: %v\n", err.Error())
                 break
             }
         }
@@ -470,7 +475,7 @@ func parseBotResponse(response string) (BotCommand, bool) {
     str = strings.Replace(str, "{",  "", -1)
     str = strings.Replace(str, "}",  "", -1)
 
-    
+
 
     s := strings.Split(str, ",")
 
@@ -582,7 +587,7 @@ func main() {
     //
     parseResult, err := parseArguments()
     if err != nil {
-        Logf(LtAlways, "Could not parse the arguments. Error: %s\n", err.Error())
+        Logf(LtAlways, "Could not parse the arguments. Error: %v\n", err.Error())
         os.Exit(ecParameterProblem)
     }
     SetLoggingDebug(parseResult.debug)
@@ -595,7 +600,7 @@ func main() {
     //
     for i := 0; i < parseResult.numBots; i++ {
 
-        Logln(LtDebug, "soo.... number of bots: %s\n", parseResult.numBots)
+        Logln(LtDebug, "soo.... number of bots: %v\n", parseResult.numBots)
         wg.Add(1)
         go func() {
             defer wg.Done()
@@ -606,7 +611,7 @@ func main() {
 
 
             if err != nil {
-                Logf(LtAlways, "Could not start the bot. Error: %s\n", err.Error())
+                Logf(LtAlways, "Could not start the bot. Error: %v\n", err.Error())
                 os.Exit(ecBotProblem)
             }
             defer stopBot(bot)
@@ -628,7 +633,7 @@ func main() {
             runningState := make(chan bool, 1)
             serverConnection, err := setupServerConnection(address, botInfo, runningState, wg)
             if err != nil {
-                Logf(LtAlways, "Could not connect to Server. Error: %s\n", err.Error())
+                Logf(LtAlways, "Could not connect to Server. Error: %v\n", err.Error())
                 os.Exit(ecConnectionProblem)
             }
 

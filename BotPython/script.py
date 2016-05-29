@@ -151,7 +151,7 @@ while (1):
             target = findNearestSmallerBlob(myPos, myMass, enemies)
         else:
             toxinPos = findNearestToxin(myPos, toxins)
-            if False and toxinPos != None and myMass > 300 and int(time.time())-1 > throwingTime:
+            if True and toxinPos != None and myMass > 200 and int(time.time())-1 > throwingTime:
                 dist = calcDist(myPos, toxinPos)
                 target = toxinPos
                 if dist < 50 and dist > 20:
@@ -168,8 +168,8 @@ while (1):
 
     # Time for some action?
     action = "None"
-    #if random.randint(0, 300) == 0:
-    #    action = "split"
+    if random.randint(0, 100) == 0:
+        action = "split"
     if throwNow:
         action = "throw"
 
