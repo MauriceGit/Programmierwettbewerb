@@ -130,11 +130,9 @@ Further down, you can find the function-declarations with additional documentati
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 
-#include <iostream>
-#include <string>
-#include <cmath>
+#include <stdio.h>
+#include <stdlib.h>
 #include <float.h>
-#include <array>
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 #define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
@@ -148,9 +146,9 @@ int floatEqual(float lhs, float rhs, float epsilon);
 float randomNormalizedFloat();
 float clamp(float x, float min, float max);
 
-struct Vec2 {
+typedef struct {
     float x, y;
-};
+} Vec2;
 
 Vec2 mkVec2(float x, float y) {
     Vec2 v;
@@ -175,18 +173,19 @@ float distance(const Vec2* const lhs, const Vec2* const rhs);
 float minNorm(const Vec2* const v);
 float maxNorm(const Vec2* const v);
 Vec2 normalize(const Vec2* const v);
-bool equal(const Vec2* const lhs, const Vec2* const rhs);
+int equal(const Vec2* const lhs, const Vec2* const rhs);
 void copy(Vec2* const dst, const Vec2* const src);
 void swap(Vec2* const lhs, Vec2* const rhs);
 Vec2 componentWiseMin(const Vec2* const lhs, const Vec2* const rhs);
 Vec2 componentWiseMax(const Vec2* const lhs, const Vec2* const rhs);
 Vec2 componentWiseAbs(const Vec2* const v);
 
-enum BotActionType { BatNone, BatThrow, BatSplit };
-struct BotCommand {
+typedef enum { BatNone, BatThrow, BatSplit } BotActionType;
+
+typedef struct {
     BotActionType botActionType;
     Vec2 target;
-};
+} BotCommand;
 
 typedef struct Blob {
     int botId;
@@ -228,14 +227,14 @@ ParserInvocation mkParserInvokation(const char* name, const char* location) {
     ParserInvocation parserInvocation;
     parserInvocation.name = name;
     parserInvocation.location = location;
-    parserInvocation.errorMessage = nullptr;
+    parserInvocation.errorMessage = NULL;
     return parserInvocation;
 }
 
 typedef struct ParseContext {
     const char* input;
     const char* next;
-    bool success;
+    int success;
     ParserInvocation parserInvocations[NUM_MAX_PARSE_LEVELS];
     int numParserInvocations;
     int numMaxParserInvocations;
@@ -325,19 +324,13 @@ void pwb_toString(char* buffer, const BotCommand* const botCommand);
 #ifdef PWB_IMPLEMENTATION
 
 typedef struct ParseResult {
-    bool success;
+    int success;
     int advance;
     const char* next;
 } ParseResult;
 
-
-Vec2 mkUnitX = mkVec2(1, 0);
-Vec2 mkUnitY = mkVec2(0, 1);
-Vec2 mkOne = mkVec2(1, 1);
-Vec2 mkZero = mkVec2(0, 0);
-
 int floatEqual(float lhs, float rhs, float epsilon) { return abs(lhs - rhs) < epsilon; }
-float randomNormalizedFloat() { return float(rand()) / float(RAND_MAX); }
+float randomNormalizedFloat() { return (float)rand() / (float)RAND_MAX; }
 
 Vec2 addvv(const Vec2* const lhs, const Vec2* const rhs) { return mkVec2(lhs->x + rhs->x, lhs->y + rhs->y); }
 Vec2 subvv(const Vec2* const lhs, const Vec2* const rhs) { return mkVec2(lhs->x - rhs->x, lhs->y - rhs->y); }
@@ -355,7 +348,7 @@ float distance(const Vec2* const lhs, const Vec2* const rhs) { Vec2 diff = subvv
 float minNorm(const Vec2* const v) { return MIN(v->x, v->y); }
 float maxNorm(const Vec2* const v) { return MAX(v->x, v->y); }
 Vec2 normalize(const Vec2* const v) { return divvf(v, length(v)); }
-bool equal(const Vec2* const lhs, const Vec2* const rhs) { return abs(lhs->x - rhs->x) < FLT_EPSILON && abs(lhs->y - rhs->y) < FLT_EPSILON; }
+int equal(const Vec2* const lhs, const Vec2* const rhs) { return abs(lhs->x - rhs->x) < FLT_EPSILON && abs(lhs->y - rhs->y) < FLT_EPSILON; }
 void copy(Vec2* const dst, const Vec2* const src) { memcpy(dst, src, sizeof(Vec2)); }
 void swap(Vec2* const lhs, Vec2* const rhs) { Vec2 tmp = *lhs; copy(lhs, rhs); copy(rhs, &tmp); }
 Vec2 componentWiseMin(const Vec2* const lhs, const Vec2* const rhs) { return mkVec2(MIN(lhs->x, rhs->x), MIN(lhs->y, rhs->y)); }
@@ -368,7 +361,7 @@ void pwb_printErrors(ParseContext* parseContext, FILE* file) {
         for (int i = 0; i < parseContext->numMaxParserInvocations; ++i) {
             ParserInvocation* parserInvocation = &parseContext->parserInvocations[i];
             fprintf(file, "ERROR\n");
-            if (parserInvocation->errorMessage != nullptr) {
+            if (parserInvocation->errorMessage != NULL) {
                 fprintf(file, "    Message:  %s\n", parserInvocation->errorMessage);
             }
             fprintf(file, "    Parser:   %s\n", parserInvocation->name);
@@ -401,7 +394,7 @@ ParseContext pwb_mkContext(const char* input) {
     ParseContext parseContext;
     parseContext.input = input;
     parseContext.next = input;
-    parseContext.success = true;
+    parseContext.success = 1;
     parseContext.numParserInvocations = 0;
     parseContext.numMaxParserInvocations = 0;
     return parseContext;
@@ -422,10 +415,10 @@ ParseResult mkError(ParseContext* const parseContext, const char* message) {
     ParserInvocation* parserInvocation = &parseContext->parserInvocations[parseContext->numParserInvocations];
     parserInvocation->errorMessage = message;
 
-    parseContext->success = false;
+    parseContext->success = 0;
 
     ParseResult parseResult;
-    parseResult.success = false;
+    parseResult.success = 0;
     parseResult.advance = 0;
     parseResult.next = parseContext->next;
 
@@ -435,12 +428,12 @@ ParseResult mkError(ParseContext* const parseContext, const char* message) {
 }
 
 ParseResult mkResult(ParseContext* const parseContext, void* value, int advance) {
-    auto next = parseContext->next + advance;
+    int next = parseContext->next + advance;
 
     parseContext->next = next;
 
     ParseResult parseResult;
-    parseResult.success = true;
+    parseResult.success = 1;
     parseResult.advance = advance;
     parseResult.next = next + advance;
 
@@ -449,12 +442,12 @@ ParseResult mkResult(ParseContext* const parseContext, void* value, int advance)
     return parseResult;
 }
 
-ParseResult parseChar(ParseContext* const parseContext, char c, bool* outHasChar) {
+ParseResult parseChar(ParseContext* const parseContext, char c, int* outHasChar) {
     pushLevel(parseContext, __FUNCTION__);
 
     if (*parseContext->next == c) {
-        if (outHasChar != nullptr) {
-            *outHasChar = true;
+        if (outHasChar != NULL) {
+            *outHasChar = 1;
         }
         return mkResult(parseContext, outHasChar, 1);
     }
@@ -492,48 +485,50 @@ ParseResult parseWhiteSpaces(ParseContext* const parseContext) {
         ++advance;
         ++runner;
     }
-    return mkResult(parseContext, nullptr, advance);
+    return mkResult(parseContext, NULL, advance);
 }
 
 ParseResult parseVec2(ParseContext* const parseContext, Vec2* outVec2) {
     pushLevel(parseContext, __FUNCTION__);
 
     parseWhiteSpaces(parseContext);
-    if (!parseChar(parseContext, '(', nullptr).success) return mkError(parseContext, "Could not find the opening bracket.");
+    if (!parseChar(parseContext, '(', NULL).success) return mkError(parseContext, "Could not find the opening bracket.");
     parseWhiteSpaces(parseContext);
     if (!parseFloat(parseContext, &outVec2->x).success) return mkError(parseContext, "Could not find the x-value.");
     parseWhiteSpaces(parseContext);
-    if (!parseChar(parseContext, ',', nullptr).success) return mkError(parseContext, "Could not find the comma.");
+    if (!parseChar(parseContext, ',', NULL).success) return mkError(parseContext, "Could not find the comma.");
     parseWhiteSpaces(parseContext);
     if (!parseFloat(parseContext, &outVec2->y).success) return mkError(parseContext, "Could not find the y-value.");
     parseWhiteSpaces(parseContext);
-    if (!parseChar(parseContext, ')', nullptr).success) return mkError(parseContext, "Could not find the closing bracket.");
+    if (!parseChar(parseContext, ')', NULL).success) return mkError(parseContext, "Could not find the closing bracket.");
     return mkResult(parseContext, outVec2, 0);
 }
 
 ParseResult parseBlob(ParseContext* const parseContext, Blob* outBlob) {
     pushLevel(parseContext, __FUNCTION__);
 
-    parseWhiteSpaces(parseContext);    if (!parseChar(parseContext, '(', nullptr).success) return mkError(parseContext, "Could not find the opening bracket.");    parseWhiteSpaces(parseContext);
+    parseWhiteSpaces(parseContext);
+    if (!parseChar(parseContext, '(', NULL).success) return mkError(parseContext, "Could not find the opening bracket.");
+    parseWhiteSpaces(parseContext);
     if (!parseInt(parseContext, &outBlob->botId).success) return mkError(parseContext, "Could not find the botId.");
     parseWhiteSpaces(parseContext);
-    if (!parseChar(parseContext, ',', nullptr).success) return mkError(parseContext, "Could not find the comma.");
+    if (!parseChar(parseContext, ',', NULL).success) return mkError(parseContext, "Could not find the comma.");
     parseWhiteSpaces(parseContext);
     if (!parseInt(parseContext, &outBlob->teamId).success) return mkError(parseContext, "Could not find the teamId.");
     parseWhiteSpaces(parseContext);
-    if (!parseChar(parseContext, ',', nullptr).success) return mkError(parseContext, "Could not find the comma.");
+    if (!parseChar(parseContext, ',', NULL).success) return mkError(parseContext, "Could not find the comma.");
     parseWhiteSpaces(parseContext);
     if (!parseInt(parseContext, &outBlob->blobId).success) return mkError(parseContext, "Could not find the blobId.");
     parseWhiteSpaces(parseContext);
-    if (!parseChar(parseContext, ',', nullptr).success) return mkError(parseContext, "Could not find the comma.");
+    if (!parseChar(parseContext, ',', NULL).success) return mkError(parseContext, "Could not find the comma.");
     parseWhiteSpaces(parseContext);
     if (!parseVec2(parseContext, &outBlob->position).success) return mkError(parseContext, "Could not find the position of the blob.");
     parseWhiteSpaces(parseContext);
-    if (!parseChar(parseContext, ',', nullptr).success) return mkError(parseContext, "Could not find the comma.");
+    if (!parseChar(parseContext, ',', NULL).success) return mkError(parseContext, "Could not find the comma.");
     parseWhiteSpaces(parseContext);
     if (!parseFloat(parseContext, &outBlob->mass).success) return mkError(parseContext, "Could not find the mass of the bot.");
     parseWhiteSpaces(parseContext);
-    if (!parseChar(parseContext, ')', nullptr).success) return mkError(parseContext, "Could not find the closing bracket.");
+    if (!parseChar(parseContext, ')', NULL).success) return mkError(parseContext, "Could not find the closing bracket.");
     return mkResult(parseContext, outBlob, 0);
 }
 
@@ -541,15 +536,15 @@ ParseResult parseFoodOrToxin(ParseContext* const parseContext, FoodOrToxin* outF
     pushLevel(parseContext, __FUNCTION__);
 
     parseWhiteSpaces(parseContext);
-    if (!parseChar(parseContext, '(', nullptr).success) return mkError(parseContext, "Could not find the opening bracket.");
+    if (!parseChar(parseContext, '(', NULL).success) return mkError(parseContext, "Could not find the opening bracket.");
     parseWhiteSpaces(parseContext);
     if (!parseVec2(parseContext, &outFoodOrToxin->position).success) return mkError(parseContext, "Could not find the positon of the food.");
     parseWhiteSpaces(parseContext);
-    if (!parseChar(parseContext, ',', nullptr).success) return mkError(parseContext, "Could not find the comma.");
+    if (!parseChar(parseContext, ',', NULL).success) return mkError(parseContext, "Could not find the comma.");
     parseWhiteSpaces(parseContext);
     if (!parseFloat(parseContext, &outFoodOrToxin->mass).success) return mkError(parseContext, "Could not find the mass of the food.");
     parseWhiteSpaces(parseContext);
-    if (!parseChar(parseContext, ')', nullptr).success) return mkError(parseContext, "Could not find the closing bracket.");
+    if (!parseChar(parseContext, ')', NULL).success) return mkError(parseContext, "Could not find the closing bracket.");
     return mkResult(parseContext, outFoodOrToxin, 0);
 }
 
@@ -560,19 +555,19 @@ ParseResult parseBlobsList(ParseContext* const parseContext, BlobsArray* blobs) 
 
     parseWhiteSpaces(parseContext);
 
-    if (!parseChar(parseContext, '[', nullptr).success) {
+    if (!parseChar(parseContext, '[', NULL).success) {
         return mkError(parseContext, "Could not find the opening bracket.");
     }
 
     parseWhiteSpaces(parseContext);
 
-    auto emptyListContext = mkContext(parseContext);
-    if (parseChar(&emptyListContext, ']', nullptr).success) {
+    ParseContext emptyListContext = mkContext(parseContext);
+    if (parseChar(&emptyListContext, ']', NULL).success) {
         *parseContext = emptyListContext;
-        return mkResult(parseContext, nullptr, 0);
+        return mkResult(parseContext, NULL, 0);
     }
 
-    bool somethingFollows = true;
+    int somethingFollows = 1;
     while (somethingFollows) {
         parseWhiteSpaces(parseContext);
 
@@ -586,11 +581,11 @@ ParseResult parseBlobsList(ParseContext* const parseContext, BlobsArray* blobs) 
         parseWhiteSpaces(parseContext);
 
         if (!parseChar(parseContext, ',', &somethingFollows).success) {
-            somethingFollows = false;
+            somethingFollows = 0;
         }
     }
 
-    if (!parseChar(parseContext, ']', nullptr).success) {
+    if (!parseChar(parseContext, ']', NULL).success) {
         return mkError(parseContext, "Could not find the closing bracket.");
     }
 
@@ -604,17 +599,17 @@ ParseResult parseFoodsOrToxinsList(ParseContext* const parseContext, FoodsOrToxi
 
     parseWhiteSpaces(parseContext);
 
-    if (!parseChar(parseContext, '[', nullptr).success) {
+    if (!parseChar(parseContext, '[', NULL).success) {
         return mkError(parseContext, "Could not find the opening bracket.");
     }
 
-    auto emptyListContext = mkContext(parseContext);
-    if (parseChar(&emptyListContext, ']', nullptr).success) {
+    ParseContext emptyListContext = mkContext(parseContext);
+    if (parseChar(&emptyListContext, ']', NULL).success) {
         *parseContext = emptyListContext;
-        return mkResult(parseContext, nullptr, 0);
+        return mkResult(parseContext, NULL, 0);
     }
 
-    bool somethingFollows = true;
+    int somethingFollows = 1;
     while (somethingFollows) {
         parseWhiteSpaces(parseContext);
 
@@ -628,11 +623,11 @@ ParseResult parseFoodsOrToxinsList(ParseContext* const parseContext, FoodsOrToxi
         parseWhiteSpaces(parseContext);
 
         if (!parseChar(parseContext, ',', &somethingFollows).success) {
-            somethingFollows = false;
+            somethingFollows = 0;
         }
     }
 
-    if (!parseChar(parseContext, ']', nullptr).success) {
+    if (!parseChar(parseContext, ']', NULL).success) {
         return mkError(parseContext, "Could not find the closing bracket.");
     }
 
@@ -653,23 +648,23 @@ ParseResult parseAll(ParseContext* parseContext, VisibleGameState* outVisibleGam
     pushLevel(parseContext, __FUNCTION__);
 
     parseWhiteSpaces(parseContext);
-    if (!parseChar(parseContext, '(', nullptr).success) { return mkError(parseContext, "Could not find the opening bracket."); }
+    if (!parseChar(parseContext, '(', NULL).success) { return mkError(parseContext, "Could not find the opening bracket."); }
     parseWhiteSpaces(parseContext);
     if (!parseBlobsList(parseContext, &outVisibleGameState->ownBlobs).success) { return mkError(parseContext, "Could not parse the own blobs."); }
     parseWhiteSpaces(parseContext);
-    if (!parseChar(parseContext, ',', nullptr).success) return mkError(parseContext, "Could not find the comma.");
+    if (!parseChar(parseContext, ',', NULL).success) return mkError(parseContext, "Could not find the comma.");
     parseWhiteSpaces(parseContext);
     if (!parseBlobsList(parseContext, &outVisibleGameState->otherBlobs).success) { return mkError(parseContext, "Could not find the other blobs."); }
     parseWhiteSpaces(parseContext);
-    if (!parseChar(parseContext, ',', nullptr).success) return mkError(parseContext, "Could not find the comma.");
+    if (!parseChar(parseContext, ',', NULL).success) return mkError(parseContext, "Could not find the comma.");
     parseWhiteSpaces(parseContext);
     if (!parseFoodsOrToxinsList(parseContext, &outVisibleGameState->foods).success) { return mkError(parseContext, "Could not find the foods."); }
     parseWhiteSpaces(parseContext);
-    if (!parseChar(parseContext, ',', nullptr).success) return mkError(parseContext, "Could not find the comma.");
+    if (!parseChar(parseContext, ',', NULL).success) return mkError(parseContext, "Could not find the comma.");
     parseWhiteSpaces(parseContext);
     if (!parseFoodsOrToxinsList(parseContext, &outVisibleGameState->toxins).success) { return mkError(parseContext, "Could not find the toxins."); }
     parseWhiteSpaces(parseContext);
-    if (!parseChar(parseContext, ')', nullptr).success) { return mkError(parseContext, "Could not find the closing bracket."); }
+    if (!parseChar(parseContext, ')', NULL).success) { return mkError(parseContext, "Could not find the closing bracket."); }
     return mkResult(parseContext, outVisibleGameState, 0);
 }
 

@@ -3,7 +3,7 @@
 set GOPATH=%~dp0Go
 set GOBIN=%~dp0bin
 
-mkdir bin
+if not exist %GOBIN% mkdir %GOBIN%
 
 echo Set the GOPATH to "%GOPATH%"
 echo Set the GOBIN to "%GOBIN%"

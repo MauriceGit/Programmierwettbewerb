@@ -2,3 +2,10 @@ Go/bin/
 Go/pkg/
 Go/src/golang.org/
 bin/
+BotCpp/Debug/
+BotCpp/.vs/
+BotCpp/BotCpp/Debug/
+BotCpp/BotCpp.opensdf
+BotCpp/BotCpp.sdf
+BotCpp/BotCpp/BotCpp.vcxproj.filters
+BotCpp/BotCpp/BotCpp.vcxproj.user

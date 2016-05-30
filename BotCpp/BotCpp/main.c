@@ -2,30 +2,35 @@
 #include "pwb.h"
 
 #include <time.h>
-clock_t applicationStartTime = clock();
+clock_t applicationStartTime;
 
-enum Task {
+typedef enum {
     SearchFood = 0,
     Flee
-};
+} Task;
 
 typedef BotCommand(*ProcessFunc)(double, VisibleGameState*);
 
-struct State {
+typedef struct {
     Task task;
     ProcessFunc processFunc;
-
     FoodsOrToxinsArray knownFoods;
+    Vec2 target;
+    Vec2 estimatedFieldSizeMin;
+    Vec2 estimatedFieldSizeMax;
+    double lastDirectionChange;
+} State;
 
-    Vec2 target = mkVec2(300, 300);
+State state;
 
-    Vec2 estimatedFieldSizeMin = mkVec2(FLT_MAX, FLT_MAX);
-    Vec2 estimatedFieldSizeMax = mkVec2(FLT_MIN, FLT_MIN);
-
-    double lastDirectionChange = clock();
-
-    // ...
-} state;
+State mkState() {
+    State state;
+    state.target = mkVec2(300, 300);
+    state.estimatedFieldSizeMin = mkVec2(FLT_MAX, FLT_MAX);
+    state.estimatedFieldSizeMax = mkVec2(FLT_MIN, FLT_MIN);
+    state.lastDirectionChange = clock();
+    return state;
+}
 
 BotCommand searchFood(double t, VisibleGameState* visibleGameState) {
     //
@@ -84,8 +89,8 @@ BotCommand searchFood(double t, VisibleGameState* visibleGameState) {
     // Target
     //
     {
-        bool foodVisible = visibleGameState->foods.numData > 0;
-        bool foeVisible = visibleGameState->otherBlobs.numData > 0;
+        int foodVisible = visibleGameState->foods.numData > 0;
+        int foeVisible = visibleGameState->otherBlobs.numData > 0;
 
         // Find nearest food
         FoodOrToxin* nearestFood = NULL;
@@ -158,16 +163,17 @@ BotCommand searchFood(double t, VisibleGameState* visibleGameState) {
         }
     }
 
-    return pwb_mkBotCommand(BotActionType::BatNone, &state.target);
+    return pwb_mkBotCommand(BatNone, &state.target);
 }
 
 BotCommand process(VisibleGameState* const visibleGameState) {
     clock_t now = clock();
-    double t = double(now - applicationStartTime) / CLOCKS_PER_SEC;
+    double t = (double)(now - applicationStartTime) / CLOCKS_PER_SEC;
     return state.processFunc(t, visibleGameState);
 }
 
 int main() {
+    applicationStartTime = clock();
 
     state.task = SearchFood;
     state.processFunc = searchFood;
