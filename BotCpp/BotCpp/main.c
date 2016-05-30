@@ -179,7 +179,7 @@ int main() {
     state.processFunc = searchFood;
 
 
-    #define INPUT_BUFFER_MAX_LENGTH (20*1024)
+    #define INPUT_BUFFER_MAX_LENGTH (200*1024)
     #define OUTPUT_BUFFER_MAX_LENGTH 100
 
     char inputBuffer[INPUT_BUFFER_MAX_LENGTH];
