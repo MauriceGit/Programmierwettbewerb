@@ -429,118 +429,125 @@
                 return [tuples, maxMass];
             }
 
+            function updateHighscoreForBotId (botInfoId, mass, maxMass) {
+                //var mass = tuples[i].mass;
+                //var botInfoId = tuples[i].id;
+                var botInfo = botInfos[botInfoId];
+                var stats = statisticsLocal[botInfoId];
+                var paddedName = botInfo.name + "________________________________"
+                var shortName = paddedName.substr(0, 13);
+                var paddedID = " (id: " + botInfoId + "__________________________"
+                var extendedName = shortName + paddedID.substr(0, 10) + ")";
+
+                var containerNode = $("<div></div>");
+                containerNode.css({
+                    position: "relative",
+                    height: 65,
+                });
+                containerNode.addClass("highscoreEntry");
+
+                var nameNode = $("<span></span>");
+                nameNode.css({
+                    position: "relative",
+                    float: "left", // To position the elements next to each other
+                    fontSize: "14px",
+                    fontFamily: "Courier New"
+                });
+                nameNode.html(extendedName);
+
+                var pointsNode = $("<span></span>");
+                pointsNode.css({
+                    position: "relative",
+                    fontSize: "14px",
+                    fontFamily: "Courier New",
+                    left: 20
+                });
+                pointString = String(Math.round(mass*100)/100) + "00000"
+                pointString = pointString.substr(0, 9)
+                pointsNode.html(pointString);
+
+
+                maxSizeString = String(Math.round(stats.size*100)/100) + "00000";
+                maxSizeString = maxSizeString.substr(0, 9);
+
+                survivalString = String(Math.round(stats.survivalTime*100)/100) + "00000";
+                survivalString = survivalString.substr(0, 6);
+                statsString1 =
+                    "---\> " +
+                    "Max Size: " + maxSizeString +
+                    " Survival: " + survivalString +
+                    " Blob Kills: " + String(stats.blobKillCount) +
+                    " Bot Kills: " + String(stats.botKillCount) +
+                    " Toxin throws: " + String(stats.toxinThrow)
+
+                var statsNode1 = $("<div></div>");
+                statsNode1.css({
+                    position: "relative",
+                    left: 0,
+                    fontSize: "14px",
+                    fontFamily: "Courier New"
+                });
+                statsNode1.html(statsString1);
+
+                statsString2 =
+                    "---\> " +
+                    " Successful Toxin throws: " + String(stats.successfulToxin) +
+                    " Splits: " + String(stats.splitCount) +
+                    " Successful Splits: " + String(stats.successfulSplit) +
+                    " Good Teaming: " + String(stats.successfulTeaming) +
+                    " Bad Teaming: " + String(stats.badTeaming)
+
+                var statsNode2 = $("<div></div>");
+                statsNode2.css({
+                    position: "relative",
+                    left: 0,
+                    fontSize: "14px",
+                    fontFamily: "Courier New"
+                });
+                statsNode2.html(statsString2);
+
+                var barNode = $("<div></div>");
+                barNode.css({
+                    position: "relative",
+                    background: makeCSSColor(botInfo.color),
+                    top: 1,
+                    //width: 280 * (mass / maxMass),
+                    width: 888 * (mass / maxMass),
+                    height: 10,
+                    "border-style": "solid",
+                    "border-width": "1px",
+                    "border-color": "black",
+                });
+
+                containerNode.append(nameNode);
+                containerNode.append(pointsNode);
+                containerNode.append(statsNode1);
+                containerNode.append(statsNode2);
+                containerNode.append(barNode);
+
+                return containerNode;
+                //highscore.append(containerNode);
+            }
+
             function updateHighscore() {
-
-
 
                 var highscore = $("#highscore");
                 highscore.empty();
-
-                if (cameraMode == cmShowBot) {
-                    return
-                }
 
                 var scores = calculateHighscore();
                 var tuples = scores[0];
                 var maxMass = scores[1];
 
                 for (var i = 0; i < tuples.length; i++) {
-                    var massTuple = tuples[i];
+                    var mass = tuples[i].mass;
                     var botInfoId = tuples[i].id;
-                    var mass = massTuple.mass;
-                    var botInfo = botInfos[botInfoId];
-                    var stats = statisticsLocal[botInfoId];
-                    var paddedName = botInfo.name + "________________________________"
-                    var shortName = paddedName.substr(0, 13);
-                    var paddedID = " (id: " + botInfoId + "__________________________"
-                    var extendedName = shortName + paddedID.substr(0, 10) + ")";
 
-                    var containerNode = $("<div></div>");
-                    containerNode.css({
-                        position: "relative",
-                        height: 65,
-                    });
-                    containerNode.addClass("highscoreEntry");
-
-                    var nameNode = $("<span></span>");
-                    nameNode.css({
-                        position: "relative",
-                        float: "left", // To position the elements next to each other
-                        fontSize: "14px",
-                        fontFamily: "Courier New"
-                    });
-                    nameNode.html(extendedName);
-
-                    var pointsNode = $("<span></span>");
-                    pointsNode.css({
-                        position: "relative",
-                        fontSize: "14px",
-                        fontFamily: "Courier New",
-                        left: 20
-                    });
-                    pointString = String(Math.round(mass*100)/100) + "00000"
-                    pointString = pointString.substr(0, 9)
-                    pointsNode.html(pointString);
-
-
-                    maxSizeString = String(Math.round(stats.size*100)/100) + "00000";
-                    maxSizeString = maxSizeString.substr(0, 9);
-
-                    survivalString = String(Math.round(stats.survivalTime*100)/100) + "00000";
-                    survivalString = survivalString.substr(0, 6);
-                    statsString1 =
-                        "---\> " +
-                        "Max Size: " + maxSizeString +
-                        " Survival: " + survivalString +
-                        " Blob Kills: " + String(stats.blobKillCount) +
-                        " Bot Kills: " + String(stats.botKillCount) +
-                        " Toxin throws: " + String(stats.toxinThrow)
-
-                    var statsNode1 = $("<div></div>");
-                    statsNode1.css({
-                        position: "relative",
-                        left: 0,
-                        fontSize: "14px",
-                        fontFamily: "Courier New"
-                    });
-                    statsNode1.html(statsString1);
-
-                    statsString2 =
-                        "---\> " +
-                        " Successful Toxin throws: " + String(stats.successfulToxin) +
-                        " Splits: " + String(stats.splitCount) +
-                        " Successful Splits: " + String(stats.successfulSplit) +
-                        " Good Teaming: " + String(stats.successfulTeaming) +
-                        " Bad Teaming: " + String(stats.badTeaming)
-
-                    var statsNode2 = $("<div></div>");
-                    statsNode2.css({
-                        position: "relative",
-                        left: 0,
-                        fontSize: "14px",
-                        fontFamily: "Courier New"
-                    });
-                    statsNode2.html(statsString2);
-
-                    var barNode = $("<div></div>");
-                    barNode.css({
-                        position: "relative",
-                        background: makeCSSColor(botInfo.color),
-                        top: 1,
-                        //width: 280 * (mass / maxMass),
-                        width: 888 * (mass / maxMass),
-                        height: 10,
-                        "border-style": "solid",
-                        "border-width": "1px",
-                        "border-color": "black",
-                    });
-
-                    containerNode.append(nameNode);
-                    containerNode.append(pointsNode);
-                    containerNode.append(statsNode1);
-                    containerNode.append(statsNode2);
-                    containerNode.append(barNode);
-
+                    // VERY quick and dirty. Should be reworked, so that calculateHighscore is not called all the time.
+                    // But we kinda need maxMass. Or we don't show the bar in follower-mode...
+                    if (cameraMode == cmShowBot && botInfoId != cameraBotToFollow) {
+                        continue;
+                    }
+                    containerNode = updateHighscoreForBotId(botInfoId, mass, maxMass);
                     highscore.append(containerNode);
                 }
             }
