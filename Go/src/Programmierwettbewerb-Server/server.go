@@ -667,7 +667,9 @@ func (app* Application) startUpdateLoop() {
             //var maxEnlargement float64 = 15.0
             //var decreaseFactor float32 = 0.01
             //windowDiameter := float32(maxEnlargement * math.Pow(math.E, float64(-decreaseFactor * diameter))) * diameter
-            var windowDiameter float32 = 0.1 * completeMass + 100
+            var windowDiameter float32 = 30.0 * float32(math.Log(float64(completeMass))) - 20.0
+
+
 
             //Logf(LtDebug, "Complete mass of bot %v = %v, window diameter = %v\n", botId, completeMass, windowDiameter)
 

@@ -52,7 +52,7 @@ def findNearestSmallerBlob(myPos, myMass, enemies):
         if 0.99*myMass >= eMass and (dist < 0 or newDist < dist):
             dist = newDist
             target = ePos
-            sys.stderr.write("Bot: " + myId + " is now hunting\n")
+            #sys.stderr.write("Bot: " + myId + " is now hunting\n")
     return target
 
 def findAvgFleeingPos(myPos, myMass, enemies):
