@@ -183,17 +183,15 @@
 							
                 context = canvas.getContext('2d');
 
-
                 //
                 // Rendering
                 //
-                //setInterval(render, 1000 / 60);
-								window.requestAnimationFrame(render);
+                window.requestAnimationFrame(render);
 
                 //
                 // Updating the highscore
                 //
-                setInterval(updateHighscore, 1000 / 5);
+                setInterval(updateHighscore, 1000);
 
                 //
                 // Connection
@@ -333,43 +331,47 @@
                 }
 
                 // Render foods
-								const FOOD_SIZE = 6;
-								context.strokeStyle = "rgb(0, 0, 0)";
-								context.fillStyle = "rgb(128, 128, 128)";
-								context.lineWidth = 1;
+                const FOOD_SIZE = 6;
+                context.strokeStyle = "rgb(0, 0, 0)";
+                context.fillStyle = "rgb(128, 128, 128)";
+                context.lineWidth = 1;
                 for (var key in foods) {
                     var food = foods[key];
 
                     context.beginPath();
                     context.arc(food.pos.X, food.pos.Y, FOOD_SIZE, 0, 2 * Math.PI, false);
                     context.fill();
-
-                    context.stroke();
                 }
 
                 // Render toxins
-								context.strokeStyle = "green";
-								context.fillStyle = colors[10];
-								context.lineWidth = 5;
+                const NUM_VERTICES = 24;
+                const TOXIN_SPIKE_SIZE = 2;
+                context.strokeStyle = "green";
+                context.fillStyle = colors[10];
+                context.lineWidth = 1;                
                 for (var key in toxins) {
                     var toxin = toxins[key];
-
-
+                                        
                     context.beginPath();
-                    context.arc(toxin.pos.X, toxin.pos.Y, radius(toxin.mass), 0, 2 * Math.PI, false);
+                    for(var i = 0; i < NUM_VERTICES + 1; ++i) {
+                      var size = radius(toxin.mass) + (i % 2 == 0 ? 0 : TOXIN_SPIKE_SIZE);
+                      var x = size * Math.cos(2 * Math.PI * i / NUM_VERTICES);
+                      var y = size * Math.sin(2 * Math.PI * i / NUM_VERTICES);
+                      context.lineTo(toxin.pos.X + x, toxin.pos.Y + y);
+                    }                
                     context.fill();
-
-                    context.stroke();
+                    context.stroke();                    
                 }
 
                 // Render bots
+                context.strokeStyle = "rgb(255, 255, 255)";
+                context.lineWidth = 0.1;
                 for (var botId in bots) {
                     var bot = bots[botId];
 
                     for (var blobId in bot.blobs) {
                         var blob = bot.blobs[blobId];
 
-                        context.strokeStyle = "white";
                         if (botId in botInfos) {
                             context.fillStyle = makeCSSColor(botInfos[botId].color);
                         } else {
@@ -377,21 +379,17 @@
                             context.fillStyle = "rgb(255, 0, 0)";
                             context.font="12px Courir";
                             context.fillText("Couldn't find the BotInfo", blob.pos.X, blob.pos.Y + 20);
-
-                            context.fillStyle = "rgb(255, 0, 0)";
                         }
 
                         context.beginPath();
-
                         context.arc(blob.pos.X, blob.pos.Y, radius(blob.mass), 0, 2 * Math.PI, false);
                         context.fill();
-
-                        context.lineWidth = 0.1;
+                        
                         context.stroke();
                     }
 
                     if (cameraMode == cmShowBot) {
-                        context.fillStyle = "rgb(255, 255, 255)";
+                        context.beginPath();
                         context.rect(bot.viewWindow.pos.X, bot.viewWindow.pos.Y, bot.viewWindow.size.X, bot.viewWindow.size.Y);
                         context.stroke();
                     }
