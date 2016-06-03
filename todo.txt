@@ -1,46 +1,28 @@
-﻿
+﻿========================================================================
+ToDo:
 ========================================================================
-
-!- --> Fertig!
--  --> Noch nicht fertig!
-
-========================================================================
-
-Renderer und Browser:
-!- Neuer Renderer mit guter Performance.
-
-Gameplay:
-- Bot-Spawnpunkt fair setzen
-- Middleware/Server: Channel überschreiben mit neuen Daten (WICHTIG, wenn noch nicht umgesetzt, bin mir grade nicht sicher...)
-
-Statistik:
-- Eventuell einen speziellen Preis für den, der auf dem Testsystem kontinuierlich am Besten war
-
-Orga:
-- Simples Makefile vorgeben mit: make name == svn-repos (bsp: pwb_15)
-
-========================================================================
-
-Neue ToDos - Stand 12.05.:
 
 Server:
-!- Genau 30fps.
-!- Statistik in Datei schreiben (Achtung, Synchronisation - Variable mit fileInUse müsste reichen)
-!- Statistik-Daten in einem eigenen Format an die Gui schicken. Evtl. alle 1-n Sekunden.
-!- Wiedervereinen von Blobs muss länger dauern (bleibt konstant, unabhängig der Masse!)
 - Evtl. ein Levelsystem. Hauptsächlich bestehend aus einer Positionierung von Food/Toxin!
-!- Toxin neu spawnen, wenn gefressen!
-!- Toxin neu spawnen generell. Mit einer Obergrenze!
-!- Food neu spawnen generell. Mit einer Obergrenze!
+- Middleware/Server: Channel überschreiben mit neuen Daten (WICHTIG, wenn noch nicht umgesetzt, bin mir grade nicht sicher...)
+- Bot-Spawnpunkt fair setzen
+- Check, was passiert, wenn ein Bot deutlich öfter Daten schreibt, als er darf (muss verworfen werden!!!)
+- Middleware/Server: Port beim Starten mit übergeben, sodass zwei Server parallel laufen können.
+- Zwei Guis zur Verfügung stellen. Normales Testsystem + Wöchentliches bewertetes Testsystem (und für uns)
+- Skript schreiben, welches folgendes tut:
+    - Server starten
+    - SVN updates für alle Repositories
+    - Für jedes Repos die Middleware mit dem 1. Namen aus bot.names und 'n' Bots startet
+    - Warten und nach 'n_2' Minuten den Server entweder kontrolliert oder hart beendet
+- Cron-Job einrichten für das Skript. Zum Beispiel wöchentlich.
+- Server muss Bmp (zum Beispiel)-Bilder laden können. Er speichert dann alle Pixel mit einem Grauwert von > 0 in ein Array.
+- 3 Bilder werden geladen. Bot-Spawns, Toxin-Spawns, Food-Spawns.
+- Spawn-Position Bots/Food/Toxin dann ermitteln über einen/mehrere Zugriffe auf das Array mit
+    Wahrscheinlichkeiten. Wahrscheinlichkeiten abhängig vom Grauwert. Weiß == 0, Schwarz == 1.
 
 Gui:
-!- Canvas neu zeichnen bei Fenstergrößenänderungen
-- Der aktuelle Sichtbereich im Fenster muss folgende drei Modi wahlweise unterstützen:
-!   - Alle Blobs sind immer sichtbar!
-!   - Eine bestimmte Bot-ID verfolgen (Dieser ist im Zentrum [Oder der Schwerpunkt aller Blobs])
+- Der aktuelle Sichtbereich im Fenster muss noch den Modus unterstützen:
     - Eine bestimmte Team-ID verfolgen. Alle Bots dieses Teams müssen im Sichtbereich sein!
-!- Statistik in der Gui auffrischen, performanter machen und evtl. schicker (?) (Henk)
-!- Statistik-Daten vom Server empfangen und cachen.
 
 Formeln für die Teilnehmer:
 - Formel für Kontakt zwischen Blob und Blob/Food/Toxin (Entfernung, wann wird was gefressen!)
@@ -49,6 +31,72 @@ Formeln für die Teilnehmer:
 - Der Split-Vektor wird in jedem Zeitschritt *= 0.95 (oder so) genommen.
 - Eventuell Formel, wann ca. 90% der maximalen Split-Entfernung erreicht wurde (20 Frames oder so)
 - Formeln für Food abwerfen / Toxin-Split. Evtl. den gleichen Split-Vektor nehmen?!
+
+========================================================================
+Spezialpreise für:
+========================================================================
+
+- Überlebenszeit
+- Größte Masse
+- Die meisten Blobs gefressen
+- Die meisten Bots gefressen
+- Die wenigsten Blobs gefressen (Friedensbot ;))
+- Das meiste Gift gesplitted
+- Das Maximum des Verhältnisses zwischen Gift gesplittet und erfolgreich Gift gesplittet
+- Gutes Teaming (Ermöglicht ein gutes Team)
+- Schlechtes Teaming (Frisst seine eigenen Teamkollegen)
+- Am öftesten erfolgreich getestet (Verhältnis)
+
+- Beste Mitarbeit
+    - Gui Performance
+    - Bugs finden/melden
+    - Generelle Hilfe/Zusammenarbeit
+
+- Exotischste Sprache
+- Längster Code
+- Kürzester Code
+- Beste Commit-Nachricht
+- Aktivster Entwickler
+
+- Bester auf dem offiziellen Testsystem (Wöchentlich)
+
+- 1. Platz
+- 2. Platz
+- 3. Platz
+
+========================================================================
+Mögliche Sponsoren:
+========================================================================
+
+- Jens' Firma
+- FMC (Nicos Firma)
+- SPI (Meine Ex-Firma)
+- Mathias' Firma
+- Thunderbird (Philipp Kewischs' Firma)
+- Tschibo (Hab ich eine Ansprechperson)
+- + Was Marcus so hat
+
+========================================================================
+Geldwert insgesamt:
+========================================================================
+
+- Anzahl Preise:    ~25-30
+- Geld pro Preis:   ~80€
+- Insgesamt:        ~2500€
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
