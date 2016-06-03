@@ -1,16 +1,19 @@
 ﻿
+========================================================================
+
+!- --> Fertig!
+-  --> Noch nicht fertig!
+
+========================================================================
+
 Renderer und Browser:
-- Neuer Renderer mit guter Performance.
+!- Neuer Renderer mit guter Performance.
 
 Gameplay:
 - Bot-Spawnpunkt fair setzen
-- Middleware/Server: Channel überschreiben mit neuen Daten
-
-Finalisieren:
-- Größeanpassung, Geschwindigkeitsanpassung, etc...
+- Middleware/Server: Channel überschreiben mit neuen Daten (WICHTIG, wenn noch nicht umgesetzt, bin mir grade nicht sicher...)
 
 Statistik:
-- Auf dem Serversystem eine Statistik betreiben, wer wie gut ist
 - Eventuell einen speziellen Preis für den, der auf dem Testsystem kontinuierlich am Besten war
 
 Orga:
@@ -20,14 +23,11 @@ Orga:
 
 Neue ToDos - Stand 12.05.:
 
-!- --> Done!
--  --> Not done yet!
-
 Server:
 !- Genau 30fps.
-- Statistik in Datei schreiben (Achtung, Synchronisation - Variable mit fileInUse müsste reichen)
-- Statistik-Daten in einem eigenen Format an die Gui schicken. Evtl. alle 1-n Sekunden.
-- Wiedervereinen von Blobs muss länger dauern (bleibt konstant, unabhängig der Masse!)
+!- Statistik in Datei schreiben (Achtung, Synchronisation - Variable mit fileInUse müsste reichen)
+!- Statistik-Daten in einem eigenen Format an die Gui schicken. Evtl. alle 1-n Sekunden.
+!- Wiedervereinen von Blobs muss länger dauern (bleibt konstant, unabhängig der Masse!)
 - Evtl. ein Levelsystem. Hauptsächlich bestehend aus einer Positionierung von Food/Toxin!
 !- Toxin neu spawnen, wenn gefressen!
 !- Toxin neu spawnen generell. Mit einer Obergrenze!
@@ -36,11 +36,11 @@ Server:
 Gui:
 !- Canvas neu zeichnen bei Fenstergrößenänderungen
 - Der aktuelle Sichtbereich im Fenster muss folgende drei Modi wahlweise unterstützen:
-    - Alle Blobs sind immer sichtbar!
+!   - Alle Blobs sind immer sichtbar!
 !   - Eine bestimmte Bot-ID verfolgen (Dieser ist im Zentrum [Oder der Schwerpunkt aller Blobs])
     - Eine bestimmte Team-ID verfolgen. Alle Bots dieses Teams müssen im Sichtbereich sein!
-- Statistik in der Gui auffrischen, performanter machen und evtl. schicker (?) (Henk)
-- Statistik-Daten vom Server empfangen und cachen.
+!- Statistik in der Gui auffrischen, performanter machen und evtl. schicker (?) (Henk)
+!- Statistik-Daten vom Server empfangen und cachen.
 
 Formeln für die Teilnehmer:
 - Formel für Kontakt zwischen Blob und Blob/Food/Toxin (Entfernung, wann wird was gefressen!)
