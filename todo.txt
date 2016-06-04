@@ -3,7 +3,6 @@ ToDo:
 ========================================================================
 
 Server:
-- Evtl. ein Levelsystem. Hauptsächlich bestehend aus einer Positionierung von Food/Toxin!
 - Middleware/Server: Channel überschreiben mit neuen Daten (WICHTIG, wenn noch nicht umgesetzt, bin mir grade nicht sicher...)
 - Bot-Spawnpunkt fair setzen
 - Check, was passiert, wenn ein Bot deutlich öfter Daten schreibt, als er darf (muss verworfen werden!!!)
