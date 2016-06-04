@@ -1356,7 +1356,7 @@ func rgbToGrayscale(r, g, b uint32) uint8 {
 func loadSpawnImage(imageName string, shadesOfGray int) []Vec2 {
 
     var distributionArray []Vec2
-    fImg, err1 := os.Open("./" + imageName)
+    fImg, err1 := os.Open(imageName)
     image, err2 := bmp.Decode(fImg)
     if err1 != nil || err2 != nil {
         Logf(LtDebug, "Error while trying to load image %v. err1: %v and err2: %v\n", imageName, err1, err2)
@@ -1404,8 +1404,6 @@ func main() {
     InitOrganisation()
 
     UpdateAllSVN()
-
-    loadSpawnImage("food_spawn.bmp", 10)
 
     // Run the update-loop in parallel to serve the websocket on the main thread.
     go app.startUpdateLoop()
