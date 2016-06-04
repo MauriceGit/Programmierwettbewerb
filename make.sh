@@ -15,6 +15,7 @@ echo "Set the GOBIN to '$GOBIN'"
 
 echo "Get Libaries"
 go get "golang.org/x/net/websocket"
+go get "golang.org/x/image/bmp"
 
 echo "Build Server"
 go install Programmierwettbewerb-Server

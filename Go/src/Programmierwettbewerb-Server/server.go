@@ -13,6 +13,12 @@ import (
     "math/rand"
     "time"
     "strconv"
+    "os"
+    //"io/ioutil"
+    "golang.org/x/image/bmp"
+    //"image/color"
+    //"image"
+    //"reflect"
 )
 
 // -------------------------------------------------------------------------------------------------
@@ -128,6 +134,10 @@ type Application struct {
     bots                map[BotId]Bot
 
     mwInfo              chan(MwInfo)
+
+    foodDistribution    []Vec2
+    toxinDistribution   []Vec2
+    botDistribution     []Vec2
 }
 
 var app Application
@@ -147,13 +157,18 @@ func (app* Application) initialize() {
 
     app.mwInfo          = make(chan MwInfo, 1000)
 
+    app.foodDistribution    = loadSpawnImage("../food_spawn.bmp", 10)
+    app.toxinDistribution   = loadSpawnImage("../toxin_spawn.bmp", 10)
+    app.botDistribution     = loadSpawnImage("../bot_spawn.bmp", 10)
+
     for i := FoodId(0); i < foodCount; i++ {
         mass := foodMassMin + rand.Float32() * (foodMassMax - foodMassMin)
-        app.foods[i] = Food{ true, false, false, 0, mass, Mulv(RandomVec2(), app.fieldSize), RandomVec2() }
+        app.foods[i] = Food{ true, false, false, 0, mass, newFoodPos(), RandomVec2() }
     }
 
     for i := 0; i < toxinCount; i++ {
-        app.toxins[ToxinId(i)] = Toxin{true, false, Mulv(RandomVec2(), app.fieldSize), false, 0, toxinMassMin, RandomVec2()}
+        app.toxins[ToxinId(i)] = Toxin{true, false, newToxinPos(), false, 0, toxinMassMin, RandomVec2()}
+        // Mulv(RandomVec2(), app.fieldSize)
     }
 }
 
@@ -280,6 +295,16 @@ func (blobContainer *IdsContainer) insert(botId BotId, blobId BlobId) {
 }
 
 // -------------------------------------------------------------------------------------------------
+
+func newFoodPos() Vec2 {
+    return app.foodDistribution[rand.Intn(len(app.foodDistribution))]
+}
+func newToxinPos() Vec2 {
+    return app.toxinDistribution[rand.Intn(len(app.toxinDistribution))]
+}
+func newBotPos() Vec2 {
+    return app.botDistribution[rand.Intn(len(app.botDistribution))]
+}
 
 func calcBlobVelocityFromMass(vel Vec2, mass float32) Vec2 {
     // This is the maximum mass for now.
@@ -691,12 +716,12 @@ func (app* Application) startUpdateLoop() {
         ////////////////////////////////////////////////////////////////
         if rand.Intn(100) <= 5 && len(app.toxins) < toxinCountMax {
             newToxinId := app.createToxinId()
-            app.toxins[newToxinId] = Toxin{true, false, Mulv(RandomVec2(), app.fieldSize), false, 0, toxinMassMin, RandomVec2()}
+            app.toxins[newToxinId] = Toxin{true, false, newToxinPos(), false, 0, toxinMassMin, RandomVec2()}
         }
         if rand.Intn(100) <= 5 && len(app.foods) < foodCountMax {
             newFoodId := app.createFoodId()
             mass := foodMassMin + rand.Float32() * (foodMassMax - foodMassMin)
-            app.foods[newFoodId] = Food{ true, false, false, 0, mass, Mulv(RandomVec2(), app.fieldSize), RandomVec2() }
+            app.foods[newFoodId] = Food{ true, false, false, 0, mass, newFoodPos(), RandomVec2() }
         }
 
         ////////////////////////////////////////////////////////////////
@@ -844,7 +869,7 @@ func (app* Application) startUpdateLoop() {
                         blobsToDelete = append(blobsToDelete, blobId)
                         //eatenToxins = append(eatenToxins, tId)
 
-                        toxin.Position = Mulv(RandomVec2(), app.fieldSize)
+                        toxin.Position = newToxinPos()
                         toxin.IsNew = true
                         toxin.Mass = toxinMassMin
                         //delete(app.toxins, tId)
@@ -909,7 +934,7 @@ func (app* Application) startUpdateLoop() {
                             delete(app.foods, foodId)
                             eatenFoods = append(eatenFoods, foodId)
                         } else {
-                            food.Position = Mulv(RandomVec2(), app.fieldSize)
+                            food.Position = newFoodPos()
                             food.IsNew = true
                             app.foods[foodId] = food
                         }
@@ -936,7 +961,7 @@ func (app* Application) startUpdateLoop() {
                         delete(app.foods, foodId)
                         eatenFoods = append(eatenFoods, foodId)
                     } else {
-                        food.Position = Mulv(RandomVec2(), app.fieldSize)
+                        food.Position = newFoodPos()
                         food.IsNew = true
                         app.foods[foodId] = food
                     }
@@ -1200,7 +1225,7 @@ func handleGui(ws *websocket.Conn) {
 
 func createStartingBot(ws *websocket.Conn, botInfo BotInfo, statistics Statistics) Bot {
     blob := Blob {
-        Position:       Mulv(RandomVec2(), app.fieldSize),  // TODO(henk): How do we decide this?
+        Position:       newBotPos(),  // TODO(henk): How do we decide this?
         Mass:           100.0,
         VelocityFac:    1.0,
         IsSplit:        false,
@@ -1323,6 +1348,52 @@ func handleMiddleware(ws *websocket.Conn) {
     }
 }
 
+func rgbToGrayscale(r, g, b uint32) uint8 {
+    y := (299*r + 587*g + 114*b + 500) / 1000
+    return uint8(y >> 8)
+}
+
+func loadSpawnImage(imageName string, shadesOfGray int) []Vec2 {
+
+    var distributionArray []Vec2
+    fImg, err1 := os.Open("./" + imageName)
+    image, err2 := bmp.Decode(fImg)
+    if err1 != nil || err2 != nil {
+        Logf(LtDebug, "Error while trying to load image %v. err1: %v and err2: %v\n", imageName, err1, err2)
+        return distributionArray
+    }
+
+    for x := image.Bounds().Min.X; x < image.Bounds().Max.X; x++ {
+        for y := image.Bounds().Min.Y; y < image.Bounds().Max.Y; y++ {
+            r, g, b, _ := image.At(x,y).RGBA()
+            gray := (255 - float32(rgbToGrayscale(r,g,b))) / 255.0
+
+            arrayCount := int(gray * float32(shadesOfGray))
+
+            for i := 0; i < arrayCount; i++ {
+                minX := (x-1) * (int(app.fieldSize.X) / image.Bounds().Max.X)
+                maxX := x   * (int(app.fieldSize.X) / image.Bounds().Max.X)
+                if x == 0 {
+                    minX = maxX
+                }
+                minY := (y-1) * (int(app.fieldSize.Y) / image.Bounds().Max.Y)
+                maxY := y   * (int(app.fieldSize.Y) / image.Bounds().Max.Y)
+                if y == 0 {
+                    minY = maxY
+                }
+
+                // We make this calculation so the position is random but bounded by our 100x100 picture.
+                // So we have actually 10x10 radius (fieldsize == 1000) to set the food or bot...
+                pos := Vec2{float32(rand.Intn(maxX-minX+1)+minX), float32(rand.Intn(maxY-minY+1)+minY)}
+                distributionArray = append(distributionArray, pos)
+            }
+
+        }
+    }
+
+    return distributionArray
+}
+
 func main() {
     // TODO(henk): Maybe we wanna toggle this at runtime.
     SetLoggingDebug(true)
@@ -1333,6 +1404,8 @@ func main() {
     InitOrganisation()
 
     UpdateAllSVN()
+
+    loadSpawnImage("food_spawn.bmp", 10)
 
     // Run the update-loop in parallel to serve the websocket on the main thread.
     go app.startUpdateLoop()
