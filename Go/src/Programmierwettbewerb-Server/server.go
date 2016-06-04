@@ -157,7 +157,7 @@ func (app* Application) initialize() {
 
     app.mwInfo          = make(chan MwInfo, 1000)
 
-    app.foodDistribution    = loadSpawnImage("../food_spawn.bmp", 10)
+    app.foodDistribution    = loadSpawnImage("../food_spawn2.bmp", 10)
     app.toxinDistribution   = loadSpawnImage("../toxin_spawn.bmp", 10)
     app.botDistribution     = loadSpawnImage("../bot_spawn.bmp", 10)
 
