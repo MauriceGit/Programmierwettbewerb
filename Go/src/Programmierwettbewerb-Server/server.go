@@ -38,13 +38,14 @@ const (
     botMaxMass = 4000.0
     blobReunionTime = 10.0
     blobSplitMass   = 100.0
-    blobSplitVelocity = float32(1.5)
+    blobSplitVelocity = 1.5
     blobMinSpeedFactor = 0.225
     toxinMassMin = 100
     toxinMassMax = 119
     windowMin = 100
     windowMax = 400
     massLossFactor = 10.0
+    minBlobMassToExplode = 400.0
     maxBlobCountToExplode = 10
 
     velocityDecreaseFactor = 0.95
@@ -122,6 +123,7 @@ type MwInfo struct {
     ws                      *websocket.Conn
 }
 
+
 type Application struct {
     fieldSize           Vec2
     // TODO(henk): Simply search the key of 'blobs' and assign an unused key to a newly connected client.
@@ -130,12 +132,14 @@ type Application struct {
     nextBlobId          BlobId
     nextFoodId          FoodId
     nextToxinId         ToxinId
+    nextServerCommandId CommandId
     guiConnections      map[GuiId]GuiConnection
     foods               map[FoodId]Food
     toxins              map[ToxinId]Toxin
     bots                map[BotId]Bot
 
     mwInfo              chan(MwInfo)
+    serverCommands      chan(MessageServerCommands)
 
     foodDistribution    []Vec2
     toxinDistribution   []Vec2
@@ -149,6 +153,7 @@ func (app* Application) initialize() {
     app.nextGuiId       = 0                       // TODO(henk): Don't do this stuff. Simply search for free id. But this can't be implemented until the bots can connect.
     app.nextBotId       = 1
     app.nextBlobId      = 1
+    app.nextServerCommandId = 0
     app.nextFoodId      = foodCount+1
     app.nextToxinId     = toxinCount+1
     app.guiConnections  = make(map[GuiId]GuiConnection)
@@ -158,6 +163,7 @@ func (app* Application) initialize() {
     app.toxins          = make(map[ToxinId]Toxin)
 
     app.mwInfo          = make(chan MwInfo, 1000)
+    app.serverCommands  = make(chan MessageServerCommands, 100)
 
     app.foodDistribution    = loadSpawnImage("../food_spawn.bmp", 10)
     app.toxinDistribution   = loadSpawnImage("../toxin_spawn.bmp", 10)
@@ -177,6 +183,12 @@ func (app* Application) initialize() {
 func (app* Application) createGuiId() GuiId {
     var id = app.nextGuiId
     app.nextGuiId = id + 1 // TODO(henk): Must be synchronized
+    return id
+}
+
+func (app* Application) createServerCommandId() CommandId {
+    var id = app.nextServerCommandId
+    app.nextServerCommandId = id + 1
     return id
 }
 
@@ -824,10 +836,6 @@ func (app* Application) startUpdateLoop() {
             app.bots[botId] = *botRef
         }
 
-
-
-        //checkAllValuesOnNaN("third")
-
         // Blob Collision with Toxin
         eatenToxins := make([]ToxinId, 0)
         for tId,_ := range app.toxins {
@@ -850,7 +858,7 @@ func (app* Application) startUpdateLoop() {
                 for blobId,_ := range bot.Blobs {
                     var singleBlob = bot.Blobs[blobId]
 
-                    if Dist(singleBlob.Position, toxin.Position) < singleBlob.Radius() && singleBlob.Mass >= 400 {
+                    if Dist(singleBlob.Position, toxin.Position) < singleBlob.Radius() && singleBlob.Mass >= minBlobMassToExplode {
                         subMap := make(map[BlobId]Blob)
 
                         if toxin.IsSplit {
@@ -1264,6 +1272,28 @@ func createStartingBot(ws *websocket.Conn, botInfo BotInfo, statistics Statistic
     }
 }
 
+func handleServerCommands(ws *websocket.Conn) {
+    var commandId = app.createBotId()
+
+    Logf(LtDebug, "Got a new direct command connection", commandId)
+
+    var err error
+    for {
+        //
+        // Receive the message
+        //
+        var message MessageServerCommands
+        if err = websocket.JSON.Receive(ws, &message); err != nil {
+            Logf(LtDebug, "The command line with id: %v is closed because of: %v\n", commandId, err)
+            ws.Close()
+            return
+        }
+
+        Logf(LtDebug, "Got a VERY important command: %v\n", message.Stuff)
+
+    }
+}
+
 func handleMiddleware(ws *websocket.Conn) {
     var botId = app.createBotId()
 
@@ -1426,6 +1456,10 @@ func main() {
 
     // Assign the handler for Middleware-Connections
     http.Handle("/middleware/", websocket.Handler(handleMiddleware))
+
+
+    http.Handle("/servercommand/", websocket.Handler(handleServerCommands))
+
     // Get the stuff running
     if err := http.ListenAndServe(":1234", nil); err != nil {
         log.Fatal("ListenAndServe:", err)

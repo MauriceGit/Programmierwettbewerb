@@ -12,6 +12,7 @@ type BotId uint32
 type BlobId uint32
 type FoodId uint32
 type ToxinId uint32
+type CommandId uint32
 
 type Color struct {
     R byte
@@ -71,6 +72,13 @@ type MessageMiddlewareServer struct {
     Type                MessageMiddlewareServerType
     BotCommand          *BotCommand
     BotInfo             *BotInfo
+}
+
+
+type MessageServerCommands struct {
+
+    Stuff   int
+
 }
 
 type Food struct {
