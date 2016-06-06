@@ -30,8 +30,8 @@ const (
     foodMassMax = 12
     thrownFoodMass = 10
     massToBeAllowedToThrow = 120
-    foodCount = 300  // TODO(henk): How do we decide how much food there is?
-    foodCountMax = 500
+    foodCount = 600  // TODO(henk): How do we decide how much food there is?
+    foodCountMax = 1000
     toxinCount = 100
     toxinCountMax = 200
     botMinMass = 10
@@ -165,8 +165,8 @@ func (app* Application) initialize() {
     app.mwInfo          = make(chan MwInfo, 1000)
     app.serverCommands  = make(chan MessageServerCommands, 100)
 
-    app.foodDistribution    = loadSpawnImage("../food_spawn.bmp", 10)
-    app.toxinDistribution   = loadSpawnImage("../toxin_spawn.bmp", 10)
+    app.foodDistribution    = loadSpawnImage("../tchibo.bmp", 10)
+    app.toxinDistribution   = loadSpawnImage("../tchibo.bmp", 10)
     app.botDistribution     = loadSpawnImage("../bot_spawn.bmp", 10)
 
     for i := FoodId(0); i < foodCount; i++ {
