@@ -78,7 +78,7 @@ type Food struct {
     IsMoving    bool    `json:"moving"`
     IsThrown    bool    `json:"thrown"`
     // We need the bot-ID here for statistic reasons
-    IsThrownBy  uint32
+    IsThrownBy  BotId
     Mass        float32 `json:"mass"`
     Position    Vec2    `json:"pos"`
     Velocity    Vec2    `json:"vel"`
@@ -89,7 +89,7 @@ type Toxin struct {
     IsMoving   bool     `json:"moving"`
     Position   Vec2     `json:"pos"`
     IsSplit    bool
-    IsSplitBy  uint32
+    IsSplitBy  BotId
     Mass       float32  `json:"mass"`
     Velocity   Vec2     `json:"vel"`
 }

@@ -39,11 +39,13 @@ const (
     blobReunionTime = 10.0
     blobSplitMass   = 100.0
     blobSplitVelocity = float32(1.5)
+    blobMinSpeedFactor = 0.225
     toxinMassMin = 100
-    toxinMassMax = 150
+    toxinMassMax = 119
     windowMin = 100
     windowMax = 400
     massLossFactor = 10.0
+    maxBlobCountToExplode = 10
 
     velocityDecreaseFactor = 0.95
 
@@ -145,10 +147,10 @@ var app Application
 func (app* Application) initialize() {
     app.fieldSize       = Vec2{ 1000, 1000 }  // TODO(henk): How do we decide the field size? Is it a constant?
     app.nextGuiId       = 0                       // TODO(henk): Don't do this stuff. Simply search for free id. But this can't be implemented until the bots can connect.
-    app.nextBotId       = 0
-    app.nextBlobId      = 0
-    app.nextFoodId      = foodCount
-    app.nextToxinId     = toxinCount
+    app.nextBotId       = 1
+    app.nextBlobId      = 1
+    app.nextFoodId      = foodCount+1
+    app.nextToxinId     = toxinCount+1
     app.guiConnections  = make(map[GuiId]GuiConnection)
 
     app.foods           = make(map[FoodId]Food)
@@ -157,17 +159,17 @@ func (app* Application) initialize() {
 
     app.mwInfo          = make(chan MwInfo, 1000)
 
-    app.foodDistribution    = loadSpawnImage("../food_spawn2.bmp", 10)
+    app.foodDistribution    = loadSpawnImage("../food_spawn.bmp", 10)
     app.toxinDistribution   = loadSpawnImage("../toxin_spawn.bmp", 10)
     app.botDistribution     = loadSpawnImage("../bot_spawn.bmp", 10)
 
     for i := FoodId(0); i < foodCount; i++ {
         mass := foodMassMin + rand.Float32() * (foodMassMax - foodMassMin)
-        app.foods[i] = Food{ true, false, false, 0, mass, newFoodPos(), RandomVec2() }
+        app.foods[i] = Food{ true, false, false, BotId(0), mass, newFoodPos(), RandomVec2() }
     }
 
     for i := 0; i < toxinCount; i++ {
-        app.toxins[ToxinId(i)] = Toxin{true, false, newToxinPos(), false, 0, toxinMassMin, RandomVec2()}
+        app.toxins[ToxinId(i)] = Toxin{true, false, newToxinPos(), false, BotId(0), toxinMassMin, RandomVec2()}
         // Mulv(RandomVec2(), app.fieldSize)
     }
 }
@@ -311,7 +313,7 @@ func calcBlobVelocityFromMass(vel Vec2, mass float32) Vec2 {
     var factor = 1.0 - mass/botMaxMass
     if mass > 0.9*botMaxMass {
         // So blobs never stop moving completely.
-        factor = 0.125
+        factor = blobMinSpeedFactor
     }
     if Length(vel) <= 0.01 {
         vel = RandomVec2()
@@ -388,7 +390,6 @@ func calcSubblobReunion(killedBlobs *IdsContainer, botId BotId, bot *Bot) {
                 var dist = Dist(subBlob.Position, subBlob2.Position)
                 var shouldBe = subBlob.Radius() + subBlob2.Radius()
                 if subBlob2.ReunionTime < 0.1 && dist < shouldBe && shouldBe - dist > subBlob2.Radius() {
-                    Logln(LtDebug, "Reunion!")
                     // Merge them together.
                     var tmp = (*bot).Blobs[k]
                     tmp.Mass += (*bot).Blobs[k2].Mass
@@ -443,7 +444,7 @@ func throwAllBlobsOfBot(bot *Bot, botId BotId) bool {
                 IsNew:    true,
                 IsMoving: true,
                 IsThrown: true,
-                IsThrownBy: uint32(botId),
+                IsThrownBy: botId,
                 Mass:     thrownFoodMass,
                 Position: Add(blob.Position, Muls(targetDirection, 1.5*(blob.Radius() + Radius(thrownFoodMass)))),
                 Velocity: Muls(targetDirection, 150),
@@ -765,7 +766,6 @@ func (app* Application) startUpdateLoop() {
 
         for botId, bot := range app.bots {
             if bot.Command.Action == BatSplit && len(bot.Blobs) <= 10 {
-                Logln(LtDebug, "Split!")
 
                 var bot = app.bots[botId]
                 bot.StatisticsThisGame.SplitCount += 1
@@ -775,24 +775,16 @@ func (app* Application) startUpdateLoop() {
 
             } else if bot.Command.Action == BatThrow {
                 bot := app.bots[botId]
-                somebodyThrew := throwAllBlobsOfBot(&bot, botId)
-                if somebodyThrew {
-                    Logln(LtDebug, "Throw!")
-                }
+                throwAllBlobsOfBot(&bot, botId)
                 app.bots[botId] = bot
             }
         }
-
-
-
-        //checkAllValuesOnNaN("second")
 
         // Splitting the Toxin!
         for toxinId, toxin := range app.toxins {
 
             if toxin.Mass > toxinMassMax {
-                // Reset Mass
-                toxin.Mass = toxinMassMin
+
                 // Create new Toxin (moving!)
                 newId := app.createToxinId()
                 newToxin := Toxin {
@@ -806,10 +798,17 @@ func (app* Application) startUpdateLoop() {
                 }
                 app.toxins[newId] = newToxin
 
-                possibleBot, foundIt := app.bots[BotId(toxin.IsSplitBy)]
+                // Reset Mass
+                toxin.Mass = toxinMassMin
+                toxin.IsSplit = false
+                toxin.IsNew = false
+                toxin.IsSplitBy = BotId(0)
+                toxin.Velocity = RandomVec2()
+
+                possibleBot, foundIt := app.bots[toxin.IsSplitBy]
                 if foundIt {
                     possibleBot.StatisticsThisGame.ToxinThrow += 1
-                    app.bots[BotId(toxin.IsSplitBy)] = possibleBot
+                    app.bots[toxin.IsSplitBy] = possibleBot
                 }
 
             }
@@ -817,7 +816,6 @@ func (app* Application) startUpdateLoop() {
         }
 
         // Reunion of Subblobs
-
         for botId, _ := range app.bots {
             var bot = app.bots[botId]
             var botRef = &bot
@@ -838,6 +836,11 @@ func (app* Application) startUpdateLoop() {
             for botId, _ := range app.bots {
                 bot := app.bots[botId]
 
+                // If a bot already has > 10 blobs (i.e.), don't explode, ignore!
+                if len(bot.Blobs) > maxBlobCountToExplode {
+                    continue
+                }
+
                 mapOfAllNewSingleBlobs := make(map[BlobId]Blob)
                 var blobsToDelete []BlobId
                 var exploded = false
@@ -851,10 +854,10 @@ func (app* Application) startUpdateLoop() {
                         subMap := make(map[BlobId]Blob)
 
                         if toxin.IsSplit {
-                            possibleBot, foundIt := app.bots[BotId(toxin.IsSplitBy)]
+                            possibleBot, foundIt := app.bots[toxin.IsSplitBy]
                             if foundIt {
                                 possibleBot.StatisticsThisGame.SuccessfulToxin += 1
-                                app.bots[BotId(toxin.IsSplitBy)] = possibleBot
+                                app.bots[toxin.IsSplitBy] = possibleBot
                             }
                         }
 
@@ -870,6 +873,8 @@ func (app* Application) startUpdateLoop() {
                         //eatenToxins = append(eatenToxins, tId)
 
                         toxin.Position = newToxinPos()
+                        toxin.IsSplitBy = BotId(0)
+                        toxin.IsSplit = false
                         toxin.IsNew = true
                         toxin.Mass = toxinMassMin
                         //delete(app.toxins, tId)
@@ -877,7 +882,6 @@ func (app* Application) startUpdateLoop() {
                 }
 
                 if exploded {
-                    Logln(LtDebug, "Exploded!")
                     // Delete the origin of the exploded Blobs.
                     for _,blobKey := range blobsToDelete {
                         killedBlobs.insert(botId, blobKey)
@@ -948,22 +952,24 @@ func (app* Application) startUpdateLoop() {
 
             // Toxins eating food (even if accidently!)
             for tId, toxin := range app.toxins {
-                if Length(Sub(food.Position, toxin.Position)) < Radius(toxin.Mass) {
-                    toxin.Mass = toxin.Mass + food.Mass
-                    // Always get the velocity of the last eaten food so the toxin (when split)
-                    // gets the right velocity of the last input.
-                    if Length(food.Velocity) <= 0.01 {
-                        food.Velocity = RandomVec2()
-                    }
-                    toxin.IsSplitBy = food.IsThrownBy
-                    toxin.Velocity = Muls(NormalizeOrZero(food.Velocity), 100)
-                    if food.IsThrown {
-                        delete(app.foods, foodId)
-                        eatenFoods = append(eatenFoods, foodId)
-                    } else {
-                        food.Position = newFoodPos()
-                        food.IsNew = true
-                        app.foods[foodId] = food
+                if food.IsThrown {
+                    if Length(Sub(food.Position, toxin.Position)) < Radius(toxin.Mass) {
+                        toxin.Mass = toxin.Mass + food.Mass
+                        // Always get the velocity of the last eaten food so the toxin (when split)
+                        // gets the right velocity of the last input.
+                        if Length(food.Velocity) <= 0.01 {
+                            food.Velocity = RandomVec2()
+                        }
+                        toxin.IsSplitBy = food.IsThrownBy
+                        toxin.Velocity = Muls(NormalizeOrZero(food.Velocity), 100)
+                        if food.IsThrown {
+                            delete(app.foods, foodId)
+                            eatenFoods = append(eatenFoods, foodId)
+                        } else {
+                            food.Position = newFoodPos()
+                            food.IsNew = true
+                            app.foods[foodId] = food
+                        }
                     }
                 }
                 app.toxins[tId] = toxin
