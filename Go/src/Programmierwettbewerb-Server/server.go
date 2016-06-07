@@ -810,18 +810,18 @@ func (app* Application) startUpdateLoop() {
                 }
                 app.toxins[newId] = newToxin
 
+                possibleBot, foundIt := app.bots[toxin.IsSplitBy]
+                if foundIt {
+                    possibleBot.StatisticsThisGame.ToxinThrow += 1
+                    app.bots[toxin.IsSplitBy] = possibleBot
+                }
+
                 // Reset Mass
                 toxin.Mass = toxinMassMin
                 toxin.IsSplit = false
                 toxin.IsNew = false
                 toxin.IsSplitBy = BotId(0)
                 toxin.Velocity = RandomVec2()
-
-                possibleBot, foundIt := app.bots[toxin.IsSplitBy]
-                if foundIt {
-                    possibleBot.StatisticsThisGame.ToxinThrow += 1
-                    app.bots[toxin.IsSplitBy] = possibleBot
-                }
 
             }
             app.toxins[toxinId] = toxin
@@ -969,15 +969,12 @@ func (app* Application) startUpdateLoop() {
                             food.Velocity = RandomVec2()
                         }
                         toxin.IsSplitBy = food.IsThrownBy
+                        //Logf(LtDebug, "Food is thrown by %v\n", toxin.IsSplitBy)
                         toxin.Velocity = Muls(NormalizeOrZero(food.Velocity), 100)
-                        if food.IsThrown {
-                            delete(app.foods, foodId)
-                            eatenFoods = append(eatenFoods, foodId)
-                        } else {
-                            food.Position = newFoodPos()
-                            food.IsNew = true
-                            app.foods[foodId] = food
-                        }
+
+                        delete(app.foods, foodId)
+                        eatenFoods = append(eatenFoods, foodId)
+
                     }
                 }
                 app.toxins[tId] = toxin
@@ -1273,7 +1270,7 @@ func createStartingBot(ws *websocket.Conn, botInfo BotInfo, statistics Statistic
 }
 
 func handleServerCommands(ws *websocket.Conn) {
-    var commandId = app.createBotId()
+    var commandId = app.createServerCommandId()
 
     Logf(LtDebug, "Got a new direct command connection", commandId)
 
@@ -1314,7 +1311,6 @@ func handleMiddleware(ws *websocket.Conn) {
             var cmd BotCommand
             var bi  BotInfo
 
-            //app.mwInfo <- MwInfo {botId, cmd, false, false, bi, nil, nil}
             app.mwInfo <- MwInfo {
                             botId:                  botId,
                             command:                cmd,
@@ -1335,7 +1331,6 @@ func handleMiddleware(ws *websocket.Conn) {
             if message.BotCommand != nil {
 
                 var bi  BotInfo
-                //app.mwInfo <- MwInfo{botId, *message.BotCommand, true, false, bi, nil, nil}
                 app.mwInfo <- MwInfo{
                                 botId:              botId,
                                 command:            *message.BotCommand,
@@ -1365,7 +1360,6 @@ func handleMiddleware(ws *websocket.Conn) {
                 }
 
                 var cmd BotCommand
-                //app.mwInfo <- MwInfo{botId, cmd, true, true, *message.BotInfo, statistics, ws}
                 app.mwInfo <- MwInfo{
                                 botId:              botId,
                                 command:            cmd,
@@ -1457,8 +1451,12 @@ func main() {
     // Assign the handler for Middleware-Connections
     http.Handle("/middleware/", websocket.Handler(handleMiddleware))
 
-
-    http.Handle("/servercommand/", websocket.Handler(handleServerCommands))
+    http.HandleFunc("/servercommand/",
+        func (w http.ResponseWriter, req *http.Request) {
+            s := websocket.Server{Handler: websocket.Handler(handleServerCommands)}
+            s.ServeHTTP(w, req)
+        });
+    //http.Handle("/servercommand/", websocket.Handler(handleServerCommands))
 
     // Get the stuff running
     if err := http.ListenAndServe(":1234", nil); err != nil {
