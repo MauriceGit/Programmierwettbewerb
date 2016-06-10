@@ -844,11 +844,6 @@ func (app* Application) startUpdateLoop() {
             for botId, _ := range app.bots {
                 bot := app.bots[botId]
 
-                // If a bot already has > 10 blobs (i.e.), don't explode, ignore!
-                if len(bot.Blobs) > maxBlobCountToExplode {
-                    continue
-                }
-
                 mapOfAllNewSingleBlobs := make(map[BlobId]Blob)
                 var blobsToDelete []BlobId
                 var exploded = false
@@ -859,6 +854,24 @@ func (app* Application) startUpdateLoop() {
                     var singleBlob = bot.Blobs[blobId]
 
                     if Dist(singleBlob.Position, toxin.Position) < singleBlob.Radius() && singleBlob.Mass >= minBlobMassToExplode {
+
+                        // If a bot already has > 10 blobs (i.e.), don't explode, ignore!
+                        if len(bot.Blobs) > maxBlobCountToExplode {
+                            if toxin.IsSplit {
+                                eatenToxins = append(eatenToxins, tId)
+                                delete(app.toxins, tId)
+                            } else {
+
+                                toxin.Position = newToxinPos()
+                                toxin.IsSplitBy = BotId(0)
+                                toxin.IsSplit = false
+                                toxin.IsNew = true
+                                toxin.Mass = toxinMassMin
+
+                            }
+                            continue
+                        }
+
                         subMap := make(map[BlobId]Blob)
 
                         if toxin.IsSplit {
