@@ -33,7 +33,8 @@ const (
     foodCount = 600  // TODO(henk): How do we decide how much food there is?
     foodCountMax = 1000
     toxinCount = 100
-    toxinCountMax = 200
+    toxinCountMax = 200 // From server randomly generated
+    toxinCountGameMax = 250 // From players additionally generated
     botMinMass = 10
     botMaxMass = 4000.0
     blobReunionTime = 10.0
@@ -769,6 +770,18 @@ func (app* Application) startUpdateLoop() {
         }
 
         ////////////////////////////////////////////////////////////////
+        // DELETE RANDOM TOXIN IF THERE ARE TOO MANY
+        ////////////////////////////////////////////////////////////////
+        eatenToxins := make([]ToxinId, 0)
+        for toxinId,_ := range app.toxins {
+            if len(app.toxins) <= toxinCountGameMax {
+                break;
+            }
+            eatenToxins = append(eatenToxins, toxinId)
+            delete(app.toxins, toxinId)
+        }
+
+        ////////////////////////////////////////////////////////////////
         // BOT INTERACTION WITH EVERYTHING
         ////////////////////////////////////////////////////////////////
 
@@ -837,7 +850,7 @@ func (app* Application) startUpdateLoop() {
         }
 
         // Blob Collision with Toxin
-        eatenToxins := make([]ToxinId, 0)
+        //eatenToxins := make([]ToxinId, 0)
         for tId,_ := range app.toxins {
             var toxin = app.toxins[tId]
 
@@ -857,7 +870,7 @@ func (app* Application) startUpdateLoop() {
 
                         // If a bot already has > 10 blobs (i.e.), don't explode, ignore!
                         if len(bot.Blobs) > maxBlobCountToExplode {
-                            if toxin.IsSplit {
+                            if toxin.IsSplit || len(app.toxins) >= toxinCountGameMax {
                                 eatenToxins = append(eatenToxins, tId)
                                 delete(app.toxins, tId)
                             } else {

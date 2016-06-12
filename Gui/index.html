@@ -80,6 +80,7 @@
         <script type="text/javascript">
             var sock = null;
             var wsuri = "ws://127.0.0.1:1234";
+            //var wsuri = "ws://192.168.2.187:1234";
 
             var bots = {};
             var botInfos = {};
@@ -92,8 +93,8 @@
             var frametimes = [];
             var numFrametimes = 10;
             var currentFrametime = 0;
-						
-						var context;
+
+                        var context;
 
             var colors = [
                 "rgba(255,  20, 147, 1)",
@@ -180,7 +181,7 @@
                     resizeCanvas();
                 };
                 resizeCanvas();
-							
+
                 context = canvas.getContext('2d');
 
                 //
@@ -348,19 +349,19 @@
                 const TOXIN_SPIKE_SIZE = 2;
                 context.strokeStyle = "green";
                 context.fillStyle = colors[10];
-                context.lineWidth = 1;                
+                context.lineWidth = 1;
                 for (var key in toxins) {
                     var toxin = toxins[key];
-                                        
+
                     context.beginPath();
                     for(var i = 0; i < NUM_VERTICES + 1; ++i) {
                       var size = radius(toxin.mass) + (i % 2 == 0 ? 0 : TOXIN_SPIKE_SIZE);
                       var x = size * Math.cos(2 * Math.PI * i / NUM_VERTICES);
                       var y = size * Math.sin(2 * Math.PI * i / NUM_VERTICES);
                       context.lineTo(toxin.pos.X + x, toxin.pos.Y + y);
-                    }                
+                    }
                     context.fill();
-                    context.stroke();                    
+                    context.stroke();
                 }
 
                 // Render bots
@@ -384,7 +385,7 @@
                         context.beginPath();
                         context.arc(blob.pos.X, blob.pos.Y, radius(blob.mass), 0, 2 * Math.PI, false);
                         context.fill();
-                        
+
                         context.stroke();
                     }
 
@@ -394,7 +395,7 @@
                         context.stroke();
                     }
                 }
-								window.requestAnimationFrame(render);
+                                window.requestAnimationFrame(render);
             }
 
             function calculateHighscore() {
