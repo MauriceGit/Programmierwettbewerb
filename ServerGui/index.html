@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>Programmierwettbewerb</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.2/jquery.min.js"></script>
+        <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>    
+        <style>
+        </style>
+    </head>
+    <body>     
+        <script type="text/javascript">
+            var sock = null;
+            var wsuri = "ws://127.0.0.1:8080/servercommand/";
+
+            window.onload = function() {
+                sock = new WebSocket(wsuri);
+
+                sock.onopen = function() {
+                    console.log("connected to " + wsuri);
+                }
+
+                sock.onclose = function(e) {
+                    console.log("connection closed (" + e.code + ")");
+                }
+                sock.onmessage = function(e) {
+                    // Just ignore this message. It's to test, if the
+                    // connection is alive at server side.
+                    if (e.data == "alive_test") {
+                        return
+                    }
+                }
+
+                $("#killAllBots").on('click', function(e) {
+                    sock.send(JSON.stringify({ type:"KillAllBots" }));
+                });
+
+                $("#killBotsWithoutConnection").on('click', function() {
+                   sock.send(JSON.stringify({ type:"KillBotsWithoutConnection" })); 
+                });
+
+                $("#killBotsAboveMassThreshold").on('click', function() {
+                   var value = $("#massThreshold").val();
+                   sock.send(JSON.stringify({ type:"KillBotsAboveMassThreshold", value:value }));  
+                })
+
+                $("#sendSettings").on('click', function() {
+                    var value = $("#minNumberOfBots").val()
+                    console.log(value)
+                    sock.send(JSON.stringify({ type:"MinNumberOfBots", value: value }));
+                    sock.send(JSON.stringify({ type:"MaxNumberOfBots", value:$("#maxNumberOfBots").val() }));
+                    sock.send(JSON.stringify({ type:"MaxNumberOfFoods", value:$("#maxNumberOfFoods").val() }));
+                    sock.send(JSON.stringify({ type:"MaxNumberOfToxins", value:$("#maxNumberOfToxins").val() }));
+                });
+
+                $("#restart").on('click', function() {
+                    
+                });
+
+                __FUNCTIONS__
+            };
+        </script>   
+
+        <nav class="navbar navbar-default navbar-static-top">
+            <div class="container">
+                <div class="navbar-header">
+                    <a class="navbar-brand" href="#">Server</a>
+                </div>
+            </div>
+        </nav>
+
+        <div class="row">
+            <div class="col-md-8 col-md-offset-2">
+                <div class = "panel panel-default">
+                   <div class = "panel-body">
+                        <div class="caption">
+                            <h4>Settings</h3>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <h5>Minimum number of Bots</h5>
+                                    <input id="minNumberOfBots" type="number" value="10">
+                                </div>
+                                <div class="col-md-4">
+                                    <h5>Maximum number of Bots</h5>
+                                    <input id="maxNumberOfBots" type="number" value="10">
+                                </div>
+                            </div>
+                            <hr>
+                            <h5>Foods</h5>
+                            <input id="maxNumberOfFoods" type="number" value="200">
+                            <h5>Toxins</h5>
+                            <input id="maxNumberOfToxins" type="number" value="200">
+                            <br>
+                            <button id="sendSettings" type="button" class="btn btn-success pull-right">Update</button>
+                        </div>
+                    </div>
+                </div>
+                <div class = "panel panel-default">
+                   <div class = "panel-body">
+                        <div class="caption">
+                            <h4>Events</h4>
+                            <p>Kill Bots</p>
+                            <div class="btn-group" role="group" aria-label="...">
+                              <button id="killAllBots" type="button" class="btn btn-success">All</button>
+                              <button id="killBotsWithoutConnection" type="button" class="btn btn-success">Without Connection</button>
+                            </div>  
+                            <hr>                      
+                            <p>Kill all bots with a mass above the given value</p>
+                            <input id="massThreshold" type="number" value="1000">
+                            <button id="killBotsAboveMassThreshold" type="button" class="btn btn-success">Kill</button>
+                            <hr>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <a href="#" class="thumbnail">
+                                        <img id="foodSpawnImage" src="" alt="...">
+                                    </a>
+                                    <div class="dropdown">
+                                        <button class="btn btn-default dropdown-toggle" type="button" data-toggle="dropdown">Food Spawn<span class="caret"></span></button>
+                                        <ul class="dropdown-menu">
+                                            <!--<li><a href="#">HTML</a></li>-->
+                                            __FOOD_ITEMS__
+                                        </ul>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <a href="#" class="thumbnail">
+                                        <img id="toxinSpawnImage" src="" alt="...">
+                                    </a>
+                                    <div class="dropdown">
+                                        <button class="btn btn-default dropdown-toggle" type="button" data-toggle="dropdown">Toxin Spawn<span class="caret"></span></button>
+                                        <ul class="dropdown-menu">
+                                            __TOXIN_ITEMS__
+                                        </ul>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <a href="#" class="thumbnail">
+                                        <img id="botSpawnImage" src="" alt="...">
+                                    </a>
+                                    <div class="dropdown">
+                                        <button class="btn btn-default dropdown-toggle" type="button" data-toggle="dropdown">Bot Spawn<span class="caret"></span></button>
+                                        <ul class="dropdown-menu">
+                                            __BOT_ITEMS__
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                            <hr>    
+                            <h4>Restart server</h3>
+                            <button id="restart" type="button" class="btn btn-danger">Restart</button>
+                        </div>
+                   </div>
+                </div>  
+            </div>
+        </div>
+    </body>
+</html>

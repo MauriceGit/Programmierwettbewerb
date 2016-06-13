@@ -3,7 +3,7 @@ package main
 import (
     .   "Programmierwettbewerb-Server/shared"
 
-    "golang.org/x/net/websocket"
+    //"golang.org/x/net/websocket"
 )
 
 // -------------------------------------------------------------------------------------------------
@@ -16,7 +16,7 @@ const (
 )
 
 func setupServerConnection(address string) {
-
+/*
     //
     // Connect to the websocket server
     //
@@ -30,10 +30,11 @@ func setupServerConnection(address string) {
     // Try and exit
     //
     message := MessageServerCommands {
-        Stuff:  3,
+        
     }
     websocket.JSON.Send(ws, message)
     ws.Close()
+    */
 }
 
 func main() {

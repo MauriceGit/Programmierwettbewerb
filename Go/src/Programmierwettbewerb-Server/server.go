@@ -6,19 +6,22 @@ import (
     . "Programmierwettbewerb-Server/organisation"
 
     "golang.org/x/net/websocket"
-    //"fmt"
+    "fmt"
     "log"
     "net/http"
     "math"
     "math/rand"
     "time"
     "strconv"
+    "path/filepath"
     "os"
-    //"io/ioutil"
+    "encoding/json"
+    "io/ioutil"
     "golang.org/x/image/bmp"
     //"image/color"
     //"image"
     //"reflect"
+    "strings"
 )
 
 // -------------------------------------------------------------------------------------------------
@@ -30,10 +33,6 @@ const (
     foodMassMax = 12
     thrownFoodMass = 10
     massToBeAllowedToThrow = 120
-    foodCount = 600  // TODO(henk): How do we decide how much food there is?
-    foodCountMax = 1000
-    toxinCount = 100
-    toxinCountMax = 200
     botMinMass = 10
     botMaxMass = 4000.0
     blobReunionTime = 10.0
@@ -125,56 +124,62 @@ type MwInfo struct {
 
 
 type Application struct {
-    fieldSize           Vec2
+    settings                    ServerSettings
+
+    fieldSize                   Vec2
     // TODO(henk): Simply search the key of 'blobs' and assign an unused key to a newly connected client.
-    nextGuiId           GuiId
-    nextBotId           BotId
-    nextBlobId          BlobId
-    nextFoodId          FoodId
-    nextToxinId         ToxinId
-    nextServerCommandId CommandId
-    guiConnections      map[GuiId]GuiConnection
-    foods               map[FoodId]Food
-    toxins              map[ToxinId]Toxin
-    bots                map[BotId]Bot
+    nextGuiId                   GuiId
+    nextBotId                   BotId
+    nextBlobId                  BlobId
+    nextFoodId                  FoodId
+    nextToxinId                 ToxinId
+    nextServerCommandId         CommandId
+    guiConnections              map[GuiId]GuiConnection
+    foods                       map[FoodId]Food
+    toxins                      map[ToxinId]Toxin
+    bots                        map[BotId]Bot
 
-    mwInfo              chan(MwInfo)
-    serverCommands      chan(MessageServerCommands)
+    mwInfo                      chan(MwInfo)
+    serverCommands              []string
 
-    foodDistribution    []Vec2
-    toxinDistribution   []Vec2
-    botDistribution     []Vec2
+    foodDistribution            []Vec2
+    toxinDistribution           []Vec2
+    botDistribution             []Vec2
 }
 
 var app Application
 
 func (app* Application) initialize() {
-    app.fieldSize       = Vec2{ 1000, 1000 }  // TODO(henk): How do we decide the field size? Is it a constant?
-    app.nextGuiId       = 0                       // TODO(henk): Don't do this stuff. Simply search for free id. But this can't be implemented until the bots can connect.
-    app.nextBotId       = 1
-    app.nextBlobId      = 1
+    app.settings.MinNumberOfBots = 10
+    app.settings.MaxNumberOfBots = 100
+    app.settings.MaxNumberOfFoods = 400
+    app.settings.MaxNumberOfToxins = 200
+
+    app.fieldSize           = Vec2{ 1000, 1000 }  // TODO(henk): How do we decide the field size? Is it a constant?
+    app.nextGuiId           = 0                       // TODO(henk): Don't do this stuff. Simply search for free id. But this can't be implemented until the bots can connect.
+    app.nextBotId           = 1
+    app.nextBlobId          = 1
     app.nextServerCommandId = 0
-    app.nextFoodId      = foodCount+1
-    app.nextToxinId     = toxinCount+1
-    app.guiConnections  = make(map[GuiId]GuiConnection)
-
-    app.foods           = make(map[FoodId]Food)
-    app.bots            = make(map[BotId]Bot)
-    app.toxins          = make(map[ToxinId]Toxin)
-
+    app.nextFoodId          = FoodId(app.settings.MaxNumberOfFoods) + 1
+    app.nextToxinId         = ToxinId(app.settings.MaxNumberOfToxins) + 1
+    app.guiConnections      = make(map[GuiId]GuiConnection)
+    
+    app.foods               = make(map[FoodId]Food)
+    app.bots                = make(map[BotId]Bot)
+    app.toxins              = make(map[ToxinId]Toxin)
+    
     app.mwInfo          = make(chan MwInfo, 1000)
-    app.serverCommands  = make(chan MessageServerCommands, 100)
 
-    app.foodDistribution    = loadSpawnImage("../tchibo.bmp", 10)
-    app.toxinDistribution   = loadSpawnImage("../tchibo.bmp", 10)
-    app.botDistribution     = loadSpawnImage("../bot_spawn.bmp", 10)
+    app.foodDistribution  = loadSpawnImage("../Public/spawns/fmctechnologies.bmp", 10)
+    app.toxinDistribution = loadSpawnImage("../Public/spawns/fmctechnologies.bmp", 10)
+    app.botDistribution   = loadSpawnImage("../Public/spawns/bot_spawn.bmp", 10)
 
-    for i := FoodId(0); i < foodCount; i++ {
+    for i := FoodId(0); i < FoodId(app.settings.MaxNumberOfFoods); i++ {
         mass := foodMassMin + rand.Float32() * (foodMassMax - foodMassMin)
         app.foods[i] = Food{ true, false, false, BotId(0), mass, newFoodPos(), RandomVec2() }
     }
 
-    for i := 0; i < toxinCount; i++ {
+    for i := 0; i < app.settings.MaxNumberOfToxins; i++ {
         app.toxins[ToxinId(i)] = Toxin{true, false, newToxinPos(), false, BotId(0), toxinMassMin, RandomVec2()}
         // Mulv(RandomVec2(), app.fieldSize)
     }
@@ -600,6 +605,73 @@ func (app* Application) startUpdateLoop() {
         fpsCnt += 1
         fpsAdd += 1.0 / dt
 
+        // Eating blobs
+        deadBots := make([]BotId, 0)
+
+        ////////////////////////////////////////////////////////////////
+        // HANDLE EVENTS
+        ////////////////////////////////////////////////////////////////
+        if len(app.serverCommands) > 0 {
+            for _, commandString := range app.serverCommands {
+                type Command struct {
+                    Type    string  `json:"type"`
+                    Value   int     `json:"value,string,omitempty"`
+                    Image   string  `json:"image"`
+                }
+
+                var command Command
+                err := json.Unmarshal([]byte(commandString), &command)
+                if err == nil {     
+                    switch command.Type {
+                    case "MinNumberOfBots": 
+                        app.settings.MinNumberOfBots = command.Value 
+                    case "MaxNumberOfBots": 
+                        app.settings.MaxNumberOfBots = command.Value
+                    case "MaxNumberOfFoods": 
+                        app.settings.MaxNumberOfFoods = command.Value
+                    case "MaxNumberOfToxins":
+                        app.settings.MaxNumberOfToxins = command.Value
+                    case "KillAllBots":
+                        for botId, _ := range app.bots {
+                            delete(app.bots, botId)
+                            deadBots = append(deadBots, botId)
+                        }
+                        Logf(LtDebug, "Killed all bots\n")
+                    case "KillBotsWithoutConnection":
+                        for botId, bot := range app.bots {
+                            if !bot.ConnectionAlive {
+                                delete(app.bots, botId)
+                                deadBots = append(deadBots, botId)
+                            }
+                        }
+                        Logf(LtDebug, "Killed bots without connection\n")
+                    case "KillBotsAboveMassThreshold":
+                        for botId, bot := range app.bots {
+                            var mass float32 = 0
+                            for _, blob := range bot.Blobs {
+                                mass += blob.Mass
+                            }
+                            if mass > float32(command.Value) {
+                                delete(app.bots, botId)
+                                deadBots = append(deadBots, botId)
+                            }
+                        }
+                        Logf(LtDebug, "Killed bots above mass threshold\n")
+                    case "FoodSpawnImage":
+                        app.foodDistribution  = loadSpawnImage(fmt.Sprintf("../Public/spawns/%v", command.Image), 10)
+                    case "ToxinSpawnImage":
+                        app.toxinDistribution = loadSpawnImage(fmt.Sprintf("../Public/spawns/%v", command.Image), 10)
+                    case "BotSpawnImage":
+                        app.botDistribution   = loadSpawnImage(fmt.Sprintf("../Public/spawns/%v", command.Image), 10)
+                    }
+                } else {
+                    Logf(LtDebug, "Err: %v\n", err.Error())
+                }
+            }
+
+            app.serverCommands = make([]string, 0)
+        }
+
         ////////////////////////////////////////////////////////////////
         // READ FROM MIDDLEWARE
         ////////////////////////////////////////////////////////////////
@@ -620,7 +692,7 @@ func (app* Application) startUpdateLoop() {
 
                         app.bots[mwInfo.botId] = bot
                     }
-                    if mwInfo.createNewBot {
+                    if mwInfo.createNewBot && len(app.bots) < app.settings.MaxNumberOfBots {
                         app.bots[mwInfo.botId] = createStartingBot(mwInfo.ws, mwInfo.botInfo, mwInfo.statistics)
                     }
 
@@ -727,11 +799,11 @@ func (app* Application) startUpdateLoop() {
         ////////////////////////////////////////////////////////////////
         // POSSIBLY ADD A FOOD OR TOXIN
         ////////////////////////////////////////////////////////////////
-        if rand.Intn(100) <= 5 && len(app.toxins) < toxinCountMax {
+        if rand.Intn(100) <= 5 && len(app.toxins) < app.settings.MaxNumberOfToxins {
             newToxinId := app.createToxinId()
             app.toxins[newToxinId] = Toxin{true, false, newToxinPos(), false, 0, toxinMassMin, RandomVec2()}
         }
-        if rand.Intn(100) <= 5 && len(app.foods) < foodCountMax {
+        if rand.Intn(100) <= 5 && len(app.foods) < app.settings.MaxNumberOfFoods {
             newFoodId := app.createFoodId()
             mass := foodMassMin + rand.Float32() * (foodMassMax - foodMassMin)
             app.foods[newFoodId] = Food{ true, false, false, 0, mass, newFoodPos(), RandomVec2() }
@@ -983,9 +1055,6 @@ func (app* Application) startUpdateLoop() {
                 app.toxins[tId] = toxin
             }
         }
-
-        // Eating blobs
-        deadBots := make([]BotId, 0)
 
         for botId1, bot1 := range app.bots {
 
@@ -1279,18 +1348,23 @@ func handleServerCommands(ws *websocket.Conn) {
 
     var err error
     for {
-        //
-        // Receive the message
-        //
-        var message MessageServerCommands
-        if err = websocket.JSON.Receive(ws, &message); err != nil {
+        var message string
+        if err = websocket.Message.Receive(ws, &message); err != nil {
             Logf(LtDebug, "The command line with id: %v is closed because of: %v\n", commandId, err)
             ws.Close()
             return
         }
 
-        Logf(LtDebug, "Got a VERY important command: %v\n", message.Stuff)
+        Logf(LtDebug, "Got a VERY important command: %v\n", message)
 
+        app.serverCommands = append(app.serverCommands, message)
+
+/*
+        var data map[string]interface{}
+        if err = json.Unmarshal([]byte(message), &data); err == nil {
+            app.serverCommands = append(app.serverCommands, data)
+        }
+        */
     }
 }
 
@@ -1352,7 +1426,6 @@ func handleMiddleware(ws *websocket.Conn) {
             }
         } else if message.Type == MmstBotInfo {
             if message.BotInfo != nil {
-
                 // Check, if a player with this name is actually allowed to play
                 // So we take the time to sort out old statistics from files here and not
                 // in the main game loop (so adding, say, 100 bots, doesn't affect the other, normal computations!)
@@ -1447,21 +1520,61 @@ func main() {
     // Assign the handler for Gui-Connections
     //http.Handle("/", websocket.Handler(handleGui))
 
-    http.HandleFunc("/",
-        func (w http.ResponseWriter, req *http.Request) {
-            s := websocket.Server{Handler: websocket.Handler(handleGui)}
-            s.ServeHTTP(w, req)
-        });
+    http.Handle("/", http.FileServer(http.Dir("../Public/")))
 
+    http.Handle("/gui/", websocket.Handler(handleGui))
+
+    //http.Handle("/server/", websocket.Handler(handleServerControl))
+    http.HandleFunc("/server/", func(w http.ResponseWriter, r *http.Request) {
+        page, _ := ioutil.ReadFile("../ServerGui/index.html")
+
+        var (
+            foodItems string
+            toxinItems string
+            botItems string
+            functions string
+        )
+
+        entries, _ := ioutil.ReadDir("../Public/spawns/")
+        for index, entry := range entries {
+            if filepath.Ext("../Public/spawns/" + entry.Name()) == ".bmp" {
+                foodItems  += fmt.Sprintf("<li><a id=\"foodImageHandler%v\" href=\"#\">%v</a></li>\n", index, entry.Name())
+                toxinItems += fmt.Sprintf("<li><a id=\"toxinImageHandler%v\" href=\"#\">%v</a></li>\n", index, entry.Name())
+                botItems   += fmt.Sprintf("<li><a id=\"botImageHandler%v\" href=\"#\">%v</a></li>\n", index, entry.Name())
+
+                functions += fmt.Sprintf(`$("#foodImageHandler%v").on('click', function(){ 
+                    sock.send(JSON.stringify({ type:"FoodSpawnImage", image:"%v" }));
+                    $("#foodSpawnImage").attr("src", "/spawns/%v");
+                });%v`, index, entry.Name(), entry.Name(), "\n");
+
+                functions += fmt.Sprintf(`$("#toxinImageHandler%v").on('click', function(){ 
+                    sock.send(JSON.stringify({ type:"ToxinSpawnImage", image:"%v" }));
+                    $("#toxinSpawnImage").attr("src", "/spawns/%v");
+                });%v`, index, entry.Name(), entry.Name(), "\n");
+
+                functions += fmt.Sprintf(`$("#botImageHandler%v").on('click', function(){ 
+                    sock.send(JSON.stringify({ type:"BotSpawnImage", image:"%v" })); 
+                    $("#botSpawnImage").attr("src", "/spawns/%v");
+                });%v`, index, entry.Name(), entry.Name(), "\n");
+            }
+        }
+
+        page1 := strings.Replace(string(page), "__FOOD_ITEMS__", foodItems, -1)
+        page2 := strings.Replace(string(page1), "__TOXIN_ITEMS__", toxinItems, -1)
+        page3 := strings.Replace(string(page2), "__BOT_ITEMS__", botItems, -1)
+        newPage := strings.Replace(page3, "__FUNCTIONS__", functions, -1)
+
+        fmt.Fprintf(w, newPage)
+        //http.ServeFile(w, r, r.URL.Path[1:])
+    })
 
     // Assign the handler for Middleware-Connections
     http.Handle("/middleware/", websocket.Handler(handleMiddleware))
 
-
     http.Handle("/servercommand/", websocket.Handler(handleServerCommands))
 
     // Get the stuff running
-    if err := http.ListenAndServe(":1234", nil); err != nil {
+    if err := http.ListenAndServe(":8080", nil); err != nil {
         log.Fatal("ListenAndServe:", err)
     }
 }

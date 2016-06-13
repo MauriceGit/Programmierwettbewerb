@@ -74,11 +74,11 @@ type MessageMiddlewareServer struct {
     BotInfo             *BotInfo
 }
 
-
-type MessageServerCommands struct {
-
-    Stuff   int
-
+type ServerSettings struct {
+    MinNumberOfBots     int
+    MaxNumberOfBots     int
+    MaxNumberOfFoods    int
+    MaxNumberOfToxins   int
 }
 
 type Food struct {
