@@ -33,6 +33,7 @@ const (
     foodMassMax = 12
     thrownFoodMass = 10
     massToBeAllowedToThrow = 120
+    toxinCountGameMax = 250 // From players additionally generated
     botMinMass = 10
     botMaxMass = 4000.0
     blobReunionTime = 10.0
@@ -841,6 +842,18 @@ func (app* Application) startUpdateLoop() {
         }
 
         ////////////////////////////////////////////////////////////////
+        // DELETE RANDOM TOXIN IF THERE ARE TOO MANY
+        ////////////////////////////////////////////////////////////////
+        eatenToxins := make([]ToxinId, 0)
+        for toxinId,_ := range app.toxins {
+            if len(app.toxins) <= toxinCountGameMax {
+                break;
+            }
+            eatenToxins = append(eatenToxins, toxinId)
+            delete(app.toxins, toxinId)
+        }
+
+        ////////////////////////////////////////////////////////////////
         // BOT INTERACTION WITH EVERYTHING
         ////////////////////////////////////////////////////////////////
 
@@ -882,18 +895,18 @@ func (app* Application) startUpdateLoop() {
                 }
                 app.toxins[newId] = newToxin
 
+                possibleBot, foundIt := app.bots[toxin.IsSplitBy]
+                if foundIt {
+                    possibleBot.StatisticsThisGame.ToxinThrow += 1
+                    app.bots[toxin.IsSplitBy] = possibleBot
+                }
+
                 // Reset Mass
                 toxin.Mass = toxinMassMin
                 toxin.IsSplit = false
                 toxin.IsNew = false
                 toxin.IsSplitBy = BotId(0)
                 toxin.Velocity = RandomVec2()
-
-                possibleBot, foundIt := app.bots[toxin.IsSplitBy]
-                if foundIt {
-                    possibleBot.StatisticsThisGame.ToxinThrow += 1
-                    app.bots[toxin.IsSplitBy] = possibleBot
-                }
 
             }
             app.toxins[toxinId] = toxin
@@ -909,17 +922,12 @@ func (app* Application) startUpdateLoop() {
         }
 
         // Blob Collision with Toxin
-        eatenToxins := make([]ToxinId, 0)
+        //eatenToxins := make([]ToxinId, 0)
         for tId,_ := range app.toxins {
             var toxin = app.toxins[tId]
 
             for botId, _ := range app.bots {
                 bot := app.bots[botId]
-
-                // If a bot already has > 10 blobs (i.e.), don't explode, ignore!
-                if len(bot.Blobs) > maxBlobCountToExplode {
-                    continue
-                }
 
                 mapOfAllNewSingleBlobs := make(map[BlobId]Blob)
                 var blobsToDelete []BlobId
@@ -931,6 +939,24 @@ func (app* Application) startUpdateLoop() {
                     var singleBlob = bot.Blobs[blobId]
 
                     if Dist(singleBlob.Position, toxin.Position) < singleBlob.Radius() && singleBlob.Mass >= minBlobMassToExplode {
+
+                        // If a bot already has > 10 blobs (i.e.), don't explode, ignore!
+                        if len(bot.Blobs) > maxBlobCountToExplode {
+                            if toxin.IsSplit || len(app.toxins) >= toxinCountGameMax {
+                                eatenToxins = append(eatenToxins, tId)
+                                delete(app.toxins, tId)
+                            } else {
+
+                                toxin.Position = newToxinPos()
+                                toxin.IsSplitBy = BotId(0)
+                                toxin.IsSplit = false
+                                toxin.IsNew = true
+                                toxin.Mass = toxinMassMin
+
+                            }
+                            continue
+                        }
+
                         subMap := make(map[BlobId]Blob)
 
                         if toxin.IsSplit {
@@ -1041,15 +1067,12 @@ func (app* Application) startUpdateLoop() {
                             food.Velocity = RandomVec2()
                         }
                         toxin.IsSplitBy = food.IsThrownBy
+                        //Logf(LtDebug, "Food is thrown by %v\n", toxin.IsSplitBy)
                         toxin.Velocity = Muls(NormalizeOrZero(food.Velocity), 100)
-                        if food.IsThrown {
-                            delete(app.foods, foodId)
-                            eatenFoods = append(eatenFoods, foodId)
-                        } else {
-                            food.Position = newFoodPos()
-                            food.IsNew = true
-                            app.foods[foodId] = food
-                        }
+
+                        delete(app.foods, foodId)
+                        eatenFoods = append(eatenFoods, foodId)
+
                     }
                 }
                 app.toxins[tId] = toxin
@@ -1342,7 +1365,7 @@ func createStartingBot(ws *websocket.Conn, botInfo BotInfo, statistics Statistic
 }
 
 func handleServerCommands(ws *websocket.Conn) {
-    var commandId = app.createBotId()
+    var commandId = app.createServerCommandId()
 
     Logf(LtDebug, "Got a new direct command connection", commandId)
 
@@ -1388,7 +1411,6 @@ func handleMiddleware(ws *websocket.Conn) {
             var cmd BotCommand
             var bi  BotInfo
 
-            //app.mwInfo <- MwInfo {botId, cmd, false, false, bi, nil, nil}
             app.mwInfo <- MwInfo {
                             botId:                  botId,
                             command:                cmd,
@@ -1409,7 +1431,6 @@ func handleMiddleware(ws *websocket.Conn) {
             if message.BotCommand != nil {
 
                 var bi  BotInfo
-                //app.mwInfo <- MwInfo{botId, *message.BotCommand, true, false, bi, nil, nil}
                 app.mwInfo <- MwInfo{
                                 botId:              botId,
                                 command:            *message.BotCommand,
@@ -1438,7 +1459,6 @@ func handleMiddleware(ws *websocket.Conn) {
                 }
 
                 var cmd BotCommand
-                //app.mwInfo <- MwInfo{botId, cmd, true, true, *message.BotInfo, statistics, ws}
                 app.mwInfo <- MwInfo{
                                 botId:              botId,
                                 command:            cmd,

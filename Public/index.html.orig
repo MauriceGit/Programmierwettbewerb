@@ -79,8 +79,12 @@
 
         <script type="text/javascript">
             var sock = null;
+<<<<<<< HEAD:Public/index.html
             var wsuri = "ws://127.0.0.1:8080/gui/";
+=======
+            var wsuri = "ws://127.0.0.1:1234";
             //var wsuri = "ws://192.168.2.187:1234";
+>>>>>>> dbdc9febe8be6dbc5b62bdc526696bd9024ea258:Gui/index.html
 
             var bots = {};
             var botInfos = {};
