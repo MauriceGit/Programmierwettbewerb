@@ -8,12 +8,21 @@
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.2/jquery.min.js"></script>
         <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>    
         <style>
+            .tinyimage {
+                max-width: 50px;
+                max-height: 50px;
+            }
+            .thumbnail img { 
+                height: 150px; 
+            }
         </style>
     </head>
     <body>     
         <script type="text/javascript">
             var sock = null;
             var wsuri = "ws://127.0.0.1:8080/servercommand/";
+
+            var imageNames = {{.ImageNames}};
 
             window.onload = function() {
                 sock = new WebSocket(wsuri);
@@ -59,7 +68,49 @@
                     
                 });
 
-                __FUNCTIONS__
+                var foodImageHandlerMaker = function(imageName) {
+                    return function() {
+                        sock.send(JSON.stringify({ type:"FoodSpawnImage", image:imageName }));
+                        $("#foodSpawnImage").attr("src", "/spawns/" + imageName);
+                    }
+                }
+
+                var toxinImageHandlerMaker = function(imageName) {
+                    return function() {
+                        sock.send(JSON.stringify({ type:"ToxinSpawnImage", image:imageName }));
+                        $("#toxinSpawnImage").attr("src", "/spawns/" + imageName);
+                    }
+                }
+
+                var botImageHandlerMaker = function(imageName) {
+                    return function() {
+                        sock.send(JSON.stringify({ type:"BotSpawnImage", image:imageName }));
+                        $("#botSpawnImage").attr("src", "/spawns/" + imageName);
+                    }
+                }
+
+                var makeEntry = function(handlerMaker, imageName) {
+                    var link = $("<a href=\"\" onClick=\"return false;\"></a>");
+                    link.html(imageName);
+                    link.on('click', handlerMaker(imageName));
+
+                    var img = $("<img></img>");
+                    img.attr("src", "/spawns/" + imageName);
+                    img.addClass("tinyimage");
+
+                    var item = $("<li></li>");
+                    item.append(link);
+
+                    return item;
+                }
+
+                for (var i = 0; i < imageNames.length; ++i) {
+                    var imageName = imageNames[i];
+
+                    $("#foodImageDropdown").append(makeEntry(foodImageHandlerMaker, imageName));
+                    $("#toxinImageDropdown").append(makeEntry(toxinImageHandlerMaker, imageName));
+                    $("#botImageDropdown").append(makeEntry(botImageHandlerMaker, imageName));
+                }
             };
         </script>   
 
@@ -114,35 +165,31 @@
                             <div class="row">
                                 <div class="col-md-4">
                                     <a href="#" class="thumbnail">
-                                        <img id="foodSpawnImage" src="" alt="...">
+                                        <img id="foodSpawnImage" src="{{.FoodSpawnImage}}" alt="...">
                                     </a>
                                     <div class="dropdown">
                                         <button class="btn btn-default dropdown-toggle" type="button" data-toggle="dropdown">Food Spawn<span class="caret"></span></button>
-                                        <ul class="dropdown-menu">
-                                            <!--<li><a href="#">HTML</a></li>-->
-                                            __FOOD_ITEMS__
+                                        <ul id="foodImageDropdown" class="dropdown-menu">
                                         </ul>
                                     </div>
                                 </div>
                                 <div class="col-md-4">
                                     <a href="#" class="thumbnail">
-                                        <img id="toxinSpawnImage" src="" alt="...">
+                                        <img id="toxinSpawnImage" src="{{.ToxinSpawnImage}}" alt="...">
                                     </a>
                                     <div class="dropdown">
                                         <button class="btn btn-default dropdown-toggle" type="button" data-toggle="dropdown">Toxin Spawn<span class="caret"></span></button>
-                                        <ul class="dropdown-menu">
-                                            __TOXIN_ITEMS__
+                                        <ul id="toxinImageDropdown" class="dropdown-menu">
                                         </ul>
                                     </div>
                                 </div>
                                 <div class="col-md-4">
                                     <a href="#" class="thumbnail">
-                                        <img id="botSpawnImage" src="" alt="...">
+                                        <img id="botSpawnImage" src="{{.BotSpawnImage}}" alt="...">
                                     </a>
                                     <div class="dropdown">
                                         <button class="btn btn-default dropdown-toggle" type="button" data-toggle="dropdown">Bot Spawn<span class="caret"></span></button>
-                                        <ul class="dropdown-menu">
-                                            __BOT_ITEMS__
+                                        <ul id="botImageDropdown" class="dropdown-menu">
                                         </ul>
                                     </div>
                                 </div>

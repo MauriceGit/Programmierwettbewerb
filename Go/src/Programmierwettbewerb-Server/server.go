@@ -21,7 +21,8 @@ import (
     //"image/color"
     //"image"
     //"reflect"
-    "strings"
+    //"strings"
+    "html/template"
 )
 
 // -------------------------------------------------------------------------------------------------
@@ -53,7 +54,6 @@ const (
     mwMessageEvery = 1
     guiMessageEvery = 1
     guiStatisticsMessageEvery = 1
-
 )
 
 // -------------------------------------------------------------------------------------------------
@@ -143,6 +143,10 @@ type Application struct {
     mwInfo                      chan(MwInfo)
     serverCommands              []string
 
+    foodDistributionName        string
+    toxinDistributionName       string
+    botDistributionName         string
+
     foodDistribution            []Vec2
     toxinDistribution           []Vec2
     botDistribution             []Vec2
@@ -151,29 +155,33 @@ type Application struct {
 var app Application
 
 func (app* Application) initialize() {
-    app.settings.MinNumberOfBots = 10
-    app.settings.MaxNumberOfBots = 100
-    app.settings.MaxNumberOfFoods = 400
-    app.settings.MaxNumberOfToxins = 200
+    app.settings.MinNumberOfBots    = 10
+    app.settings.MaxNumberOfBots    = 100
+    app.settings.MaxNumberOfFoods   = 400
+    app.settings.MaxNumberOfToxins  = 200
 
-    app.fieldSize           = Vec2{ 1000, 1000 }  // TODO(henk): How do we decide the field size? Is it a constant?
-    app.nextGuiId           = 0                       // TODO(henk): Don't do this stuff. Simply search for free id. But this can't be implemented until the bots can connect.
-    app.nextBotId           = 1
-    app.nextBlobId          = 1
-    app.nextServerCommandId = 0
-    app.nextFoodId          = FoodId(app.settings.MaxNumberOfFoods) + 1
-    app.nextToxinId         = ToxinId(app.settings.MaxNumberOfToxins) + 1
-    app.guiConnections      = make(map[GuiId]GuiConnection)
-    
-    app.foods               = make(map[FoodId]Food)
-    app.bots                = make(map[BotId]Bot)
-    app.toxins              = make(map[ToxinId]Toxin)
-    
-    app.mwInfo          = make(chan MwInfo, 1000)
+    app.fieldSize                   = Vec2{ 1000, 1000 }
+    app.nextGuiId                   = 0
+    app.nextBotId                   = 1
+    app.nextBlobId                  = 1
+    app.nextServerCommandId         = 0
+    app.nextFoodId                  = FoodId(app.settings.MaxNumberOfFoods) + 1
+    app.nextToxinId                 = ToxinId(app.settings.MaxNumberOfToxins) + 1
+    app.guiConnections              = make(map[GuiId]GuiConnection)
+            
+    app.foods                       = make(map[FoodId]Food)
+    app.bots                        = make(map[BotId]Bot)
+    app.toxins                      = make(map[ToxinId]Toxin)
+            
+    app.mwInfo                      = make(chan MwInfo, 1000)
 
-    app.foodDistribution  = loadSpawnImage("../Public/spawns/fmctechnologies.bmp", 10)
-    app.toxinDistribution = loadSpawnImage("../Public/spawns/fmctechnologies.bmp", 10)
-    app.botDistribution   = loadSpawnImage("../Public/spawns/bot_spawn.bmp", 10)
+    app.foodDistributionName        = "fmctechnologies.bmp"
+    app.toxinDistributionName       = "fmctechnologies.bmp"
+    app.botDistributionName         = "bot_spawn.bmp"
+
+    app.foodDistribution            = loadSpawnImage(app.foodDistributionName, 10)
+    app.toxinDistribution           = loadSpawnImage(app.toxinDistributionName, 10)
+    app.botDistribution             = loadSpawnImage(app.botDistributionName, 10)
 
     for i := FoodId(0); i < FoodId(app.settings.MaxNumberOfFoods); i++ {
         mass := foodMassMin + rand.Float32() * (foodMassMax - foodMassMin)
@@ -312,6 +320,16 @@ func NewIdsContainer() IdsContainer {
 
 func (blobContainer *IdsContainer) insert(botId BotId, blobId BlobId) {
     (*blobContainer) = append((*blobContainer), IdPair{ botId, blobId })
+}
+
+// -------------------------------------------------------------------------------------------------
+
+func makeLocalSpawnName(name string) string {
+    return fmt.Sprintf("../Public/spawns/%v", name)
+}
+
+func makeURLSpawnName(name string) string {
+    return fmt.Sprintf("/spawns/%v", name)
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -659,11 +677,11 @@ func (app* Application) startUpdateLoop() {
                         }
                         Logf(LtDebug, "Killed bots above mass threshold\n")
                     case "FoodSpawnImage":
-                        app.foodDistribution  = loadSpawnImage(fmt.Sprintf("../Public/spawns/%v", command.Image), 10)
+                        app.foodDistribution  = loadSpawnImage(command.Image, 10)
                     case "ToxinSpawnImage":
-                        app.toxinDistribution = loadSpawnImage(fmt.Sprintf("../Public/spawns/%v", command.Image), 10)
+                        app.toxinDistribution = loadSpawnImage(command.Image, 10)
                     case "BotSpawnImage":
-                        app.botDistribution   = loadSpawnImage(fmt.Sprintf("../Public/spawns/%v", command.Image), 10)
+                        app.botDistribution   = loadSpawnImage(command.Image, 10)
                     }
                 } else {
                     Logf(LtDebug, "Err: %v\n", err.Error())
@@ -1483,12 +1501,13 @@ func rgbToGrayscale(r, g, b uint32) uint8 {
 }
 
 func loadSpawnImage(imageName string, shadesOfGray int) []Vec2 {
+    var filename = makeLocalSpawnName(imageName)
 
     var distributionArray []Vec2
-    fImg, err1 := os.Open(imageName)
+    fImg, err1 := os.Open(filename)
     image, err2 := bmp.Decode(fImg)
     if err1 != nil || err2 != nil {
-        Logf(LtDebug, "Error while trying to load image %v. err1: %v and err2: %v\n", imageName, err1, err2)
+        Logf(LtDebug, "Error while trying to load image %v. err1: %v and err2: %v\n", filename, err1, err2)
         return distributionArray
     }
 
@@ -1546,46 +1565,33 @@ func main() {
 
     //http.Handle("/server/", websocket.Handler(handleServerControl))
     http.HandleFunc("/server/", func(w http.ResponseWriter, r *http.Request) {
-        page, _ := ioutil.ReadFile("../ServerGui/index.html")
+        var imageNames []string
 
-        var (
-            foodItems string
-            toxinItems string
-            botItems string
-            functions string
-        )
-
-        entries, _ := ioutil.ReadDir("../Public/spawns/")
-        for index, entry := range entries {
-            if filepath.Ext("../Public/spawns/" + entry.Name()) == ".bmp" {
-                foodItems  += fmt.Sprintf("<li><a id=\"foodImageHandler%v\" href=\"#\">%v</a></li>\n", index, entry.Name())
-                toxinItems += fmt.Sprintf("<li><a id=\"toxinImageHandler%v\" href=\"#\">%v</a></li>\n", index, entry.Name())
-                botItems   += fmt.Sprintf("<li><a id=\"botImageHandler%v\" href=\"#\">%v</a></li>\n", index, entry.Name())
-
-                functions += fmt.Sprintf(`$("#foodImageHandler%v").on('click', function(){ 
-                    sock.send(JSON.stringify({ type:"FoodSpawnImage", image:"%v" }));
-                    $("#foodSpawnImage").attr("src", "/spawns/%v");
-                });%v`, index, entry.Name(), entry.Name(), "\n");
-
-                functions += fmt.Sprintf(`$("#toxinImageHandler%v").on('click', function(){ 
-                    sock.send(JSON.stringify({ type:"ToxinSpawnImage", image:"%v" }));
-                    $("#toxinSpawnImage").attr("src", "/spawns/%v");
-                });%v`, index, entry.Name(), entry.Name(), "\n");
-
-                functions += fmt.Sprintf(`$("#botImageHandler%v").on('click', function(){ 
-                    sock.send(JSON.stringify({ type:"BotSpawnImage", image:"%v" })); 
-                    $("#botSpawnImage").attr("src", "/spawns/%v");
-                });%v`, index, entry.Name(), entry.Name(), "\n");
+        entries, _ := ioutil.ReadDir("../Public/spawns")
+        for _, entry := range entries {
+            if filepath.Ext(makeLocalSpawnName(entry.Name())) == ".bmp" {
+                imageNames = append(imageNames, entry.Name())
             }
         }
 
-        page1 := strings.Replace(string(page), "__FOOD_ITEMS__", foodItems, -1)
-        page2 := strings.Replace(string(page1), "__TOXIN_ITEMS__", toxinItems, -1)
-        page3 := strings.Replace(string(page2), "__BOT_ITEMS__", botItems, -1)
-        newPage := strings.Replace(page3, "__FUNCTIONS__", functions, -1)
+        type Data struct {
+            ImageNames []string
+            FoodSpawnImage string
+            ToxinSpawnImage string
+            BotSpawnImage string
+        }
 
-        fmt.Fprintf(w, newPage)
-        //http.ServeFile(w, r, r.URL.Path[1:])
+        d := Data{ 
+            ImageNames:         imageNames, 
+            FoodSpawnImage:     makeURLSpawnName(app.foodDistributionName),
+            ToxinSpawnImage:    makeURLSpawnName(app.toxinDistributionName),
+            BotSpawnImage:      makeURLSpawnName(app.botDistributionName),
+        }
+
+        t := template.New("Server Control")
+        page, _ := ioutil.ReadFile("../ServerGui/index.html")
+        t, _ = t.Parse(string(page))
+        t.Execute(w, d)
     })
 
     // Assign the handler for Middleware-Connections
