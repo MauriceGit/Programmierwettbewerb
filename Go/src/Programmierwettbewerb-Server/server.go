@@ -168,11 +168,11 @@ func (app* Application) initialize() {
     app.nextFoodId                  = FoodId(app.settings.MaxNumberOfFoods) + 1
     app.nextToxinId                 = ToxinId(app.settings.MaxNumberOfToxins) + 1
     app.guiConnections              = make(map[GuiId]GuiConnection)
-            
+
     app.foods                       = make(map[FoodId]Food)
     app.bots                        = make(map[BotId]Bot)
     app.toxins                      = make(map[ToxinId]Toxin)
-            
+
     app.mwInfo                      = make(chan MwInfo, 1000)
 
     app.foodDistributionName        = "fmctechnologies.bmp"
@@ -640,13 +640,13 @@ func (app* Application) startUpdateLoop() {
 
                 var command Command
                 err := json.Unmarshal([]byte(commandString), &command)
-                if err == nil {     
+                if err == nil {
                     switch command.Type {
-                    case "MinNumberOfBots": 
-                        app.settings.MinNumberOfBots = command.Value 
-                    case "MaxNumberOfBots": 
+                    case "MinNumberOfBots":
+                        app.settings.MinNumberOfBots = command.Value
+                    case "MaxNumberOfBots":
                         app.settings.MaxNumberOfBots = command.Value
-                    case "MaxNumberOfFoods": 
+                    case "MaxNumberOfFoods":
                         app.settings.MaxNumberOfFoods = command.Value
                     case "MaxNumberOfToxins":
                         app.settings.MaxNumberOfToxins = command.Value
@@ -1561,7 +1561,11 @@ func main() {
 
     http.Handle("/", http.FileServer(http.Dir("../Public/")))
 
-    http.Handle("/gui/", websocket.Handler(handleGui))
+    http.HandleFunc("/gui/",
+        func (w http.ResponseWriter, req *http.Request) {
+            s := websocket.Server{Handler: websocket.Handler(handleGui)}
+            s.ServeHTTP(w, req)
+        });
 
     //http.Handle("/server/", websocket.Handler(handleServerControl))
     http.HandleFunc("/server/", func(w http.ResponseWriter, r *http.Request) {
