@@ -1321,7 +1321,6 @@ func handleGui(ws *websocket.Conn) {
 
     Logf(LtDebug, "Got connection for Gui %v\n", guiId)
 
-    // Normal request/response loop
     var err error
     for {
         var reply string
@@ -1330,20 +1329,6 @@ func handleGui(ws *websocket.Conn) {
             Logf(LtDebug, "Can't receive (%v)\n", err)
             break
         }
-
-        //Logf(LtDebug, "Received back from client: %v\n", reply)
-
-        //if reply != "OK!" {
-        //    Logf(LtDebug, "Received something unexpected back from client: %v\n", reply)
-        //}
-
-        //msg := "Received:  " + reply
-        //fmt.Println("Sending to client: " + msg)
-
-        /*if err = websocket.Message.Send(ws, msg); err != nil {
-            Logln(LtDebug, "Can't send")
-            break
-        }*/
     }
 }
 
@@ -1382,30 +1367,16 @@ func createStartingBot(ws *websocket.Conn, botInfo BotInfo, statistics Statistic
     }
 }
 
-func handleServerCommands(ws *websocket.Conn) {
-    var commandId = app.createServerCommandId()
-
-    Logf(LtDebug, "Got a new direct command connection", commandId)
-
-    var err error
+func handleServerCommands(ws *websocket.Conn) {    
+    commandId := app.createServerCommandId()
     for {
         var message string
-        if err = websocket.Message.Receive(ws, &message); err != nil {
+        if err := websocket.Message.Receive(ws, &message); err != nil {
             Logf(LtDebug, "The command line with id: %v is closed because of: %v\n", commandId, err)
             ws.Close()
             return
         }
-
-        Logf(LtDebug, "Got a VERY important command: %v\n", message)
-
         app.serverCommands = append(app.serverCommands, message)
-
-/*
-        var data map[string]interface{}
-        if err = json.Unmarshal([]byte(message), &data); err == nil {
-            app.serverCommands = append(app.serverCommands, data)
-        }
-        */
     }
 }
 
@@ -1542,6 +1513,34 @@ func loadSpawnImage(imageName string, shadesOfGray int) []Vec2 {
     return distributionArray
 }
 
+func handleServerControl(w http.ResponseWriter, r *http.Request) {
+    var imageNames []string
+
+    entries, _ := ioutil.ReadDir("../Public/spawns")
+    for _, entry := range entries {
+        if filepath.Ext(makeLocalSpawnName(entry.Name())) == ".bmp" {
+            imageNames = append(imageNames, entry.Name())
+        }
+    }
+
+    data := struct {
+        ImageNames []string
+        FoodSpawnImage string
+        ToxinSpawnImage string
+        BotSpawnImage string
+    }{ 
+        ImageNames:         imageNames, 
+        FoodSpawnImage:     makeURLSpawnName(app.foodDistributionName),
+        ToxinSpawnImage:    makeURLSpawnName(app.toxinDistributionName),
+        BotSpawnImage:      makeURLSpawnName(app.botDistributionName),
+    }
+
+    t := template.New("Server Control")
+    page, _ := ioutil.ReadFile("../ServerGui/index.html")
+    t, _ = t.Parse(string(page))
+    t.Execute(w, data)
+}
+
 func main() {
     // TODO(henk): Maybe we wanna toggle this at runtime.
     SetLoggingDebug(true)
@@ -1550,57 +1549,18 @@ func main() {
     app.initialize()
 
     InitOrganisation()
-
     UpdateAllSVN()
 
     // Run the update-loop in parallel to serve the websocket on the main thread.
     go app.startUpdateLoop()
 
-    // Assign the handler for Gui-Connections
-    //http.Handle("/", websocket.Handler(handleGui))
-
+    // HTML sides
     http.Handle("/", http.FileServer(http.Dir("../Public/")))
+    http.HandleFunc("/server/", handleServerControl)
 
-    http.HandleFunc("/gui/",
-        func (w http.ResponseWriter, req *http.Request) {
-            s := websocket.Server{Handler: websocket.Handler(handleGui)}
-            s.ServeHTTP(w, req)
-        });
-
-    //http.Handle("/server/", websocket.Handler(handleServerControl))
-    http.HandleFunc("/server/", func(w http.ResponseWriter, r *http.Request) {
-        var imageNames []string
-
-        entries, _ := ioutil.ReadDir("../Public/spawns")
-        for _, entry := range entries {
-            if filepath.Ext(makeLocalSpawnName(entry.Name())) == ".bmp" {
-                imageNames = append(imageNames, entry.Name())
-            }
-        }
-
-        type Data struct {
-            ImageNames []string
-            FoodSpawnImage string
-            ToxinSpawnImage string
-            BotSpawnImage string
-        }
-
-        d := Data{ 
-            ImageNames:         imageNames, 
-            FoodSpawnImage:     makeURLSpawnName(app.foodDistributionName),
-            ToxinSpawnImage:    makeURLSpawnName(app.toxinDistributionName),
-            BotSpawnImage:      makeURLSpawnName(app.botDistributionName),
-        }
-
-        t := template.New("Server Control")
-        page, _ := ioutil.ReadFile("../ServerGui/index.html")
-        t, _ = t.Parse(string(page))
-        t.Execute(w, d)
-    })
-
-    // Assign the handler for Middleware-Connections
+    // Websocket connections
+    http.Handle("/gui/", websocket.Handler(handleGui))
     http.Handle("/middleware/", websocket.Handler(handleMiddleware))
-
     http.Handle("/servercommand/", websocket.Handler(handleServerCommands))
 
     // Get the stuff running

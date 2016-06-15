@@ -17,6 +17,3 @@ go install Programmierwettbewerb-Server
 
 echo Build Middleware
 go install Programmierwettbewerb-Middleware
-
-echo Build ServerCommand Tool
-go install Programmierwettbewerb-ServerCommands
