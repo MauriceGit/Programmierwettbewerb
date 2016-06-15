@@ -1250,7 +1250,7 @@ func (app* Application) startUpdateLoop() {
             }
 
             message.DeletedBotInfos = deadBots
-            message.DeletedBot = deadBots
+            message.DeletedBots = deadBots
             //for _, botId := range deadBots {
             //    message.DeletedBots = append(message.DeletedBots, botId)
             //    message.DeletedBotInfos = append(message.DeletedBotInfos, botId)
