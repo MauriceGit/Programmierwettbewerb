@@ -963,7 +963,7 @@ func (app* Application) startUpdateLoop() {
                             if toxin.IsSplit || len(app.toxins) >= toxinCountGameMax {
                                 eatenToxins = append(eatenToxins, tId)
                                 delete(app.toxins, tId)
-                                Logf(LtDebug, "Test 0: len before: %v, eatenToxins: %v\n", len(eatenToxins), eatenToxins)
+                                //Logf(LtDebug, "Test 0: len before: %v, eatenToxins: %v\n", len(eatenToxins), eatenToxins)
                                 //Logf(LtDebug, "Test 0\n")
                             } else {
 
