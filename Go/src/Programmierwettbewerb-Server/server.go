@@ -963,6 +963,8 @@ func (app* Application) startUpdateLoop() {
                             if toxin.IsSplit || len(app.toxins) >= toxinCountGameMax {
                                 eatenToxins = append(eatenToxins, tId)
                                 delete(app.toxins, tId)
+                                Logf(LtDebug, "Test 0: len before: %v, eatenToxins: %v\n", len(eatenToxins), eatenToxins)
+                                //Logf(LtDebug, "Test 0\n")
                             } else {
 
                                 toxin.Position = newToxinPos()
@@ -970,6 +972,7 @@ func (app* Application) startUpdateLoop() {
                                 toxin.IsSplit = false
                                 toxin.IsNew = true
                                 toxin.Mass = toxinMassMin
+                                //Logf(LtDebug, "Test 1\n")
 
                             }
                             continue
@@ -1155,8 +1158,6 @@ func (app* Application) startUpdateLoop() {
             app.bots[botId1] = bot1
         }
 
-        //Logf(LtDebug, "deadBots: %v\n", deadBots)
-
         ////////////////////////////////////////////////////////////////
         // CHECK ANYTHING ON NaN VALUES
         ////////////////////////////////////////////////////////////////
@@ -1214,6 +1215,11 @@ func (app* Application) startUpdateLoop() {
 
         }
 
+        // Pre-calculate the list for eaten Toxins
+        //reallyDeadToxins := make([]ToxinId, 0)
+        //copied := copy(reallyDeadToxins, eatenToxins)
+        //Logf(LtDebug, "copied %v elements\n", copied)
+
         //
         // Send the data to the clients
         //
@@ -1243,44 +1249,37 @@ func (app* Application) startUpdateLoop() {
 
             }
 
-            for _, botId := range deadBots {
-                message.DeletedBots = append(message.DeletedBots, botId)
-                message.DeletedBotInfos = append(message.DeletedBotInfos, botId)
-            }
+            message.DeletedBotInfos = deadBots
+            message.DeletedBot = deadBots
+            //for _, botId := range deadBots {
+            //    message.DeletedBots = append(message.DeletedBots, botId)
+            //    message.DeletedBotInfos = append(message.DeletedBotInfos, botId)
+            //}
 
             if guiMessageCounter % guiMessageEvery == 0 {
                 for foodId, food := range app.foods {
                     if food.IsMoving || food.IsNew || guiConnection.IsNewConnection {
                         key := strconv.Itoa(int(foodId))
                         message.CreatedOrUpdatedFoods[key] = makeServerGuiFood(food)
-                        if food.IsNew {
-                            food.IsNew = false
-                        }
                     }
-                    app.foods[foodId] = food
                 }
             }
 
-            for _, foodId := range eatenFoods {
-                message.DeletedFoods = append(message.DeletedFoods, foodId)
-            }
+            message.DeletedFoods = eatenFoods
+            //for _, foodId := range eatenFoods {
+            //    message.DeletedFoods = append(message.DeletedFoods, foodId)
+            //}
 
             if guiMessageCounter % guiMessageEvery == 0 {
                 for toxinId, toxin := range app.toxins {
                     if toxin.IsNew || toxin.IsMoving || guiConnection.IsNewConnection {
                         key := strconv.Itoa(int(toxinId))
                         message.CreatedOrUpdatedToxins[key] = makeServerGuiToxin(toxin)
-                        if toxin.IsNew {
-                            toxin.IsNew = false
-                        }
                     }
-                    app.toxins[toxinId] = toxin
                 }
             }
 
-            for _, toxinId := range eatenToxins {
-                message.DeletedToxins = append(message.DeletedToxins, toxinId)
-            }
+            message.DeletedToxins = eatenToxins
 
             err := websocket.JSON.Send(connection, message)
             if err != nil {
@@ -1288,6 +1287,19 @@ func (app* Application) startUpdateLoop() {
                 //return
             }
 
+        }
+
+        for toxinId, toxin := range app.toxins {
+            if toxin.IsNew {
+                toxin.IsNew = false
+                app.toxins[toxinId] = toxin
+            }
+        }
+        for foodId, food := range app.foods {
+            if food.IsNew {
+                food.IsNew = false
+                app.foods[foodId] = food
+            }
         }
 
 
@@ -1585,8 +1597,8 @@ func main() {
             BotSpawnImage string
         }
 
-        d := Data{ 
-            ImageNames:         imageNames, 
+        d := Data{
+            ImageNames:         imageNames,
             FoodSpawnImage:     makeURLSpawnName(app.foodDistributionName),
             ToxinSpawnImage:    makeURLSpawnName(app.toxinDistributionName),
             BotSpawnImage:      makeURLSpawnName(app.botDistributionName),
