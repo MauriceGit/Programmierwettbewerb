@@ -1571,7 +1571,10 @@ func main() {
     http.HandleFunc("/server/", handleServerControl)
 
     // Websocket connections
-    //http.Handle("/gui/", websocket.Handler(handleGui))
+
+    // LEAVE THIS HERE. The handleGui call must stay like this!
+    // Otherwise the websocket tries to check the 'origin' flag and
+    // some browsers or the C++-Gui can not connect to the websocket any more!
     http.HandleFunc("/gui/",
         func (w http.ResponseWriter, req *http.Request) {
             s := websocket.Server{Handler: websocket.Handler(handleGui)}
