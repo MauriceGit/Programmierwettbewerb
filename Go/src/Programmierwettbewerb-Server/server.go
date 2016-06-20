@@ -1571,12 +1571,12 @@ func main() {
     http.HandleFunc("/server/", handleServerControl)
 
     // Websocket connections
-    http.Handle("/gui/", websocket.Handler(handleGui))
-    /*http.HandleFunc("/gui/",
+    //http.Handle("/gui/", websocket.Handler(handleGui))
+    http.HandleFunc("/gui/",
         func (w http.ResponseWriter, req *http.Request) {
             s := websocket.Server{Handler: websocket.Handler(handleGui)}
             s.ServeHTTP(w, req)
-        });*/
+        });
 
     http.Handle("/middleware/", websocket.Handler(handleMiddleware))
     http.Handle("/servercommand/", websocket.Handler(handleServerCommands))
