@@ -1379,7 +1379,7 @@ func createStartingBot(ws *websocket.Conn, botInfo BotInfo, statistics Statistic
     }
 }
 
-func handleServerCommands(ws *websocket.Conn) {    
+func handleServerCommands(ws *websocket.Conn) {
     commandId := app.createServerCommandId()
     for {
         var message string
@@ -1540,8 +1540,8 @@ func handleServerControl(w http.ResponseWriter, r *http.Request) {
         FoodSpawnImage string
         ToxinSpawnImage string
         BotSpawnImage string
-    }{ 
-        ImageNames:         imageNames, 
+    }{
+        ImageNames:         imageNames,
         FoodSpawnImage:     makeURLSpawnName(app.foodDistributionName),
         ToxinSpawnImage:    makeURLSpawnName(app.toxinDistributionName),
         BotSpawnImage:      makeURLSpawnName(app.botDistributionName),
@@ -1572,6 +1572,12 @@ func main() {
 
     // Websocket connections
     http.Handle("/gui/", websocket.Handler(handleGui))
+    /*http.HandleFunc("/gui/",
+        func (w http.ResponseWriter, req *http.Request) {
+            s := websocket.Server{Handler: websocket.Handler(handleGui)}
+            s.ServeHTTP(w, req)
+        });*/
+
     http.Handle("/middleware/", websocket.Handler(handleMiddleware))
     http.Handle("/servercommand/", websocket.Handler(handleServerCommands))
 
