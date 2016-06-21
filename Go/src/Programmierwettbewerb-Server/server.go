@@ -23,6 +23,7 @@ import (
     //"reflect"
     //"strings"
     "html/template"
+    "os/exec"
 )
 
 // -------------------------------------------------------------------------------------------------
@@ -590,6 +591,16 @@ func checkAllValuesOnNaN(prefix string) {
     }
 }
 
+func startMiddleware() {
+    process := exec.Command("./Programmierwettbewerb-Middleware", "-bot=../BotPython/script.py", "-numBots=1", "-name=svn_03")
+    process.Dir = "./"
+
+    if err := process.Start(); err != nil {
+        Logf(LtDebug, "error trying to start a middleware: %v\n", err)
+    }
+}
+
+
 func (app* Application) startUpdateLoop() {
     ticker := time.NewTicker(time.Millisecond * 30)
     var lastTime = time.Now()
@@ -601,6 +612,8 @@ func (app* Application) startUpdateLoop() {
     var guiMessageCounter = 0
     var mWMessageCounter = 0
     var guiStatisticsMessageCounter = 0
+
+    var lastMiddlewareStart = float32(0.0)
 
     for t := range ticker.C {
         var dt = float32(t.Sub(lastTime).Nanoseconds()) / 1e9
@@ -727,6 +740,23 @@ func (app* Application) startUpdateLoop() {
                 break
             }
         }
+
+
+
+
+        ////////////////////////////////////////////////////////////////
+        // ADD SOME MIDDLEWARES/BOTS IF NEEDED
+        ////////////////////////////////////////////////////////////////
+        if lastMiddlewareStart > 10 {
+            botsToStart := app.settings.MinNumberOfBots - len(app.bots)
+            for i:=0; i<botsToStart; i++ {
+                go startMiddleware()
+
+            }
+            lastMiddlewareStart = 0
+        }
+        lastMiddlewareStart += dt
+
 
         ////////////////////////////////////////////////////////////////
         // UPDATE BOT POSITION
