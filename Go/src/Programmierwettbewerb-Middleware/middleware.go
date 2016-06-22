@@ -626,6 +626,8 @@ func main() {
             } else {
                 address = globalDefaultAddress
             }
+            //rand.Seed(time.Now().UTC().UnixNano())
+            rand.Seed( time.Now().UnixNano())
             botInfo := BotInfo{ // TODO(henk): These are all dummy values.
                 Name:       parseResult.botName,
                 Color:      Color{ byte(rand.Float32() * 255), byte(rand.Float32() * 255), byte(rand.Float32() * 255) },
