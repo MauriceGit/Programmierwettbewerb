@@ -747,13 +747,15 @@ func (app* Application) startUpdateLoop() {
         ////////////////////////////////////////////////////////////////
         // ADD SOME MIDDLEWARES/BOTS IF NEEDED
         ////////////////////////////////////////////////////////////////
-        if lastMiddlewareStart > 10 {
-            botsToStart := app.settings.MinNumberOfBots - len(app.bots)
-            for i:=0; i<botsToStart; i++ {
-                go startMiddleware()
-
+        if lastMiddlewareStart > 2 {
+            if app.settings.MinNumberOfBots - len(app.bots) > 0 {
+                //botsToStart := app.settings.MinNumberOfBots - len(app.bots)
+                botsToStart := 1
+                for i:=0; i<botsToStart; i++ {
+                    go startMiddleware()
+                }
+                lastMiddlewareStart = 0
             }
-            lastMiddlewareStart = 0
         }
         lastMiddlewareStart += dt
 
