@@ -140,6 +140,7 @@ type Application struct {
     toxins                      map[ToxinId]Toxin
     bots                        map[BotId]Bot
 
+	runningState				chan(bool)
     mwInfo                      chan(MwInfo)
     serverCommands              []string
 
@@ -174,6 +175,7 @@ func (app* Application) initialize() {
     app.toxins                      = make(map[ToxinId]Toxin)
 
     app.mwInfo                      = make(chan MwInfo, 1000)
+    app.runningState  				= make(chan bool, 1)
 
     app.foodDistributionName        = "fmctechnologies.bmp"
     app.toxinDistributionName       = "fmctechnologies.bmp"
@@ -1406,7 +1408,13 @@ func (app* Application) startUpdateLoop() {
         mWMessageCounter += 1
         guiStatisticsMessageCounter += 1
         if serverShouldShutdown {
-			break
+			if connectionIsTerminated(app.runningState) {
+                Logf(LtDebug, "Server is shutting down.\n")
+                return
+            }
+			terminateNonBlocking(app.runningState)
+            Logf(LtDebug, "Server is shutting down.\n")
+            return
 		}
     }
 }
@@ -1420,6 +1428,13 @@ func handleGui(ws *websocket.Conn) {
 
     var err error
     for {
+		
+		if connectionIsTerminated(app.runningState) {
+			Logf(LtDebug, "HandleGui is shutting down.\n")
+			ws.Close()
+			return
+		}
+		
         var reply string
 
         if err = websocket.Message.Receive(ws, &reply); err != nil {
@@ -1467,6 +1482,13 @@ func createStartingBot(ws *websocket.Conn, botInfo BotInfo, statistics Statistic
 func handleServerCommands(ws *websocket.Conn) {
     commandId := app.createServerCommandId()
     for {
+		
+		if connectionIsTerminated(app.runningState) {
+			Logf(LtDebug, "HandleServerCommands is shutting down.\n")
+			ws.Close()
+			return
+		}
+		
         var message string
         if err := websocket.Message.Receive(ws, &message); err != nil {
             Logf(LtDebug, "The command line with id: %v is closed because of: %v\n", commandId, err)
@@ -1484,6 +1506,13 @@ func handleMiddleware(ws *websocket.Conn) {
 
     var err error
     for {
+		
+		if connectionIsTerminated(app.runningState) {
+			Logf(LtDebug, "handleMiddleware is shutting down.\n")
+			ws.Close()
+			return
+		}
+		
         //
         // Receive the message
         //
@@ -1638,11 +1667,40 @@ func handleServerControl(w http.ResponseWriter, r *http.Request) {
     t.Execute(w, data)
 }
 
+func terminateNonBlocking(runningState chan(bool)) {
+    // Try to send a non-blocking close to the channel...
+    select {
+    case runningState <- false:
+    default:
+        // Aaaaand it didn't work.
+        Logf(LtDebug, "Not sending a close\n")
+    }
+}
+
+func connectionIsTerminated(runningState chan(bool)) bool {
+    select {
+    case state, ok := <-runningState:
+        if ok {
+            if !state {
+                terminateNonBlocking(runningState)
+                return true
+            }
+        } else {
+            return true
+        }
+    default:
+        return false
+    }
+    return false
+}
+
 func main() {
     // TODO(henk): Maybe we wanna toggle this at runtime.
     SetLoggingDebug(true)
     SetLoggingVerbose(false)
-
+	
+	
+	
     app.initialize()
 
     InitOrganisation()
