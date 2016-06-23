@@ -35,7 +35,6 @@ const (
     foodMassMax = 12
     thrownFoodMass = 10
     massToBeAllowedToThrow = 120
-    toxinCountGameMax = 250 // From players additionally generated
     botMinMass = 10
     botMaxMass = 4000.0
     blobReunionTime = 10.0
@@ -603,6 +602,36 @@ func startMiddleware() {
     }
 }
 
+func updateServerFromGit() {
+	fetch := exec.Command("git", "fetch", "--all")
+    fetch.Dir = "../"
+    if err := fetch.Start(); err != nil {
+        Logf(LtDebug, "error on git fetch: %v\n", err)
+    }
+    
+	reset := exec.Command("git", "reset", "--hard origin/master")
+    reset.Dir = "../"
+    if err := reset.Start(); err != nil {
+        Logf(LtDebug, "error on git fetch: %v\n", err)
+    }
+    
+	make := exec.Command("./make.sh")
+    make.Dir = "../"
+    if err := make.Start(); err != nil {
+        Logf(LtDebug, "error on git fetch: %v\n", err)
+    }
+    
+}
+
+func restartServer() {
+	/*fetch := exec.Command("git", "fetch", "--all")
+    fetch.Dir = "../"
+    if err := fetch.Start(); err != nil {
+        Logf(LtDebug, "error on git fetch: %v\n", err)
+    }*/
+    
+    
+}
 
 func (app* Application) startUpdateLoop() {
     ticker := time.NewTicker(time.Millisecond * 30)
@@ -617,6 +646,7 @@ func (app* Application) startUpdateLoop() {
     var guiStatisticsMessageCounter = 0
 
     var lastMiddlewareStart = float32(0.0)
+    var serverShouldShutdown = false
 
     for t := range ticker.C {
         var dt = float32(t.Sub(lastTime).Nanoseconds()) / 1e9
@@ -666,6 +696,11 @@ func (app* Application) startUpdateLoop() {
                         app.settings.MaxNumberOfFoods = command.Value
                     case "MaxNumberOfToxins":
                         app.settings.MaxNumberOfToxins = command.Value
+                    case "UpdateServer":
+						go updateServerFromGit()
+                    case "RestartServer":
+						go restartServer()
+						serverShouldShutdown = true
                     case "KillAllBots":
                         for botId, _ := range app.bots {
                             delete(app.bots, botId)
@@ -899,11 +934,23 @@ func (app* Application) startUpdateLoop() {
         ////////////////////////////////////////////////////////////////
         eatenToxins := make([]ToxinId, 0)
         for toxinId,_ := range app.toxins {
-            if len(app.toxins) <= toxinCountGameMax {
+            if len(app.toxins) <= app.settings.MaxNumberOfToxins {
                 break;
             }
             eatenToxins = append(eatenToxins, toxinId)
             delete(app.toxins, toxinId)
+        }
+        
+        ////////////////////////////////////////////////////////////////
+        // DELETE RANDOM FOOD IF THERE ARE TOO MANY
+        ////////////////////////////////////////////////////////////////
+        eatenFoods := make([]FoodId, 0)
+        for foodId,_ := range app.foods {
+            if len(app.foods) <= app.settings.MaxNumberOfFoods {
+                break;
+            }
+            eatenFoods = append(eatenFoods, foodId)
+            delete(app.foods, foodId)
         }
 
         ////////////////////////////////////////////////////////////////
@@ -995,7 +1042,7 @@ func (app* Application) startUpdateLoop() {
 
                         // If a bot already has > 10 blobs (i.e.), don't explode, ignore!
                         if len(bot.Blobs) > maxBlobCountToExplode {
-                            if toxin.IsSplit || len(app.toxins) >= toxinCountGameMax {
+                            if toxin.IsSplit || len(app.toxins) >= app.settings.MaxNumberOfToxins {
                                 eatenToxins = append(eatenToxins, tId)
                                 delete(app.toxins, tId)
                                 //Logf(LtDebug, "Test 0: len before: %v, eatenToxins: %v\n", len(eatenToxins), eatenToxins)
@@ -1087,7 +1134,7 @@ func (app* Application) startUpdateLoop() {
         //
         // Eating food (by bots and toxins!)
         //
-        eatenFoods := make([]FoodId, 0)
+        //eatenFoods := make([]FoodId, 0)
         for foodId, food := range app.foods {
             // Bots eating food
 
@@ -1358,6 +1405,9 @@ func (app* Application) startUpdateLoop() {
         guiMessageCounter += 1
         mWMessageCounter += 1
         guiStatisticsMessageCounter += 1
+        if serverShouldShutdown {
+			break
+		}
     }
 }
 

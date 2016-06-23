@@ -66,7 +66,11 @@
                 });
 
                 $("#restart").on('click', function() {
-                    
+                    sock.send(JSON.stringify({ type:"RestartServer" }));
+                });
+                
+                $("#update").on('click', function() {
+                    sock.send(JSON.stringify({ type:"UpdateServer" }));
                 });
 
                 var foodImageHandlerMaker = function(imageName) {
@@ -196,8 +200,10 @@
                                 </div>
                             </div>
                             <hr>    
-                            <h4>Restart server</h3>
+                            <h4>Restart server</h4>
                             <button id="restart" type="button" class="btn btn-danger">Restart</button>
+                            <h4>Update server</h4>
+                            <button id="update" type="button" class="btn btn-danger">Update</button>
                         </div>
                    </div>
                 </div>  
