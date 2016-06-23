@@ -382,6 +382,9 @@ func calcBlobbMassLoss(mass float32, dt float32) float32 {
     if mass > botMinMass {
         return mass - (mass/botMaxMass)*dt*massLossFactor
     }
+    if mass > botMaxMass {
+		return botMaxMass
+	}
     return mass
 }
 
