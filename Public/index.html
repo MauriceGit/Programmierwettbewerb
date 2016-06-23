@@ -1,550 +1,330 @@
-<html>
+<!DOCTYPE html>
+<html lang="en">
     <head>
-        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.0/jquery.min.js"></script>
+    <title>Programmierwettbewerb</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.2/jquery.min.js"></script>
+    <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>
         <style>
-            canvas {
-                background-color: #222222; // TODO(henk): Remove this
-            }
-            .highscore {
-                position: fixed;
+            .jumbotron {
+                background-image: url(Images/GameSample.jpg);
                 color: white;
-                top: 10;
-                right: 10;
-                width: 900px;
-                background-color: rgba(150,150,150,0.1);
-                //border: 3px solid #73AD21;
+            }  
+            .hidden {
+                display:none;
             }
-            .highscoreEntry {
-                margin:5px;
+            .offset {
+                margin-top: 50px;
             }
-            html, body {
-              width:  100%;
-              height: 100%;
-              margin: 0px;
+            h1 {
+                margin-bottom: -10px;
             }
-
-            .dropbtn {
-                //position: absolute;
-                background-color: #4CAF50;
-                color: white;
-                padding: 8px;
-                font-size: 12px;
-                border: none;
-                cursor: pointer;
+            body {
+                padding-bottom: 100px;
             }
-
-            .dropbtn:hover, .dropbtn:focus {
-                background-color: #3e8e41;
-            }
-
-            .dropdown {
-                top: 10;
-                left: 10;
-                position: absolute;
-                display: inline-block;
-            }
-
-            .dropdown-content {
-                display: none;
-                position: absolute;
-                background-color: #f9f9f9;
-                min-width: 300px;
-                overflow: auto;
-                box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
-            }
-
-            .dropdown-content a {
-                color: black;
-                padding: 4px 16px;
-                text-decoration: none;
-                display: block;
-            }
-
-            .dropdown a:hover {background-color: #f1f1f1}
-
-            .show {display:block;}
         </style>
-    </head>
+        <script>
+            var currentView = "";
+            
+            var views = {
+                "home": { button:"#mnuHome", htmlContainer:"#mainHTML" },
+                "rules": { button:"#mnuRules", htmlContainer:"#rulesHTML" },
+                "botDevelopment": { button:"#mnuBotDevelopment", htmlContainer:"#botDevelopmentHTML" },
+                "simulations": { button:"#mnuSimulations", htmlContainer:"#simulationsHTML" },
+            };
+        
+            function openView(name) {                
+                var mainContainer = $("#container");
+                
+                if (currentView != "") {
+                    var previousHtmlContainer = $(views[currentView].htmlContainer);                    
+                    var previousButton = $(views[currentView].button);                    
+                    
+                    previousHtmlContainer.html(mainContainer.children());
+                    previousButton.removeClass("active");
+                }
+                
+                var currentHtmlContainer = $(views[name].htmlContainer);
+                var currentButton = $(views[name].button);
 
+                mainContainer.html(currentHtmlContainer.children());                
+                currentButton.addClass("active");
+                
+                currentView = name;
+            }
+            
+            $(window).load(function(){
+                openView("home");
+                
+                function handlerMaker(view) {
+                    return function() { openView(view); };
+                }
+                
+                for (var view in views) {
+                    if (views.hasOwnProperty(view)) {
+                        $(views[view].button).click(handlerMaker(view));
+                    }
+                }
+            });
+        </script>
+    </head>
     <body>
-        <div class="dropdown">
-            <button onclick="cameraDropDownHandler()" class="dropbtn">Camera</button>
-            <div id="cameraDropDown" class="dropdown-content">
+        <div id="mainHTML" class="hidden">
+            <div id="jumbotron" class="jumbotron">
+                <h1>Agar.io</h1>
+                <p>FH Wedel - Programmierwettbewerb Wintersemenster 2016</p> 
+            </div>
+            <a type="button" class="btn btn-success btn-block" href="game.html">Zum Spiel!</a>
+        </div>
+        <div id="rulesHTML" class="hidden">
+            <div class="row">
+                <div class="col-sm-4">
+                    <h3>Regel 1</h3>
+                    <p>Lorem ipsum dolor sit amet, consectetur adipisicing elit...</p>
+                    <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris...</p>
+                </div>
+                <div class="col-sm-4">
+                    <h3>Regel 2</h3>
+                    <p>Lorem ipsum dolor sit amet, consectetur adipisicing elit...</p>
+                    <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris...</p>
+                </div>
+                <div class="col-sm-4">
+                    <h3>Regel 3</h3>
+                    <p>Lorem ipsum dolor sit amet, consectetur adipisicing elit...</p>
+                    <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris...</p>
+                </div>
             </div>
         </div>
-
-        <canvas id="canvas">Sorry, your browser doesn't support canvas.</canvas>
-
-        <div class="highscore" id="highscore" />
-
-        <script type="text/javascript">
-            var sock = null;
-            //var wsuri = "ws:localhost:8080/gui/";
-            var wsuri = "ws://cagine.fh-wedel.de:8080/gui/";
-            //var wsuri = "ws://192.168.2.187:1234";
-
-            var bots = {};
-            var botInfos = {};
-            var toxins = {};
-            var foods = {};
-
-            var statisticsLocal  = {};
-            var statisticsGlobal = {};
-
-            var frametimes = [];
-            var numFrametimes = 10;
-            var currentFrametime = 0;
-
-                        var context;
-
-            var colors = [
-                "rgba(255,  20, 147, 1)",
-                "rgba(255,   0,   0, 1)",
-                "rgba(255,  69,   0, 1)",
-                "rgba(255, 255,   0, 1)",
-                "rgba(0  ,  80,   0, 1)",
-                "rgba(0  , 255, 255, 1)",
-                "rgba(0  , 191, 255, 1)",
-                "rgba(0  ,   0, 255, 1)",
-                "rgba(255,   0, 255, 1)",
-                "rgba(128,   0, 128, 1)",
-                "rgba(0  , 255,   0, 1)",
-            ];
-
-            // GuiMessagePurpose
-            var gmpCreateOrUpdate = "createOrUpdate";
-            var gmpDelete         = "delete";
-
-            // DataType
-            var dtFood      = "food";
-            var dtToxin     = "toxin";
-            var dtBot       = "bot";
-            var dtBotInfo   = "botInfo";
-
-            // Camera
-            var cmShowAll     = 0;
-            var cmShowBot     = 1;
-            var cameraMode = cmShowAll;
-            var cameraBotToFollow = -1;
-
-            function cameraDropDownHandler() {
-                document.getElementById("cameraDropDown").classList.toggle("show");
-            }
-
-            window.onclick = function(event) {
-                if (!event.target.matches('.dropbtn')) {
-                    var dropdowns = document.getElementsByClassName("dropdown-content");
-                    var i;
-                    for (i = 0; i < dropdowns.length; i++) {
-                        var openDropdown = dropdowns[i];
-                        if (openDropdown.classList.contains('show')) {
-                            openDropdown.classList.remove('show');
-                        }
-                    }
-                }
-            }
-
-            function showAll() {
-                cameraMode = cmShowAll;
-            }
-
-            function showBot(id) {
-                cameraMode = cmShowBot;
-                cameraBotToFollow = id;
-            }
-
-            if (!String.prototype.format) {
-              String.prototype.format = function() {
-                var args = arguments;
-                return this.replace(/{(\d+)}/g, function(match, number) {
-                  return typeof args[number] != 'undefined'
-                    ? args[number]
-                    : match
-                  ;
-                });
-              };
-            }
-
-            function makeCSSColor(color) {
-                return "rgb({0}, {1}, {2})".format(color.R, color.G, color.B);
-            }
-
-            window.onload = function() {
-                //
-                // Canvas
-                //
-                var canvas = document.getElementById('canvas');
-                var resizeCanvas = function() {
-                    canvas.width  = window.innerWidth;
-                    canvas.height = window.innerHeight;
-                };
-                window.onresize = function(event) {
-                    resizeCanvas();
-                };
-                resizeCanvas();
-
-                context = canvas.getContext('2d');
-
-                //
-                // Rendering
-                //
-                window.requestAnimationFrame(render);
-
-                //
-                // Updating the highscore
-                //
-                setInterval(updateHighscore, 1000);
-
-                //
-                // Connection
-                //
-                sock = new WebSocket(wsuri);
-
-                sock.onopen = function() {
-                    console.log("connected to " + wsuri);
-                }
-
-                sock.onclose = function(e) {
-                    console.log("connection closed (" + e.code + ")");
-                }
-                sock.onmessage = function(e) {
-                    // Just ignore this message. It's to test, if the
-                    // connection is alive at server side.
-                    if (e.data == "alive_test") {
-                        return
-                    }
-
-                    var message = JSON.parse(e.data);
-                    var  guiUpdatedNeeded = false;
-
-                    for (var botId in message.createdOrUpdatedBotInfos) {
-                        botInfos[botId] = message.createdOrUpdatedBotInfos[botId];
-                        guiUpdatedNeeded = true;
-                    }
-
-                    for (var i = 0; i < message.deletedBotInfos.length; i++) {
-                        var botId = message.deletedBotInfos[i];
-                        delete botInfos[botId];
-                        guiUpdatedNeeded = true;
-                    }
-
-                    for (var botId in message.createdOrUpdatedBots) {
-                        bots[botId] = message.createdOrUpdatedBots[botId];
-                    }
-
-                    for (var i = 0; i < message.deletedBots.length; i++) {
-                        var botId = message.deletedBots[i];
-                        delete bots[botId];
-                    }
-
-                    for (var foodId in message.createdOrUpdatedFoods) {
-                        foods[foodId] = message.createdOrUpdatedFoods[foodId];
-                    }
-
-                    for (var i = 0; i < message.deletedFoods.length; i++) {
-                        var foodId = message.deletedFoods[i];
-                        delete foods[foodId];
-                    }
-
-                    for (var toxinId in message.createdOrUpdatedToxins) {
-                        toxins[toxinId] = message.createdOrUpdatedToxins[toxinId];
-                    }
-
-                    for (var i = 0; i < message.deletedToxins.length; i++) {
-                        var toxinId = message.deletedToxins[i];
-                        delete toxins[toxinId];
-                    }
-
-                    for (var botId in message.statisticsLocal) {
-                        statisticsLocal[botId] = message.statisticsLocal[botId]
-                    }
-
-                    for (var botId in message.statisticsGlobal) {
-                        statisticsGlobal[botId] = message.statisticsLocal[botId]
-                    }
-
-                    if (guiUpdatedNeeded) {
-                        var dropdown = $("#cameraDropDown");
-                        dropdown.empty();
-                        dropdown.append("<a href=\"#\" onclick=\"showAll()\">Show All</a>");
-                        $.each(botInfos, function (botId, value) {
-                            var botInfo = botInfos[botId];
-                            var item = $("<a href=\"#\">" + botInfo.name + " (" + botId + ")" + "</a>");
-                            item.css("background-color", makeCSSColor(botInfo.color));
-                            item.click(function() {
-                                showBot(botId);
-                            });
-                            dropdown.append(item);
-                        });
-                    }
-                }
-            };
-
-            function mapSize(map) {
-                count = 0
-                for (i in map) {
-                    if (map.hasOwnProperty(i)) {
-                        count++;
-                    }
-                }
-                return count
-            };
-
-            function send(msg) {
-                sock.send(msg);
-            };
-
-            function radius(mass) {
-                return Math.max(1, Math.sqrt(mass / Math.PI)); // TODO(henk): Maybe remove the max(1, ...), when we talked about the sizes of stuff.
-            }
-
-            function render() {
-                context.setTransform(1, 0, 0, 1, 0, 0);
-                context.clearRect(0, 0, canvas.width, canvas.height);
-
-                // Find center of all the blobs
-                if (cameraMode == cmShowBot) {
-                    if (cameraBotToFollow in bots) {
-                        var centerX = 0;
-                        var centerY = 0;
-                        var numBlobs = 0;
-                        var bot = bots[cameraBotToFollow];
-                        for (var blobId in bot.blobs) {
-                            var blob = bot.blobs[blobId];
-                            ++numBlobs;
-                            centerX += blob.pos.X;
-                            centerY += blob.pos.Y;
-                        }
-                        centerX /= numBlobs;
-                        centerY /= numBlobs;
-
-                        scaleFactorX = (window.innerWidth / bot.viewWindow.size.X) * 1.0 - 0.2;
-                        scaleFactorY = (window.innerHeight / bot.viewWindow.size.Y) * 1.0 - 0.2;
-                        scaleFactor = Math.min(scaleFactorX, scaleFactorY)
-
-
-                        //context.setTransform(1, 0, 0, 1, -centerX + window.innerWidth/2, -centerY + window.innerHeight/2);
-                        context.scale(scaleFactor, scaleFactor);
-                        context.translate(-centerX + window.innerWidth/(2.0*scaleFactor), -centerY + window.innerHeight/(2.0*scaleFactor));
-
-                    } else {
-                        cameraMode = cmShowAll;
-                    }
-                }
-
-                // Render foods
-                const FOOD_SIZE = 6;
-                context.strokeStyle = "rgb(0, 0, 0)";
-                context.fillStyle = "rgb(128, 128, 128)";
-                context.lineWidth = 1;
-                for (var key in foods) {
-                    var food = foods[key];
-
-                    context.beginPath();
-                    context.arc(food.pos.X, food.pos.Y, FOOD_SIZE, 0, 2 * Math.PI, false);
-                    context.fill();
-                }
-
-                // Render toxins
-                const NUM_VERTICES = 24;
-                const TOXIN_SPIKE_SIZE = 2;
-                context.strokeStyle = "green";
-                context.fillStyle = colors[10];
-                context.lineWidth = 1;
-                for (var key in toxins) {
-                    var toxin = toxins[key];
-
-                    context.beginPath();
-                    for(var i = 0; i < NUM_VERTICES + 1; ++i) {
-                      var size = radius(toxin.mass) + (i % 2 == 0 ? 0 : TOXIN_SPIKE_SIZE);
-                      var x = size * Math.cos(2 * Math.PI * i / NUM_VERTICES);
-                      var y = size * Math.sin(2 * Math.PI * i / NUM_VERTICES);
-                      context.lineTo(toxin.pos.X + x, toxin.pos.Y + y);
-                    }
-                    context.fill();
-                    context.stroke();
-                }
-
-                // Render bots
-                context.strokeStyle = "rgb(255, 255, 255)";
-                context.lineWidth = 0.1;
-                for (var botId in bots) {
-                    var bot = bots[botId];
-
-                    for (var blobId in bot.blobs) {
-                        var blob = bot.blobs[blobId];
-
-                        if (botId in botInfos) {
-                            context.fillStyle = makeCSSColor(botInfos[botId].color);
-                        } else {
-                            // Render Error
-                            context.fillStyle = "rgb(255, 0, 0)";
-                            context.font="12px Courir";
-                            context.fillText("Couldn't find the BotInfo", blob.pos.X, blob.pos.Y + 20);
-                        }
-
-                        context.beginPath();
-                        context.arc(blob.pos.X, blob.pos.Y, radius(blob.mass), 0, 2 * Math.PI, false);
-                        context.fill();
-
-                        context.stroke();
-                    }
-
-                    if (cameraMode == cmShowBot) {
-                        context.beginPath();
-                        context.rect(bot.viewWindow.pos.X, bot.viewWindow.pos.Y, bot.viewWindow.size.X, bot.viewWindow.size.Y);
-                        context.stroke();
-                    }
-                }
-                                window.requestAnimationFrame(render);
-            }
-
-            function calculateHighscore() {
-                var tuples = [];
-                var maxMass = 0;
-                for (var botInfoId in botInfos) {
-                    var botInfo = botInfos[botInfoId];
-                    var mass = 0;
-                    if (botInfoId in bots) {
-                        for (var blobId in bots[botInfoId].blobs) {
-                            mass += bots[botInfoId].blobs[blobId].mass;
-                        }
-                    }
-                    tuples.push({ id: botInfoId, mass: mass });
-                    if (mass > maxMass) {
-                        maxMass = mass;
-                    }
-                }
-
-                tuples.sort(function(a, b) {
-                    return b.mass - a.mass;
-                });
-
-                return [tuples, maxMass];
-            }
-
-            function updateHighscoreForBotId (botInfoId, mass, maxMass) {
-                //var mass = tuples[i].mass;
-                //var botInfoId = tuples[i].id;
-                var botInfo = botInfos[botInfoId];
-                var stats = statisticsLocal[botInfoId];
-                var paddedName = botInfo.name + "________________________________"
-                var shortName = paddedName.substr(0, 13);
-                var paddedID = " (id: " + botInfoId + "__________________________"
-                var extendedName = shortName + paddedID.substr(0, 10) + ")";
-
-                var containerNode = $("<div></div>");
-                containerNode.css({
-                    position: "relative",
-                    height: 65,
-                });
-                containerNode.addClass("highscoreEntry");
-
-                var nameNode = $("<span></span>");
-                nameNode.css({
-                    position: "relative",
-                    float: "left", // To position the elements next to each other
-                    fontSize: "14px",
-                    fontFamily: "Courier New"
-                });
-                nameNode.html(extendedName);
-
-                var pointsNode = $("<span></span>");
-                pointsNode.css({
-                    position: "relative",
-                    fontSize: "14px",
-                    fontFamily: "Courier New",
-                    left: 20
-                });
-                pointString = String(Math.round(mass*100)/100) + "00000"
-                pointString = pointString.substr(0, 9)
-                pointsNode.html(pointString);
-
-
-                maxSizeString = String(Math.round(stats.size*100)/100) + "00000";
-                maxSizeString = maxSizeString.substr(0, 9);
-
-                survivalString = String(Math.round(stats.survivalTime*100)/100) + "00000";
-                survivalString = survivalString.substr(0, 6);
-                statsString1 =
-                    "---\> " +
-                    "Max Size: " + maxSizeString +
-                    " Survival: " + survivalString +
-                    " Blob Kills: " + String(stats.blobKillCount) +
-                    " Bot Kills: " + String(stats.botKillCount) +
-                    " Toxin throws: " + String(stats.toxinThrow)
-
-                var statsNode1 = $("<div></div>");
-                statsNode1.css({
-                    position: "relative",
-                    left: 0,
-                    fontSize: "14px",
-                    fontFamily: "Courier New"
-                });
-                statsNode1.html(statsString1);
-
-                statsString2 =
-                    "---\> " +
-                    " Successful Toxin throws: " + String(stats.successfulToxin) +
-                    " Splits: " + String(stats.splitCount) +
-                    " Successful Splits: " + String(stats.successfulSplit) +
-                    " Good Teaming: " + String(stats.successfulTeaming) +
-                    " Bad Teaming: " + String(stats.badTeaming)
-
-                var statsNode2 = $("<div></div>");
-                statsNode2.css({
-                    position: "relative",
-                    left: 0,
-                    fontSize: "14px",
-                    fontFamily: "Courier New"
-                });
-                statsNode2.html(statsString2);
-
-                var barNode = $("<div></div>");
-                barNode.css({
-                    position: "relative",
-                    background: makeCSSColor(botInfo.color),
-                    top: 1,
-                    //width: 280 * (mass / maxMass),
-                    width: 888 * (mass / maxMass),
-                    height: 10,
-                    "border-style": "solid",
-                    "border-width": "1px",
-                    "border-color": "black",
-                });
-
-                containerNode.append(nameNode);
-                containerNode.append(pointsNode);
-                containerNode.append(statsNode1);
-                containerNode.append(statsNode2);
-                containerNode.append(barNode);
-
-                return containerNode;
-                //highscore.append(containerNode);
-            }
-
-            function updateHighscore() {
-
-                var highscore = $("#highscore");
-                highscore.empty();
-
-                var scores = calculateHighscore();
-                var tuples = scores[0];
-                var maxMass = scores[1];
-
-                for (var i = 0; i < tuples.length; i++) {
-                    var mass = tuples[i].mass;
-                    var botInfoId = tuples[i].id;
-
-                    // VERY quick and dirty. Should be reworked, so that calculateHighscore is not called all the time.
-                    // But we kinda need maxMass. Or we don't show the bar in follower-mode...
-                    if (cameraMode == cmShowBot && botInfoId != cameraBotToFollow) {
-                        continue;
-                    }
-                    containerNode = updateHighscoreForBotId(botInfoId, mass, maxMass);
-                    highscore.append(containerNode);
-                }
-            }
-        </script>
+        <div id="botDevelopmentHTML" class="hidden">
+            <h1>Einleitung</h1>
+            <hr>
+            <div>
+                <p>
+                    Alle Berechnungen zur Änderung des Spielzustands werden von einem Server übernommen. Pro Berechnungsschritt übermittelt 
+                    dieser euren Bots den aktuellen Spielzustand, den ihr anschließend auswerten und in ein Kommando übersetzen müsst. Dieses müsst ihr
+                    dem Server zurückschicken, um die nächste Handlung eures Bots bekannt zu geben. 
+                <p>
+                </p>
+                    Damit ihr euch keine Gedanken, um die konkrete Übertragung von Daten zum Server machen müsst, haben wir ein kleines Program geschrieben, das euch diese Aufgabe abnimmt. Diese
+                    Middleware startet eure Bots, leitet ihnen die Daten von Server über <code>stdin</code> weiter und wartet dann auf die Antwort eures Bots über <code>stdout</code>, um
+                    diese anschließend wieder zum Server zu schicken.
+                </p>
+                <center><img src="Images/InformationFlow1.png" alignment="center" /></center>
+                <p>Zum Testen startet ihr eure Bots wie folgt:</p>
+                <pre>
+./Programmierwettbewerb-Middleware -bot=myBot -name=myName</pre>
+            </div>
+            <h1 class="offset">Datenformate</h1>
+            <hr>
+            <p>
+                Die Middleware schickt euch die Daten in einem an Python-orientierten Format und erwartet dies auch von euren Bots.
+            </p>
+            <div class="row">
+                <div class="col-sm-6">
+                    <h3>Eingabe <small>für eure Bots von der Middleware</small></h3>
+                    <pre>
+type BotId      = Int
+type TeamId     = Int
+type Index      = Int
+type Position   = (Float, Float)
+type Mass       = Int
+type Blob       = (BotId, TeamId, Index, Position, Mass)
+type Food       = (Position, Mass)
+type Toxin      = (Position, Mass)
+type OwnBlobs   = [Blob]
+type OtherBlobs = [Blob]
+type Input      = (OwnBlobs, OtherBlobs, [Food], [Toxin])</pre>
+                </div>
+                <div class="col-sm-6">
+                    <h3>Ausgabe <small>von euren Bots an die Middleware</small></h3>
+                    <pre>
+data BlobAction = None | Throw | Split
+type Position   = (Float, Float)
+type Output     = (BlobAction, Position)</pre>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-sm-6">
+                    <h4>Beispiel für Eingabe <small>(Zeilenumbrüche nicht berücksichtigen)</small></h4>
+                    <pre>
+    ([(1,2,3,(4,5),6)],
+     [(7,8,9,(10,11),12)],
+     [((13,14),15)],
+     [((16,17),18)])</pre>
+                </div>
+                <div class="col-sm-6">
+                    <h4>Beispiel für Ausgabe</h4>
+                    <pre>
+    (None,(1,2))</pre>
+                </div>
+            </div>
+            <h1 class="offset">Parser</h1>
+            <hr>
+            <p>In dieser Übersicht sehr ihr, wie ihr die Eingabe in verschiedenen Sprachen parsen könnt.</p>
+            <div class="row">
+                <div class="col-md-12">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Sprache</th>
+                                <th>Parser</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Python</td>
+                                <td>Die Eingabe kann mit der Funktion <code>eval</code> geparst werden.</td>
+                            </tr>
+                            <tr>
+                                <td>C</td>
+                                <td><a target="_blank" href="https://github.com/hpatjens/Programmierwettbewerb/blob/master/BotCpp/BotCpp/pwb.h">Hier</a> stellen wir einen Parser bereit.</td>
+                            </tr>
+                            <tr>
+                                <td>Haskell</td>
+                                <td>Wenn ihr die entsprechenden Datenstrukturen anlegt, könnt ihr die Eingabe mit <code>read</code> (Typklasse <code>Read</code>) einlesen.</td>
+                            </tr>
+                            <tr>
+                                <td>...</td>
+                                <td></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <p>Bitte sagt Bescheid, wenn ihr weitere Sprachen kennt, mit denen dieses Format leicht zu parsen ist. Wenn ihr eure Parser anderen Teilnehmern bereitstellen wollt, nehmen wir diese natürlich auch gerne in diese Auflistung auf.</p>
+            <h1 class="offset">Beispiel-Bots</h1>            
+            <hr>
+            <div class="row">
+                <div class="col-sm-6">
+                    <h3>Python</h3>
+                    <pre>
+def process(data) {
+     // TODO: Calculate the target and action of your bot!
+}
+                    
+while (1):
+    line = sys.stdin.readline()
+    data = eval(line)
+    print process(data)</pre>
+                    <a href="https://github.com/hpatjens/Programmierwettbewerb/tree/master/BotPython" class="btn btn-default">Show in Repository</a>
+                </div>
+                <div class="col-sm-6">
+                    <h3>C</h3>
+                    <pre>
+#define PWB_IMPLEMENTATION
+#include "pwb.h"
+
+BotCommand process(const VisibleGameState* const visibleGameState) {
+    Vec2 target;
+    BotActionType botActionType;
+
+    // TODO: Calculate the target and action of your bot!
+
+    return pwb_mkBotCommand(botActionType, &target);
+}
+
+int main() {
+    #define INPUT_BUFFER_MAX_LENGTH 2000
+    #define OUTPUT_BUFFER_MAX_LENGTH 100
+
+    char inputBuffer[INPUT_BUFFER_MAX_LENGTH];
+    char outputBuffer[OUTPUT_BUFFER_MAX_LENGTH];
+
+    for (;;) {
+        pwb_getline(inputBuffer, INPUT_BUFFER_MAX_LENGTH);
+
+        ParseContext parseContext = pwb_mkContext(inputBuffer);
+
+        VisibleGameState visibleGameState;
+        if (!pwb_parseAll(&parseContext, &visibleGameState)) {
+            pwb_printErrors(&parseContext, stderr);
+            exit(1);
+        }
+
+        BotCommand botCommand = process(&visibleGameState);
+
+        pwb_toString(outputBuffer, &botCommand);
+        printf("%s\n", outputBuffer);
+        fflush(stdout);
+    }
+
+    return 0;
+}</pre>
+                    <a href="https://github.com/hpatjens/Programmierwettbewerb/tree/master/BotCpp" class="btn btn-default">Show in Repository</a>
+                </div>
+            </div>
+        </div>
+        <div id="simulationsHTML" class="hidden">
+            <h1>Allgemeines</h1>
+            <hr>
+            <div class="row">
+                <div class="col-sm-4">
+                    <h3>Main-Loop</h3>
+                    <p>
+                        Der Server führt alle Simulationen mit einer konstanten Frequenz von 30Hz aus. D.h. zwischen den Simulationsschritten liegen etwas über &Delta;t = 33ms. Wird die Frequenz belastungsbedingt nicht erreicht, rechnen wir jedoch trotzdem mit dem selben &Delta;t. Dadurch erreichen wird stabile Simulationen jedoch läuft das Spiel in diesem Moment langsamer.
+                    </p>
+                    <p>
+                        Die Reihenfolge der Simulationen ist nicht-deterministisch. Das bedeutet, ihr könnt keine Vor- oder Nachteile durch die Simulationsreihenfolge erlangen.
+                    </p>
+                    <p>
+
+                    </p>
+                </div>
+                <div class="col-sm-4">
+                    <h3>Spawnen von Spielelementen</h3>
+                    <p>
+                        ...
+                    </p>
+                </div>
+                <div class="col-sm-4">
+                    <h3>Geschwindigkeit und Position</h3>
+                    <p>Lorem ipsum dolor sit amet, consectetur adipisicing elit...</p>
+                    <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris...</p>
+                </div>
+            </div>
+            <hr>
+            <h1>Aktionen</h1>
+            <div class="row">
+                <div class="col-sm-4">
+                    <h3>Teilen und Explodieren</h3>
+                    <p>Lorem ipsum dolor sit amet, consectetur adipisicing elit...</p>
+                    <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris...</p>
+                </div>
+                <div class="col-sm-4">
+                    <h3>Masse werfen und Teilen von Gift</h3>
+                    <p>Lorem ipsum dolor sit amet, consectetur adipisicing elit...</p>
+                    <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris...</p>
+                </div>
+            </div>
+        </div>
+        <nav class="navbar navbar-default navbar-static-top">
+            <div class="container">
+            <div class="navbar-header">
+            <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+            </button>
+            <a class="navbar-brand" href="#">Programmierwettbewerb</a>
+            </div>
+            <div id="navbar" class="navbar-collapse collapse">
+                <ul class="nav navbar-nav">
+                    <li class="active" id="mnuHome"><a href="#">Home</a></li>
+                    <li id="mnuRules"><a href="#">Spielregeln</a></li>
+                    <li id="mnuBotDevelopment"><a href="#">Bot-Entwicklung</a></li>
+                    <li id="mnuSimulations"><a href="#">Server-Simulationen</a></li>
+                </ul>
+                <ul class="nav navbar-nav navbar-right">
+                    <li><a href="https://github.com/hpatjens/Programmierwettbewerb">Repository</a></li>                    
+                </ul>
+            </div><!--/.nav-collapse -->
+            </div>
+        </nav>
+        
+        <div id="container" class="container">
+        </div>
     </body>
 </html>
