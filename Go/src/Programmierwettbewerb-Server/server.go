@@ -618,7 +618,6 @@ func updateServerFromGit() {
     }
 
     make := exec.Command("../make.sh")
-    make.Dir = "./"
     if err := make.Start(); err != nil {
         Logf(LtDebug, "error on git fetch: %v\n", err)
     }
@@ -626,11 +625,12 @@ func updateServerFromGit() {
 }
 
 func restartServer() {
-    restart := exec.Command("sleep 2; ./Programmierwettbewerb-Server")
+    //restart := exec.Command("sleep 5; ./Programmierwettbewerb-Server &")
+    restart := exec.Command("sleep 10; echo blubb > blubb")
     restart.Dir = "./"
     restart.SysProcAttr.Setpgid = true
     if err := restart.Start(); err != nil {
-        Logf(LtDebug, "error on git fetch: %v\n", err)
+        Logf(LtDebug, "error on restarting the server: %v\n", err)
     }
 }
 
