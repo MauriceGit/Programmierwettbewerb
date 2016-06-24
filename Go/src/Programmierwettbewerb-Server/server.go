@@ -156,7 +156,7 @@ type Application struct {
 var app Application
 
 func (app* Application) initialize() {
-    app.settings.MinNumberOfBots    = 1
+    app.settings.MinNumberOfBots    = 10
     app.settings.MaxNumberOfBots    = 100
     app.settings.MaxNumberOfFoods   = 400
     app.settings.MaxNumberOfToxins  = 200
@@ -681,8 +681,10 @@ func (app* Application) startUpdateLoop() {
                     case "MaxNumberOfToxins":
                         app.settings.MaxNumberOfToxins = command.Value
                     case "UpdateServer":
+                        Logf(LtDebug, "Updating the server\n")
                         go updateServerFromGit()
                     case "RestartServer":
+                        Logf(LtDebug, "Restarting the server\n")
                         go restartServer()
 
                         terminateNonBlocking(app.runningState)
