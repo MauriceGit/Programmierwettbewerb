@@ -699,16 +699,16 @@ func (app* Application) startUpdateLoop() {
                     case "UpdateServer":
                         go updateServerFromGit()
                     case "RestartServer":
-                        go restartServer()
+                        //go restartServer()
 
                         //time.Sleep(1000 * time.Millisecond)
 
-                        terminateNonBlocking(app.runningState)
+                        //terminateNonBlocking(app.runningState)
                         Logf(LtDebug, "Server is shutting down.\n")
                         // We give the other go routines 1 second to gracefully shut down!
                         time.Sleep(3000 * time.Millisecond)
                         Logf(LtDebug, "Sleep finished\n")
-                        os.Exit(1)
+                        //os.Exit(1)
                         Logf(LtDebug, "No exit??\n")
 
                     case "KillAllBots":
