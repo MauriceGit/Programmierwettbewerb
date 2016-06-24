@@ -626,9 +626,10 @@ func updateServerFromGit() {
 }
 
 func restartServer() {
-    fetch := exec.Command("sleep 5; git", "fetch", "--all", "&")
-    fetch.Dir = "../"
-    if err := fetch.Start(); err != nil {
+    restart := exec.Command("sleep 2; ./Programmierwettbewerb-Server")
+    restart.Dir = "./"
+    restart.SysProcAttr.Setpgid = true
+    if err := restart.Start(); err != nil {
         Logf(LtDebug, "error on git fetch: %v\n", err)
     }
 }
