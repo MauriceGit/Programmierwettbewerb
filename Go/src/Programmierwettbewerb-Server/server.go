@@ -699,7 +699,7 @@ func (app* Application) startUpdateLoop() {
                     case "UpdateServer":
                         go updateServerFromGit()
                     case "RestartServer":
-                        //go restartServer()
+                        go restartServer()
 
                         terminateNonBlocking(app.runningState)
                         Logf(LtDebug, "Server is shutting down.\n")
