@@ -605,7 +605,8 @@ func startMiddleware() {
 }
 
 func updateServerFromGit() {
-    update := exec.Command("/bin/bash", "../updateServer.sh")
+    update := exec.Command("/bin/bash", "./updateServer.sh")
+    update.Dir = "../"
     if err := update.Start(); err != nil {
         Logf(LtDebug, "error on restarting the server: %v\n", err)
     }
@@ -685,7 +686,7 @@ func (app* Application) startUpdateLoop() {
                         go updateServerFromGit()
                     case "RestartServer":
                         Logf(LtDebug, "Restarting the server\n")
-                        //go restartServer()
+                        go restartServer()
 
                         terminateNonBlocking(app.runningState)
                         Logf(LtDebug, "Server is shutting down.\n")
