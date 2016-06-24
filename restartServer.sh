@@ -1,4 +1,4 @@
 #!/bin/bash
 
 sleep 5;
-./Programmierwettbewerb-Server &
+./bin/Programmierwettbewerb-Server >> server.log &
