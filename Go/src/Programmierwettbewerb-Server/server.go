@@ -156,7 +156,7 @@ type Application struct {
 var app Application
 
 func (app* Application) initialize() {
-    app.settings.MinNumberOfBots    = 10
+    app.settings.MinNumberOfBots    = 2
     app.settings.MaxNumberOfBots    = 100
     app.settings.MaxNumberOfFoods   = 400
     app.settings.MaxNumberOfToxins  = 200
