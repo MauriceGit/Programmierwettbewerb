@@ -595,35 +595,11 @@ func checkAllValuesOnNaN(prefix string) {
     }
 }
 
-func startMiddleware() {
-    /*process := exec.Command("./bin/Programmierwettbewerb-Middleware", "-bot=../BotPython/script.py", "-numBots=1", "-name=svn_03")
-    process.Dir = "../"
-
-    if err := process.Start(); err != nil {
-        Logf(LtDebug, "error trying to start a middleware: %v\n", err)
-    }*/
-
-    mw := exec.Command("/bin/bash", "./startMiddleware.sh")
-    mw.Dir = "../"
-    if err := mw.Start(); err != nil {
-        Logf(LtDebug, "error on restarting the server: %v\n", err)
-    }
-
-}
-
-func updateServerFromGit() {
-    update := exec.Command("/bin/bash", "./updateServer.sh")
-    update.Dir = "../"
-    if err := update.Start(); err != nil {
-        Logf(LtDebug, "error on restarting the server: %v\n", err)
-    }
-}
-
-func restartServer() {
-    restart := exec.Command("/bin/bash", "./restartServer.sh")
-    restart.Dir = "../"
-    if err := restart.Start(); err != nil {
-        Logf(LtDebug, "error on restarting the server: %v\n", err)
+func startBashScript(path string) {
+    script := exec.Command("/bin/bash", path)
+    script.Dir = "../"
+    if err := script.Start(); err != nil {
+        Logf(LtDebug, "error on starting bash script %v: %v\n",path, err)
     }
 }
 
@@ -691,10 +667,10 @@ func (app* Application) startUpdateLoop() {
                         app.settings.MaxNumberOfToxins = command.Value
                     case "UpdateServer":
                         Logf(LtDebug, "Updating the server\n")
-                        go updateServerFromGit()
+                        go startBashScript("./updateServer.sh")
                     case "RestartServer":
                         Logf(LtDebug, "Restarting the server\n")
-                        go restartServer()
+                        go startBashScript("./restartServer.sh")
 
                         terminateNonBlocking(app.runningState)
                         Logf(LtDebug, "Server is shutting down.\n")
@@ -792,7 +768,7 @@ func (app* Application) startUpdateLoop() {
                 //botsToStart := app.settings.MinNumberOfBots - len(app.bots)
                 botsToStart := 1
                 for i:=0; i<botsToStart; i++ {
-                    go startMiddleware()
+                    go startBashScript("./startMiddleware.sh")
                 }
                 lastMiddlewareStart = 0
             }
