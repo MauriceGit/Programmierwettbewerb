@@ -1679,7 +1679,7 @@ func main() {
     SetLoggingDebug(true)
     SetLoggingVerbose(false)
 
-
+    Logf(LtDebug, "YAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAYXYYYYYYYY\n")
 
     app.initialize()
 
