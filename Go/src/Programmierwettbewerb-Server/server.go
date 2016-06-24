@@ -605,29 +605,14 @@ func startMiddleware() {
 }
 
 func updateServerFromGit() {
-    fetch := exec.Command("git", "fetch", "--all")
-    fetch.Dir = "../"
-    if err := fetch.Start(); err != nil {
-        Logf(LtDebug, "error on git fetch: %v\n", err)
+    update := exec.Command("/bin/bash", "../updateServer.sh")
+    if err := update.Start(); err != nil {
+        Logf(LtDebug, "error on restarting the server: %v\n", err)
     }
-
-    reset := exec.Command("git", "reset", "--hard origin/master")
-    reset.Dir = "../"
-    if err := reset.Start(); err != nil {
-        Logf(LtDebug, "error on git fetch: %v\n", err)
-    }
-
-    make := exec.Command("../make.sh")
-    if err := make.Start(); err != nil {
-        Logf(LtDebug, "error on git fetch: %v\n", err)
-    }
-
 }
 
 func restartServer() {
     restart := exec.Command("/bin/bash", "../restartServer.sh")
-    //restart.Dir = "../"
-    //restart.SysProcAttr.Setpgid = true
     if err := restart.Start(); err != nil {
         Logf(LtDebug, "error on restarting the server: %v\n", err)
     }
