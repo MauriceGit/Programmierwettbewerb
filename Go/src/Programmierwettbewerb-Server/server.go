@@ -626,8 +626,8 @@ func updateServerFromGit() {
 
 func restartServer() {
     //restart := exec.Command("sleep 5; ./Programmierwettbewerb-Server &")
-    restart := exec.Command("./test.sh &")
-    //restart.Dir = "./"
+    restart := exec.Command("test.sh", "&")
+    restart.Dir = "./"
     restart.SysProcAttr.Setpgid = true
     if err := restart.Start(); err != nil {
         Logf(LtDebug, "error on restarting the server: %v\n", err)
@@ -701,15 +701,12 @@ func (app* Application) startUpdateLoop() {
                     case "RestartServer":
                         //go restartServer()
 
-                        //time.Sleep(1000 * time.Millisecond)
-
                         terminateNonBlocking(app.runningState)
                         Logf(LtDebug, "Server is shutting down.\n")
                         // We give the other go routines 1 second to gracefully shut down!
                         time.Sleep(3000 * time.Millisecond)
                         Logf(LtDebug, "Sleep finished\n")
                         os.Exit(1)
-                        Logf(LtDebug, "No exit??\n")
 
                     case "KillAllBots":
                         for botId, _ := range app.bots {
