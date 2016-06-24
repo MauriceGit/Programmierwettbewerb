@@ -596,12 +596,19 @@ func checkAllValuesOnNaN(prefix string) {
 }
 
 func startMiddleware() {
-    process := exec.Command("./Programmierwettbewerb-Middleware", "-bot=../BotPython/script.py", "-numBots=1", "-name=svn_03")
-    process.Dir = "./"
+    /*process := exec.Command("./bin/Programmierwettbewerb-Middleware", "-bot=../BotPython/script.py", "-numBots=1", "-name=svn_03")
+    process.Dir = "../"
 
     if err := process.Start(); err != nil {
         Logf(LtDebug, "error trying to start a middleware: %v\n", err)
+    }*/
+
+    mw := exec.Command("/bin/bash", "./startMiddleware.sh")
+    mw.Dir = "../"
+    if err := mw.Start(); err != nil {
+        Logf(LtDebug, "error on restarting the server: %v\n", err)
     }
+
 }
 
 func updateServerFromGit() {
@@ -613,7 +620,8 @@ func updateServerFromGit() {
 }
 
 func restartServer() {
-    restart := exec.Command("/bin/bash", "../restartServer.sh")
+    restart := exec.Command("/bin/bash", "./restartServer.sh")
+    restart.Dir = "../"
     if err := restart.Start(); err != nil {
         Logf(LtDebug, "error on restarting the server: %v\n", err)
     }
