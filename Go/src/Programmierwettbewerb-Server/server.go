@@ -140,7 +140,7 @@ type Application struct {
     toxins                      map[ToxinId]Toxin
     bots                        map[BotId]Bot
 
-	runningState				chan(bool)
+    runningState                chan(bool)
     mwInfo                      chan(MwInfo)
     serverCommands              []string
 
@@ -175,7 +175,7 @@ func (app* Application) initialize() {
     app.toxins                      = make(map[ToxinId]Toxin)
 
     app.mwInfo                      = make(chan MwInfo, 1000)
-    app.runningState  				= make(chan bool, 1)
+    app.runningState                = make(chan bool, 1)
 
     app.foodDistributionName        = "fmctechnologies.bmp"
     app.toxinDistributionName       = "fmctechnologies.bmp"
@@ -384,8 +384,8 @@ func calcBlobbMassLoss(mass float32, dt float32) float32 {
         return mass - (mass/botMaxMass)*dt*massLossFactor
     }
     if mass > botMaxMass {
-		return botMaxMass
-	}
+        return botMaxMass
+    }
     return mass
 }
 
@@ -605,34 +605,32 @@ func startMiddleware() {
 }
 
 func updateServerFromGit() {
-	fetch := exec.Command("git", "fetch", "--all")
+    fetch := exec.Command("git", "fetch", "--all")
     fetch.Dir = "../"
     if err := fetch.Start(); err != nil {
         Logf(LtDebug, "error on git fetch: %v\n", err)
     }
-    
-	reset := exec.Command("git", "reset", "--hard origin/master")
+
+    reset := exec.Command("git", "reset", "--hard origin/master")
     reset.Dir = "../"
     if err := reset.Start(); err != nil {
         Logf(LtDebug, "error on git fetch: %v\n", err)
     }
-    
-	make := exec.Command("./make.sh")
-    make.Dir = "../"
+
+    make := exec.Command("../make.sh")
+    make.Dir = "./"
     if err := make.Start(); err != nil {
         Logf(LtDebug, "error on git fetch: %v\n", err)
     }
-    
+
 }
 
 func restartServer() {
-	/*fetch := exec.Command("git", "fetch", "--all")
+    fetch := exec.Command("sleep 5; git", "fetch", "--all", "&")
     fetch.Dir = "../"
     if err := fetch.Start(); err != nil {
         Logf(LtDebug, "error on git fetch: %v\n", err)
-    }*/
-    
-    
+    }
 }
 
 func (app* Application) startUpdateLoop() {
@@ -648,7 +646,6 @@ func (app* Application) startUpdateLoop() {
     var guiStatisticsMessageCounter = 0
 
     var lastMiddlewareStart = float32(0.0)
-    var serverShouldShutdown = false
 
     for t := range ticker.C {
         var dt = float32(t.Sub(lastTime).Nanoseconds()) / 1e9
@@ -699,10 +696,20 @@ func (app* Application) startUpdateLoop() {
                     case "MaxNumberOfToxins":
                         app.settings.MaxNumberOfToxins = command.Value
                     case "UpdateServer":
-						go updateServerFromGit()
+                        go updateServerFromGit()
                     case "RestartServer":
-						go restartServer()
-						serverShouldShutdown = true
+                        go restartServer()
+
+                        //time.Sleep(1000 * time.Millisecond)
+
+                        terminateNonBlocking(app.runningState)
+                        Logf(LtDebug, "Server is shutting down.\n")
+                        // We give the other go routines 1 second to gracefully shut down!
+                        time.Sleep(1000 * time.Millisecond)
+                        Logf(LtDebug, "Sleep finished\n")
+                        os.Exit(1)
+                        Logf(LtDebug, "No exit??\n")
+
                     case "KillAllBots":
                         for botId, _ := range app.bots {
                             delete(app.bots, botId)
@@ -942,7 +949,7 @@ func (app* Application) startUpdateLoop() {
             eatenToxins = append(eatenToxins, toxinId)
             delete(app.toxins, toxinId)
         }
-        
+
         ////////////////////////////////////////////////////////////////
         // DELETE RANDOM FOOD IF THERE ARE TOO MANY
         ////////////////////////////////////////////////////////////////
@@ -1407,15 +1414,6 @@ func (app* Application) startUpdateLoop() {
         guiMessageCounter += 1
         mWMessageCounter += 1
         guiStatisticsMessageCounter += 1
-        if serverShouldShutdown {
-			if connectionIsTerminated(app.runningState) {
-                Logf(LtDebug, "Server is shutting down.\n")
-                return
-            }
-			terminateNonBlocking(app.runningState)
-            Logf(LtDebug, "Server is shutting down.\n")
-            return
-		}
     }
 }
 
@@ -1428,13 +1426,13 @@ func handleGui(ws *websocket.Conn) {
 
     var err error
     for {
-		
-		if connectionIsTerminated(app.runningState) {
-			Logf(LtDebug, "HandleGui is shutting down.\n")
-			ws.Close()
-			return
-		}
-		
+
+        if connectionIsTerminated(app.runningState) {
+            Logf(LtDebug, "HandleGui is shutting down.\n")
+            ws.Close()
+            return
+        }
+
         var reply string
 
         if err = websocket.Message.Receive(ws, &reply); err != nil {
@@ -1482,13 +1480,13 @@ func createStartingBot(ws *websocket.Conn, botInfo BotInfo, statistics Statistic
 func handleServerCommands(ws *websocket.Conn) {
     commandId := app.createServerCommandId()
     for {
-		
-		if connectionIsTerminated(app.runningState) {
-			Logf(LtDebug, "HandleServerCommands is shutting down.\n")
-			ws.Close()
-			return
-		}
-		
+
+        if connectionIsTerminated(app.runningState) {
+            Logf(LtDebug, "HandleServerCommands is shutting down.\n")
+            ws.Close()
+            return
+        }
+
         var message string
         if err := websocket.Message.Receive(ws, &message); err != nil {
             Logf(LtDebug, "The command line with id: %v is closed because of: %v\n", commandId, err)
@@ -1506,13 +1504,13 @@ func handleMiddleware(ws *websocket.Conn) {
 
     var err error
     for {
-		
-		if connectionIsTerminated(app.runningState) {
-			Logf(LtDebug, "handleMiddleware is shutting down.\n")
-			ws.Close()
-			return
-		}
-		
+
+        if connectionIsTerminated(app.runningState) {
+            Logf(LtDebug, "handleMiddleware is shutting down.\n")
+            ws.Close()
+            return
+        }
+
         //
         // Receive the message
         //
@@ -1698,9 +1696,9 @@ func main() {
     // TODO(henk): Maybe we wanna toggle this at runtime.
     SetLoggingDebug(true)
     SetLoggingVerbose(false)
-	
-	
-	
+
+
+
     app.initialize()
 
     InitOrganisation()
@@ -1731,6 +1729,6 @@ func main() {
     if err := http.ListenAndServe(":8080", nil); err != nil {
         log.Fatal("ListenAndServe:", err)
     }
-    
-    
+
+
 }
