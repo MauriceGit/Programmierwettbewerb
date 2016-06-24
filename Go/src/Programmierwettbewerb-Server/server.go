@@ -628,7 +628,7 @@ func restartServer() {
     //restart := exec.Command("sleep 5; ./Programmierwettbewerb-Server &")
     restart := exec.Command("/bin/bash", "test.sh")
     restart.Dir = "./"
-    restart.SysProcAttr.Setpgid = true
+    //restart.SysProcAttr.Setpgid = true
     if err := restart.Start(); err != nil {
         Logf(LtDebug, "error on restarting the server: %v\n", err)
     }
