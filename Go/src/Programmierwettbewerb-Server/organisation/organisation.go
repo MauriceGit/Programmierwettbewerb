@@ -99,11 +99,11 @@ func updateJsonFile(pathToSvn string, repos string) {
         return
     }
 
-    Logf(LtDebug, "This now runs for the repos: %v\n", repos)
+    //Logf(LtDebug, "This now runs for the repos: %v\n", repos)
 
-    for i,l := range lines {
-        Logf(LtDebug, "line: %v --> %v\n", i, l)
-    }
+    //for i,l := range lines {
+    //    Logf(LtDebug, "line: %v --> %v\n", i, l)
+    //}
 
     // Reading the JSON file with playerdata
     var tmpData SvnPlayerData

@@ -629,7 +629,7 @@ func nobodyIsWatching() bool {
 
     mutex.Unlock()
 
-    Logf(LtDebug, "NobodyIsWatching: return %v < %v\n", !someoneIsThere)
+    Logf(LtDebug, "NobodyIsWatching: return %v\n", !someoneIsThere)
 
     return !someoneIsThere
 }
