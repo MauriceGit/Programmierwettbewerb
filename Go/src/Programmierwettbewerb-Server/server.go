@@ -667,12 +667,15 @@ func (app* Application) startUpdateLoop() {
                         Logf(LtDebug, "Updating the server\n")
                         go startBashScript("./updateServer.sh")
                     case "RestartServer":
+                        Logf(LtDebug, "Updating the server\n")
+                        go startBashScript("./updateServer.sh")
+                        time.Sleep(2000 * time.Millisecond)
                         Logf(LtDebug, "Restarting the server\n")
                         go startBashScript("./restartServer.sh")
 
                         terminateNonBlocking(app.runningState)
                         Logf(LtDebug, "Server is shutting down.\n")
-                        // We give the other go routines 1 second to gracefully shut down!
+                        // We give the other go routines a few seconds to gracefully shut down!
                         time.Sleep(3000 * time.Millisecond)
                         Logf(LtDebug, "Sleep finished\n")
                         os.Exit(1)
