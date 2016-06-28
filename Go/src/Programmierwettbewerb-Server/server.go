@@ -1438,15 +1438,17 @@ func (app* Application) startUpdateLoop() {
 func handleGui(ws *websocket.Conn) {
     var guiId          = app.createGuiId()         // TODO(henk): When do we delete the blob?
 
-    app.guiConnections[guiId] = GuiConnection{ ws, true }
-
-    Logf(LtDebug, "Got connection for Gui %v\n", guiId)
 
     if nobodyIsWatching() {
         Logf(LtDebug, "This should unlock the main thread ?!?\n")
         // This unblocks the main thread!
         app.standbyMode <- true
     }
+
+
+    app.guiConnections[guiId] = GuiConnection{ ws, true }
+
+    Logf(LtDebug, "Got connection for Gui %v\n", guiId)
 
     var err error
     for {
