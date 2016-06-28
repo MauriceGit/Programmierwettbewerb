@@ -36,7 +36,7 @@ const (
     thrownFoodMass = 10
     massToBeAllowedToThrow = 120
     botMinMass = 10
-    botMaxMass = 4000.0
+    botMaxMass = 10000.0
     blobReunionTime = 10.0
     blobSplitMass   = 100.0
     blobSplitVelocity = 1.5
