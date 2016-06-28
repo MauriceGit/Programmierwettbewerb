@@ -611,25 +611,19 @@ func nobodyIsWatching() bool {
     someoneIsThere := false
 
     if len(app.bots) > app.settings.MinNumberOfBots {
-        Logf(LtDebug, "NobodyIsWatching: bot count: %v < %v\n", len(app.bots), app.settings.MinNumberOfBots)
         someoneIsThere = true
     } else {
 
         for _,bot := range app.bots {
             if bot.Info.Name != "dummy" {
-                Logf(LtDebug, "NobodyIsWatching: name: %v\n", bot.Info.Name)
                 someoneIsThere = true
                 break
             }
         }
-
         someoneIsThere = someoneIsThere || len(app.guiConnections) > 0
-
     }
 
     mutex.Unlock()
-
-    Logf(LtDebug, "NobodyIsWatching: return %v\n", !someoneIsThere)
 
     return !someoneIsThere
 }
@@ -650,9 +644,6 @@ func (app* Application) startUpdateLoop() {
 
     for t := range ticker.C {
 
-
-
-
         // If there are only dummy-Bots on the field - Stop and wait for
         // something relevant to happen :)
         // Schroedinger or something ;)
@@ -660,14 +651,8 @@ func (app* Application) startUpdateLoop() {
             Logf(LtDebug, "Thread is going to sleep ...\n")
             // This should block until a new connection (any) is established!
             <- app.standbyMode
-            Logf(LtDebug, "Thread is alive again :)\n")
+            Logf(LtDebug, "Thread is alive again - yay :)\n")
         }
-
-
-
-
-
-
 
 
         var dt = float32(t.Sub(lastTime).Nanoseconds()) / 1e9
@@ -1440,7 +1425,6 @@ func handleGui(ws *websocket.Conn) {
 
 
     if nobodyIsWatching() {
-        Logf(LtDebug, "This should unlock the main thread ?!?\n")
         // This unblocks the main thread!
         app.standbyMode <- true
     }
@@ -1529,7 +1513,6 @@ func handleMiddleware(ws *websocket.Conn) {
     Logf(LtDebug, "Got connection from Middleware %v\n", botId)
 
     if nobodyIsWatching() {
-        Logf(LtDebug, "This should unlock the main thread ?!?\n")
         // This unblocks the main thread!
         app.standbyMode <- true
     }
