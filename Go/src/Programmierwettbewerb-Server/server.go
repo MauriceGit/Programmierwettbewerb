@@ -24,6 +24,7 @@ import (
     //"strings"
     "html/template"
     "os/exec"
+    "sync"
 )
 
 // -------------------------------------------------------------------------------------------------
@@ -140,6 +141,7 @@ type Application struct {
     toxins                      map[ToxinId]Toxin
     bots                        map[BotId]Bot
 
+    standbyMode                 chan(bool)
     runningState                chan(bool)
     mwInfo                      chan(MwInfo)
     serverCommands              []string
@@ -154,6 +156,7 @@ type Application struct {
 }
 
 var app Application
+var mutex = &sync.Mutex{}
 
 func (app* Application) initialize() {
     app.settings.MinNumberOfBots    = 10
@@ -175,6 +178,7 @@ func (app* Application) initialize() {
     app.toxins                      = make(map[ToxinId]Toxin)
 
     app.mwInfo                      = make(chan MwInfo, 1000)
+    app.standbyMode                 = make(chan bool)
     app.runningState                = make(chan bool, 1)
 
     app.foodDistributionName        = "fmctechnologies.bmp"
@@ -601,6 +605,30 @@ func startBashScript(path string) {
     }
 }
 
+// This locks the mutex so this is just evaluated once at a time!
+func nobodyIsWatching() bool {
+    mutex.Lock()
+    someoneIsThere := false
+
+    if len(app.bots) > app.settings.MinNumberOfBots {
+        someoneIsThere = true
+    } else {
+
+        for _,bot := range app.bots {
+            if bot.Info.Name != "dummy" {
+                someoneIsThere = true
+                break
+            }
+        }
+
+        someoneIsThere = someoneIsThere || len(app.guiConnections) > 0
+
+    }
+
+    mutex.Unlock()
+    return !someoneIsThere
+}
+
 func (app* Application) startUpdateLoop() {
     ticker := time.NewTicker(time.Millisecond * 30)
     var lastTime = time.Now()
@@ -616,6 +644,27 @@ func (app* Application) startUpdateLoop() {
     var lastMiddlewareStart = float32(0.0)
 
     for t := range ticker.C {
+
+
+
+
+        // If there are only dummy-Bots on the field - Stop and wait for
+        // something relevant to happen :)
+        // Schroedinger or something ;)
+        if nobodyIsWatching() {
+            Logf(LtDebug, "Thread is going to sleep ...\n")
+            // This should block until a new connection (any) is established!
+            <- app.standbyMode
+            Logf(LtDebug, "Thread is alive again :)\n")
+        }
+
+
+
+
+
+
+
+
         var dt = float32(t.Sub(lastTime).Nanoseconds()) / 1e9
         lastTime = t
 
@@ -1388,6 +1437,11 @@ func handleGui(ws *websocket.Conn) {
 
     Logf(LtDebug, "Got connection for Gui %v\n", guiId)
 
+    if nobodyIsWatching() {
+        // This unblocks the main thread!
+        app.standbyMode <- true
+    }
+
     var err error
     for {
 
@@ -1465,6 +1519,11 @@ func handleMiddleware(ws *websocket.Conn) {
     var botId = app.createBotId()
 
     Logf(LtDebug, "Got connection from Middleware %v\n", botId)
+
+    if nobodyIsWatching() {
+        // This unblocks the main thread!
+        app.standbyMode <- true
+    }
 
     var err error
     for {
