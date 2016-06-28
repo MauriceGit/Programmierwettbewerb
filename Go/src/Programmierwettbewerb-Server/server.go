@@ -383,9 +383,7 @@ func calcBlobbMassLoss(mass float32, dt float32) float32 {
     if mass > botMinMass {
         return mass - (mass/botMaxMass)*dt*massLossFactor
     }
-    if mass > botMaxMass {
-        return botMaxMass
-    }
+
     return mass
 }
 
@@ -818,7 +816,7 @@ func (app* Application) startUpdateLoop() {
 
 
         ////////////////////////////////////////////////////////////////
-        // UPDATE VIEW WINDOWS
+        // UPDATE VIEW WINDOWS AND MAX MASS
         ////////////////////////////////////////////////////////////////
 
 
@@ -829,28 +827,22 @@ func (app* Application) startUpdateLoop() {
             for _, blob1 := range bot.Blobs {
                 center = Add(center, blob1.Position)
                 completeMass += blob1.Mass
-
-                /*for _, blob2 := range bot.Blobs {
-                    distance := Dist(blob1.Position, blob2.Position) + blob1.Radius() + blob2.Radius()
-                    if distance > diameter {
-                        diameter = distance
-                    }
-                }*/
             }
+
+            if completeMass > botMaxMass {
+
+                // Percentage to cut off
+                var dividor float32 = completeMass / botMaxMass
+
+                for blobId, blob := range bot.Blobs {
+                    blob.Mass /= dividor
+                    bot.Blobs[blobId] = blob
+                }
+
+            }
+
             center = Muls(center, 1.0 / float32(len(bot.Blobs)))
-
-
-            // TODO(henk): Adjust this to the original.
-            //var maxEnlargement float64 = 15.0
-            //var decreaseFactor float32 = 0.01
-            //windowDiameter := float32(maxEnlargement * math.Pow(math.E, float64(-decreaseFactor * diameter))) * diameter
             var windowDiameter float32 = 30.0 * float32(math.Log(float64(completeMass))) - 20.0
-
-
-
-            //Logf(LtDebug, "Complete mass of bot %v = %v, window diameter = %v\n", botId, completeMass, windowDiameter)
-
-            //Logf(LtDebug, "ViewWindow-Data: center: %v, windowDiameter: %v, maxEnlargement: %v, diameter: %v\n", center, windowDiameter, maxEnlargement, diameter)
 
             bot.ViewWindow = ViewWindow{
                 Position:   Sub(center, Vec2{ windowDiameter / 2.0, windowDiameter / 2.0 }),
