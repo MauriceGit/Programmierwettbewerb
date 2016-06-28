@@ -611,11 +611,13 @@ func nobodyIsWatching() bool {
     someoneIsThere := false
 
     if len(app.bots) > app.settings.MinNumberOfBots {
+        Logf(LtDebug, "NobodyIsWatching: bot count: %v < %v\n", len(app.bots), app.settings.MinNumberOfBots)
         someoneIsThere = true
     } else {
 
         for _,bot := range app.bots {
             if bot.Info.Name != "dummy" {
+                Logf(LtDebug, "NobodyIsWatching: name: %v\n", bot.Info.Name)
                 someoneIsThere = true
                 break
             }
@@ -626,6 +628,9 @@ func nobodyIsWatching() bool {
     }
 
     mutex.Unlock()
+
+    Logf(LtDebug, "NobodyIsWatching: return %v < %v\n", !someoneIsThere)
+
     return !someoneIsThere
 }
 
