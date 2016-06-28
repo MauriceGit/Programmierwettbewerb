@@ -6,18 +6,18 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.2/jquery.min.js"></script>
-        <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>    
+        <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>
         <style>
             .tinyimage {
                 max-width: 50px;
                 max-height: 50px;
             }
-            .thumbnail img { 
-                height: 150px; 
+            .thumbnail img {
+                height: 150px;
             }
         </style>
     </head>
-    <body>     
+    <body>
         <script type="text/javascript">
             var sock = null;
             //var wsuri = "ws://127.0.0.1:8080/servercommand/";
@@ -48,12 +48,12 @@
                 });
 
                 $("#killBotsWithoutConnection").on('click', function() {
-                   sock.send(JSON.stringify({ type:"KillBotsWithoutConnection" })); 
+                   sock.send(JSON.stringify({ type:"KillBotsWithoutConnection" }));
                 });
 
                 $("#killBotsAboveMassThreshold").on('click', function() {
                    var value = $("#massThreshold").val();
-                   sock.send(JSON.stringify({ type:"KillBotsAboveMassThreshold", value:value }));  
+                   sock.send(JSON.stringify({ type:"KillBotsAboveMassThreshold", value:value }));
                 })
 
                 $("#sendSettings").on('click', function() {
@@ -67,10 +67,6 @@
 
                 $("#restart").on('click', function() {
                     sock.send(JSON.stringify({ type:"RestartServer" }));
-                });
-                
-                $("#update").on('click', function() {
-                    sock.send(JSON.stringify({ type:"UpdateServer" }));
                 });
 
                 var foodImageHandlerMaker = function(imageName) {
@@ -117,7 +113,7 @@
                     $("#botImageDropdown").append(makeEntry(botImageHandlerMaker, imageName));
                 }
             };
-        </script>   
+        </script>
 
         <nav class="navbar navbar-default navbar-static-top">
             <div class="container">
@@ -161,8 +157,8 @@
                             <div class="btn-group" role="group" aria-label="...">
                               <button id="killAllBots" type="button" class="btn btn-success">All</button>
                               <button id="killBotsWithoutConnection" type="button" class="btn btn-success">Without Connection</button>
-                            </div>  
-                            <hr>                      
+                            </div>
+                            <hr>
                             <p>Kill all bots with a mass above the given value</p>
                             <input id="massThreshold" type="number" value="1000">
                             <button id="killBotsAboveMassThreshold" type="button" class="btn btn-success">Kill</button>
@@ -199,14 +195,12 @@
                                     </div>
                                 </div>
                             </div>
-                            <hr>    
+                            <hr>
                             <h4>Restart server</h4>
                             <button id="restart" type="button" class="btn btn-danger">Restart</button>
-                            <h4>Update server</h4>
-                            <button id="update" type="button" class="btn btn-danger">Update</button>
                         </div>
                    </div>
-                </div>  
+                </div>
             </div>
         </div>
     </body>
