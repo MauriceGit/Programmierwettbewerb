@@ -1438,6 +1438,7 @@ func handleGui(ws *websocket.Conn) {
     Logf(LtDebug, "Got connection for Gui %v\n", guiId)
 
     if nobodyIsWatching() {
+        Logf(LtDebug, "This should unlock the main thread ?!?\n")
         // This unblocks the main thread!
         app.standbyMode <- true
     }
@@ -1521,6 +1522,7 @@ func handleMiddleware(ws *websocket.Conn) {
     Logf(LtDebug, "Got connection from Middleware %v\n", botId)
 
     if nobodyIsWatching() {
+        Logf(LtDebug, "This should unlock the main thread ?!?\n")
         // This unblocks the main thread!
         app.standbyMode <- true
     }
