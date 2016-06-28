@@ -32,8 +32,8 @@ import (
 
 const (
     // This is used, when no connection is given via command line argument.
-    globalDefaultAddress string = "ws://127.0.0.1:8080/middleware/"
-    //globalDefaultAddress string = "ws://cagine.fh-wedel.de:8080/middleware/"
+    //globalDefaultAddress string = "ws://127.0.0.1:8080/middleware/"
+    globalDefaultAddress string = "ws://cagine.fh-wedel.de:8080/middleware/"
 )
 
 // -------------------------------------------------------------------------------------------------

@@ -25,6 +25,7 @@ import (
     "html/template"
     "os/exec"
     "sync"
+    "strings"
 )
 
 // -------------------------------------------------------------------------------------------------
@@ -1652,6 +1653,14 @@ func loadSpawnImage(imageName string, shadesOfGray int) []Vec2 {
     return distributionArray
 }
 
+func getServerAddress() string {
+    content, err := ioutil.ReadFile("../pwb.conf")
+    if err != nil {
+        panic("Could not read the address!")
+    }
+    return string(content)
+}
+
 func handleServerControl(w http.ResponseWriter, r *http.Request) {
     var imageNames []string
 
@@ -1663,11 +1672,13 @@ func handleServerControl(w http.ResponseWriter, r *http.Request) {
     }
 
     data := struct {
+        Address string
         ImageNames []string
         FoodSpawnImage string
         ToxinSpawnImage string
         BotSpawnImage string
     }{
+        Address:            "ws://" + getServerAddress() + "/servercommand/",
         ImageNames:         imageNames,
         FoodSpawnImage:     makeURLSpawnName(app.foodDistributionName),
         ToxinSpawnImage:    makeURLSpawnName(app.toxinDistributionName),
@@ -1676,6 +1687,18 @@ func handleServerControl(w http.ResponseWriter, r *http.Request) {
 
     t := template.New("Server Control")
     page, _ := ioutil.ReadFile("../ServerGui/index.html")
+    t, _ = t.Parse(string(page))
+    t.Execute(w, data)
+}
+
+func handleGameHTML(w http.ResponseWriter, r *http.Request) {
+    data := struct {
+        Address string
+    }{
+        Address: strings.Replace("ws://" + getServerAddress() + "/gui/", "\n", "", -1),
+    }
+    t := template.New("Index")
+    page, _ := ioutil.ReadFile("../Public/game.html")
     t, _ = t.Parse(string(page))
     t.Execute(w, data)
 }
@@ -1722,6 +1745,7 @@ func main() {
 
     // HTML sides
     http.Handle("/", http.FileServer(http.Dir("../Public/")))
+    http.HandleFunc("/game.html", handleGameHTML)
     http.HandleFunc("/server/", handleServerControl)
 
     // Websocket connections
