@@ -4,6 +4,7 @@ import (
     . "Programmierwettbewerb-Server/vector"
     . "Programmierwettbewerb-Server/shared"
     . "Programmierwettbewerb-Server/organisation"
+    . "Programmierwettbewerb-Server/data"
 
     "golang.org/x/net/websocket"
     "fmt"
