@@ -1585,7 +1585,9 @@ func handleMiddleware(ws *websocket.Conn) {
                 // Check, if a player with this name is actually allowed to play
                 // So we take the time to sort out old statistics from files here and not
                 // in the main game loop (so adding, say, 100 bots, doesn't affect the other, normal computations!)
-                isAllowed, statisticsOverall := CheckPotentialPlayer(message.BotInfo.Name)
+                isAllowed, statisticsOverall := CheckPotentialPlayer(message.BotInfo.Name, )
+
+                Logf(LtDebug, "IP ????? %v\n", ws.RemoteAddr())
 
                 if !isAllowed {
                     Logf(LtDebug, "The player %v is not allowed to play. Please add %v to your bot.names.\n", message.BotInfo.Name, message.BotInfo.Name)
