@@ -26,6 +26,7 @@ import (
     "os/exec"
     "sync"
     "strings"
+    "net"
 )
 
 // -------------------------------------------------------------------------------------------------
@@ -1730,10 +1731,41 @@ func connectionIsTerminated(runningState chan(bool)) bool {
     return false
 }
 
+func getIP() string {
+    addrs, err := net.InterfaceAddrs()
+    if err != nil {
+        os.Stderr.WriteString("Oops: " + err.Error() + "\n")
+        os.Exit(1)
+    }
+
+    for _, a := range addrs {
+        if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+            if ipnet.IP.To4() != nil {
+                //os.Stdout.WriteString(ipnet.IP.String() + "\n")
+                return ipnet.IP.String()
+            }
+        }
+    }
+    return "localhost"
+}
+
+func createConfigFile() {
+    f, err := os.Create("../pwb.conf")
+    if err != nil {
+        Logf(LtDebug, "Something went wront when creating the new file...: %v\n", err)
+    }
+    defer f.Close()
+
+    f.Write([]byte(getIP() + ":8080"))
+    f.Sync()
+}
+
 func main() {
     // TODO(henk): Maybe we wanna toggle this at runtime.
     SetLoggingDebug(true)
     SetLoggingVerbose(false)
+
+    createConfigFile()
 
     app.initialize()
 
