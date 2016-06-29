@@ -782,7 +782,7 @@ func (app* Application) startUpdateLoop() {
 
                         app.bots[mwInfo.botId] = bot
                     }
-                    if mwInfo.createNewBot && len(app.bots) < app.settings.MaxNumberOfBots {
+                    if mwInfo.createNewBot {
                         app.bots[mwInfo.botId] = createStartingBot(mwInfo.ws, mwInfo.botInfo, mwInfo.statistics)
                     }
 
@@ -1513,6 +1513,11 @@ func handleMiddleware(ws *websocket.Conn) {
     var botId = app.createBotId()
 
     Logf(LtDebug, "Got connection from Middleware %v\n", botId)
+
+    if len(app.bots) >= app.settings.MaxNumberOfBots {
+        Logf(LtDebug, "Middlware connection %v refused because the maximum bot count has been reached.\n", botId)
+        return
+    }
 
     if nobodyIsWatching() {
         // This unblocks the main thread!
