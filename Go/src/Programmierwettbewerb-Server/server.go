@@ -1537,8 +1537,8 @@ func (app* Application) startUpdateLoop() {
 
             go sendDataToGui(guiMessageCounter, guiStatisticsMessageCounter, deadBots, eatenFoods, eatenToxins, sendDataGuiFinished)
 
-
-
+            <- sendDataMWFinished
+            <- sendDataGuiFinished
 
             for guiConnectionId, guiConnection := range app.guiConnections {
                 guiConnection.IsNewConnection = false
@@ -1554,9 +1554,6 @@ func (app* Application) startUpdateLoop() {
             guiMessageCounter += 1
             mWMessageCounter += 1
             guiStatisticsMessageCounter += 1
-
-            <- sendDataMWFinished
-            <- sendDataGuiFinished
 
             endProfileEvent(&profile, &profileEventSendDataToMiddlewareAndGui)
         }
