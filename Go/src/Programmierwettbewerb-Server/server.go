@@ -704,6 +704,154 @@ func nobodyIsWatching() bool {
     return !someoneIsThere
 }
 
+func sendDataToMiddleware(mWMessageCounter int, finished chan bool) {
+
+    // TODO(Maurice/henk):
+    // MAURICE: Could be VERY MUCH simplified, if we just convert All blobs to the right format once and then sort out later who gets what data!
+    // HENK: First we would have to determine which blobs, toxins and foods are visible to the bots. We would have to profile that to check whats faster.
+    if mWMessageCounter % mwMessageEvery == 0 {
+        for botId, bot := range app.bots {
+            var connection = app.bots[botId].Connection
+
+            // Collecting other blobs
+            var otherBlobs []ServerMiddlewareBlob
+            for otherBotId, otherBot := range app.bots {
+                if botId != otherBotId {
+                    for otherBlobId, otherBlob := range otherBot.Blobs {
+                        if isInViewWindow(bot.ViewWindow, otherBlob.Position, otherBlob.Radius()) {
+                            otherBlobs = append(otherBlobs, makeServerMiddlewareBlob(otherBotId, otherBlobId, otherBlob))
+                        }
+                    }
+                }
+            }
+
+            // Collecting foods
+            var foods []Food
+            for _, food := range app.foods {
+                if isInViewWindow(bot.ViewWindow, food.Position, Radius(food.Mass)) {
+                    foods = append(foods, food)
+                }
+            }
+
+            // Collecting toxins
+            var toxins []Toxin
+            for _, toxin := range app.toxins {
+                if isInViewWindow(bot.ViewWindow, toxin.Position, Radius(toxin.Mass)) {
+                    toxins = append(toxins, toxin)
+                }
+            }
+
+            var wrapper = ServerMiddlewareGameState{
+                MyBlob:         makeServerMiddlewareBlobs(botId),
+                OtherBlobs:     otherBlobs,
+                Food:           foods,
+                Toxin:          toxins,
+            }
+            websocket.JSON.Send(connection, wrapper)
+        }
+    }
+
+    finished <- true
+}
+
+func sendDataToGui(guiMessageCounter int, guiStatisticsMessageCounter int, deadBots []BotId, eatenFoods []FoodId, eatenToxins []ToxinId, finished chan bool) {
+
+    // Pre-calculate the list for eaten Toxins
+    //reallyDeadToxins := make([]ToxinId, 0)
+    //copied := copy(reallyDeadToxins, eatenToxins)
+    //Logf(LtDebug, "copied %v elements\n", copied)
+
+    //
+    // Send the data to the clients
+    //
+    for guiId, guiConnection := range app.guiConnections {
+        var connection = app.guiConnections[guiId].Connection
+
+        message := newServerGuiUpdateMessage()
+
+        //Logf(LtDebug, "Botcount: %v\n", app.bots)
+
+        for botId, bot := range app.bots {
+
+            key := strconv.Itoa(int(botId))
+            if bot.GuiNeedsInfoUpdate || guiConnection.IsNewConnection {
+                message.CreatedOrUpdatedBotInfos[key] = bot.Info
+            }
+
+            if guiMessageCounter % guiMessageEvery == 0 {
+                message.CreatedOrUpdatedBots[key] = makeServerGuiBot(bot)
+            }
+
+            if guiStatisticsMessageCounter % guiStatisticsMessageEvery == 0 {
+                message.StatisticsThisGame[key] = bot.StatisticsThisGame
+                // @Todo: The global one MUCH more rarely!
+                message.StatisticsGlobal[key] = bot.StatisticsOverall
+            }
+
+        }
+
+        message.DeletedBotInfos = deadBots
+        message.DeletedBots = deadBots
+        //for _, botId := range deadBots {
+        //    message.DeletedBots = append(message.DeletedBots, botId)
+        //    message.DeletedBotInfos = append(message.DeletedBotInfos, botId)
+        //}
+
+        if guiMessageCounter % guiMessageEvery == 0 {
+            for foodId, food := range app.foods {
+                if food.IsMoving || food.IsNew || guiConnection.IsNewConnection {
+                    key := strconv.Itoa(int(foodId))
+                    message.CreatedOrUpdatedFoods[key] = makeServerGuiFood(food)
+                }
+            }
+        }
+
+        message.DeletedFoods = eatenFoods
+        //for _, foodId := range eatenFoods {
+        //    message.DeletedFoods = append(message.DeletedFoods, foodId)
+        //}
+
+        if guiMessageCounter % guiMessageEvery == 0 {
+            for toxinId, toxin := range app.toxins {
+                if toxin.IsNew || toxin.IsMoving || guiConnection.IsNewConnection {
+                    key := strconv.Itoa(int(toxinId))
+                    message.CreatedOrUpdatedToxins[key] = makeServerGuiToxin(toxin)
+                }
+            }
+        }
+
+        message.DeletedToxins = eatenToxins
+
+        err := websocket.JSON.Send(connection, message)
+        if err != nil {
+            Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
+            //return
+        }
+    }
+
+    for toxinId, toxin := range app.toxins {
+        if toxin.IsNew {
+            toxin.IsNew = false
+            app.toxins[toxinId] = toxin
+        }
+    }
+    for foodId, food := range app.foods {
+        if food.IsNew {
+            food.IsNew = false
+            app.foods[foodId] = food
+        }
+    }
+
+
+    for botId, bot := range app.bots {
+        bot.GuiNeedsInfoUpdate = false
+        app.bots[botId] = bot
+    }
+
+    finished <- true
+
+}
+
 func (app* Application) startUpdateLoop() {
     ticker := time.NewTicker(time.Millisecond * 30)
     var lastTime = time.Now()
@@ -1372,169 +1520,46 @@ func (app* Application) startUpdateLoop() {
         ////////////////////////////////////////////////////////////////
         // SEND UPDATED DATA TO MIDDLEWARE AND GUI
         ////////////////////////////////////////////////////////////////
+
+
+
         {
-            profileEventSendDataToMiddleware := startProfileEvent(&profile, "Send Data to Middleware")
-            // TODO(Maurice/henk):
-            // MAURICE: Could be VERY MUCH simplified, if we just convert All blobs to the right format once and then sort out later who gets what data!
-            // HENK: First we would have to determine which blobs, toxins and foods are visible to the bots. We would have to profile that to check whats faster.
-            if mWMessageCounter % mwMessageEvery == 0 {
-                for botId, bot := range app.bots {
-                    var connection = app.bots[botId].Connection
+            profileEventSendDataToMiddlewareAndGui := startProfileEvent(&profile, "Send Data to Middleware|Gui")
 
-                    // Collecting other blobs
-                    var otherBlobs []ServerMiddlewareBlob
-                    for otherBotId, otherBot := range app.bots {
-                        if botId != otherBotId {
-                            for otherBlobId, otherBlob := range otherBot.Blobs {
-                                if isInViewWindow(bot.ViewWindow, otherBlob.Position, otherBlob.Radius()) {
-                                    otherBlobs = append(otherBlobs, makeServerMiddlewareBlob(otherBotId, otherBlobId, otherBlob))
-                                }
-                            }
-                        }
-                    }
+            sendDataGuiFinished := make(chan bool)
+            sendDataMWFinished  := make(chan bool)
 
-                    // Collecting foods
-                    var foods []Food
-                    for _, food := range app.foods {
-                        if isInViewWindow(bot.ViewWindow, food.Position, Radius(food.Mass)) {
-                            foods = append(foods, food)
-                        }
-                    }
+            go sendDataToMiddleware(mWMessageCounter, sendDataMWFinished)
 
-                    // Collecting toxins
-                    var toxins []Toxin
-                    for _, toxin := range app.toxins {
-                        if isInViewWindow(bot.ViewWindow, toxin.Position, Radius(toxin.Mass)) {
-                            toxins = append(toxins, toxin)
-                        }
-                    }
+            ////////////////////////////////////////////////////////////////
+            // SEND UPDATED DATA TO GUI
+            ////////////////////////////////////////////////////////////////
 
-                    var wrapper = ServerMiddlewareGameState{
-                        MyBlob:         makeServerMiddlewareBlobs(botId),
-                        OtherBlobs:     otherBlobs,
-                        Food:           foods,
-                        Toxin:          toxins,
-                    }
-                    websocket.JSON.Send(connection, wrapper)
-                }
-            }
-            endProfileEvent(&profile, &profileEventSendDataToMiddleware)
-        }
+            go sendDataToGui(guiMessageCounter, guiStatisticsMessageCounter, deadBots, eatenFoods, eatenToxins, sendDataGuiFinished)
 
 
-        ////////////////////////////////////////////////////////////////
-        // SEND UPDATED DATA TO GUI
-        ////////////////////////////////////////////////////////////////
-        {
-            profileEventSendDataToGui := startProfileEvent(&profile, "Send Data to Gui")
-            // Pre-calculate the list for eaten Toxins
-            //reallyDeadToxins := make([]ToxinId, 0)
-            //copied := copy(reallyDeadToxins, eatenToxins)
-            //Logf(LtDebug, "copied %v elements\n", copied)
 
-            //
-            // Send the data to the clients
-            //
-            for guiId, guiConnection := range app.guiConnections {
-                var connection = app.guiConnections[guiId].Connection
 
-                message := newServerGuiUpdateMessage()
+            for guiConnectionId, guiConnection := range app.guiConnections {
+                guiConnection.IsNewConnection = false
+                app.guiConnections[guiConnectionId] = guiConnection
 
-                //Logf(LtDebug, "Botcount: %v\n", app.bots)
-
-                for botId, bot := range app.bots {
-
-                    key := strconv.Itoa(int(botId))
-                    if bot.GuiNeedsInfoUpdate || guiConnection.IsNewConnection {
-                        message.CreatedOrUpdatedBotInfos[key] = bot.Info
-                    }
-
-                    if guiMessageCounter % guiMessageEvery == 0 {
-                        message.CreatedOrUpdatedBots[key] = makeServerGuiBot(bot)
-                    }
-
-                    if guiStatisticsMessageCounter % guiStatisticsMessageEvery == 0 {
-                        message.StatisticsThisGame[key] = bot.StatisticsThisGame
-                        // @Todo: The global one MUCH more rarely!
-                        message.StatisticsGlobal[key] = bot.StatisticsOverall
-                    }
-
-                }
-
-                message.DeletedBotInfos = deadBots
-                message.DeletedBots = deadBots
-                //for _, botId := range deadBots {
-                //    message.DeletedBots = append(message.DeletedBots, botId)
-                //    message.DeletedBotInfos = append(message.DeletedBotInfos, botId)
-                //}
-
-                if guiMessageCounter % guiMessageEvery == 0 {
-                    for foodId, food := range app.foods {
-                        if food.IsMoving || food.IsNew || guiConnection.IsNewConnection {
-                            key := strconv.Itoa(int(foodId))
-                            message.CreatedOrUpdatedFoods[key] = makeServerGuiFood(food)
-                        }
-                    }
-                }
-
-                message.DeletedFoods = eatenFoods
-                //for _, foodId := range eatenFoods {
-                //    message.DeletedFoods = append(message.DeletedFoods, foodId)
-                //}
-
-                if guiMessageCounter % guiMessageEvery == 0 {
-                    for toxinId, toxin := range app.toxins {
-                        if toxin.IsNew || toxin.IsMoving || guiConnection.IsNewConnection {
-                            key := strconv.Itoa(int(toxinId))
-                            message.CreatedOrUpdatedToxins[key] = makeServerGuiToxin(toxin)
-                        }
-                    }
-                }
-
-                message.DeletedToxins = eatenToxins
-
-                err := websocket.JSON.Send(connection, message)
+                err := websocket.Message.Send(guiConnection.Connection, "alive_test")
                 if err != nil {
-                    Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
-                    //return
+                    Logf(LtDebug, "Gui %v is deleted because of network failure. Alive test failed.\n", guiConnectionId)
+                    delete(app.guiConnections, guiConnectionId)
                 }
             }
-            endProfileEvent(&profile, &profileEventSendDataToGui)
+
+            guiMessageCounter += 1
+            mWMessageCounter += 1
+            guiStatisticsMessageCounter += 1
+
+            <- sendDataMWFinished
+            <- sendDataGuiFinished
+
+            endProfileEvent(&profile, &profileEventSendDataToMiddlewareAndGui)
         }
-
-        for toxinId, toxin := range app.toxins {
-            if toxin.IsNew {
-                toxin.IsNew = false
-                app.toxins[toxinId] = toxin
-            }
-        }
-        for foodId, food := range app.foods {
-            if food.IsNew {
-                food.IsNew = false
-                app.foods[foodId] = food
-            }
-        }
-
-
-        for botId, bot := range app.bots {
-            bot.GuiNeedsInfoUpdate = false
-            app.bots[botId] = bot
-        }
-
-        for guiConnectionId, guiConnection := range app.guiConnections {
-            guiConnection.IsNewConnection = false
-            app.guiConnections[guiConnectionId] = guiConnection
-
-            err := websocket.Message.Send(guiConnection.Connection, "alive_test")
-            if err != nil {
-                Logf(LtDebug, "Gui %v is deleted because of network failure. Alive test failed.\n", guiConnectionId)
-                delete(app.guiConnections, guiConnectionId)
-            }
-        }
-
-        guiMessageCounter += 1
-        mWMessageCounter += 1
-        guiStatisticsMessageCounter += 1
 
         if app.profiling {
             type NanosecondProfileEvent struct {
@@ -1552,6 +1577,9 @@ func (app* Application) startUpdateLoop() {
             }
             app.messagesToServerGui <- events
         }
+
+
+
     }
 }
 
