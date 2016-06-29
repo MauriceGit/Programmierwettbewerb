@@ -1317,7 +1317,7 @@ func (app* Application) startUpdateLoop() {
                             for blobId2, blob2 := range app.bots[botId2].Blobs {
                                 //blob2 := bot2.Blobs[blobId2]
 
-                                inRadius := Dist(blob2.Position, blob1.Position) < blob1.Radius()
+                                inRadius := DistFast(blob2.Position, blob1.Position) < blob1.Radius()*blob1.Radius()
                                 smaller := blob2.Mass < 0.9*blob1.Mass
 
                                 if smaller && inRadius {
