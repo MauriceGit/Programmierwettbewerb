@@ -4,20 +4,19 @@ import (
     . "Programmierwettbewerb-Server/vector"
 )
 
-type OctreeValue struct {
-    position    Vec2
-    size        float32
-    id          int
+type OctreeValue interface {
+    GetPosition() Vec2
+    GetSize() float32
 }
 
 type Octree interface { 
     Insert(value OctreeValue) Octree
 }
 
-type EmptyNode struct { }
-var emptyNode *EmptyNode
+type emptyNode struct { }
+var empty *emptyNode
 
-type InnerNode struct {
+type innerNode struct {
     origin          Vec2
     size            float32
     childLeftLower  Octree
@@ -26,78 +25,78 @@ type InnerNode struct {
     childLeftUpper  Octree
 }
 
-type LeafNode struct {
+type leafNode struct {
     value           OctreeValue
 }
 
 func NewOctree() Octree {
-    if emptyNode == nil {
-        emptyNode = new(EmptyNode)
+    if empty == nil {
+        empty = new(emptyNode)
     }
-    return emptyNode
+    return empty
 }
 
-func newLeaf(value OctreeValue) Octree {
-    return new(LeafNode)
+func newLeafNode(value OctreeValue) Octree {
+    return new(leafNode)
 }
 
 func newInnerNode() Octree {
-    return new(InnerNode)
+    return new(innerNode)
 }
 
-func containsPoint(innerNode *InnerNode, point Vec2) bool {
-    return point.X > innerNode.origin.X &&
-           point.X < innerNode.origin.X + innerNode.size &&
-           point.Y > innerNode.origin.Y &&
-           point.Y < innerNode.origin.Y + innerNode.size;
+func containsPoint(inner *innerNode, point Vec2) bool {
+    return point.X > inner.origin.X &&
+           point.X < inner.origin.X + inner.size &&
+           point.Y > inner.origin.Y &&
+           point.Y < inner.origin.Y + inner.size;
 }
 
-func leftLowerSpace(innerNode *InnerNode) (Vec2, float32) {
-    return innerNode.origin, innerNode.size/2
+func leftLowerSpace(inner *innerNode) (Vec2, float32) {
+    return inner.origin, inner.size/2
 }
 
-func rightLowerSpace(innerNode *InnerNode) (Vec2, float32) {
-    halfSize := innerNode.size/2
-    origin := Vec2{ X:innerNode.origin.X + halfSize, Y:innerNode.origin.Y }
+func rightLowerSpace(inner *innerNode) (Vec2, float32) {
+    halfSize := inner.size/2
+    origin := Vec2{ X:inner.origin.X + halfSize, Y:inner.origin.Y }
     return origin, halfSize
 }
 
-func rightUpperSpace(innerNode *InnerNode) (Vec2, float32) {
-    halfSize := innerNode.size/2
-    origin := Vec2{ X:innerNode.origin.X + halfSize, Y:innerNode.origin.Y + halfSize }
+func rightUpperSpace(inner *innerNode) (Vec2, float32) {
+    halfSize := inner.size/2
+    origin := Vec2{ X:inner.origin.X + halfSize, Y:inner.origin.Y + halfSize }
     return origin, halfSize
 }
 
-func leftUpperSpace(innerNode *InnerNode) (Vec2, float32) {
-    halfSize := innerNode.size/2
-    origin := Vec2{ X:innerNode.origin.X, Y:innerNode.origin.Y + halfSize }
+func leftUpperSpace(inner *innerNode) (Vec2, float32) {
+    halfSize := inner.size/2
+    origin := Vec2{ X:inner.origin.X, Y:inner.origin.Y + halfSize }
     return origin, halfSize
 }
 
-func (innerNode *InnerNode) Insert(value OctreeValue) Octree {
-    halfSize := innerNode.size/2
-    if value.position.X < innerNode.origin.X + halfSize {
-        if value.position.Y < innerNode.origin.Y + halfSize {
-            innerNode.childLeftLower = innerNode.childLeftLower.Insert(value)
+func (inner *innerNode) Insert(value OctreeValue) Octree {
+    halfSize := inner.size/2
+    if value.GetPosition().X < inner.origin.X + halfSize {
+        if value.GetPosition().Y < inner.origin.Y + halfSize {
+            inner.childLeftLower = inner.childLeftLower.Insert(value)
         } else {
-            innerNode.childLeftUpper = innerNode.childLeftUpper.Insert(value)
+            inner.childLeftUpper = inner.childLeftUpper.Insert(value)
         }
     } else {
-        if value.position.Y < innerNode.origin.Y + halfSize {
-            innerNode.childRightLower = innerNode.childRightLower.Insert(value)
+        if value.GetPosition().Y < inner.origin.Y + halfSize {
+            inner.childRightLower = inner.childRightLower.Insert(value)
         } else {
-            innerNode.childRightUpper = innerNode.childRightUpper.Insert(value)
+            inner.childRightUpper = inner.childRightUpper.Insert(value)
         }
     }
-    return innerNode
+    return inner
 }
 
-func (emptyNode *EmptyNode) Insert(value OctreeValue) Octree {
-    return newLeaf(value)
+func (empty *emptyNode) Insert(value OctreeValue) Octree {
+    return newLeafNode(value)
 }
 
-func (leafNode *LeafNode) Insert(value OctreeValue) Octree {
-    otherValue := leafNode.value
+func (leaf *leafNode) Insert(value OctreeValue) Octree {
+    otherValue := leaf.value
     node := newInnerNode()
     node = node.Insert(value)
     node = node.Insert(otherValue)

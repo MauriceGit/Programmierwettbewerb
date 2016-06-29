@@ -704,6 +704,19 @@ func nobodyIsWatching() bool {
     return !someoneIsThere
 }
 
+type FoodOctreeValue struct {
+    Position    Vec2
+    Size        float32
+}
+
+func (value *FoodOctreeValue) GetPosition() Vec2 {
+    return value.Position
+}
+
+func (value *FoodOctreeValue) GetSize() float32 {
+    return value.Size
+}
+
 func (app* Application) startUpdateLoop() {
     ticker := time.NewTicker(time.Millisecond * 30)
     var lastTime = time.Now()
@@ -1256,6 +1269,27 @@ func (app* Application) startUpdateLoop() {
         // Eating food (by bots and toxins!)
         //
         {
+            octree := NewOctree()
+            profileEventOctreeBuilding := startProfileEvent(&profile, "Octree Building")
+            for _, food := range app.foods {
+                value := new(FoodOctreeValue)
+                value.Position = food.Position
+                value.Size = Radius(food.Mass)
+                octree.Insert(value)
+            }            
+            endProfileEvent(&profile, &profileEventOctreeBuilding);
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
             profileEventEatingFood := startProfileEvent(&profile, "Eating Food")
             for foodId, food := range app.foods {
                 // Bots eating food
