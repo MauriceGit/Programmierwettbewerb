@@ -51,6 +51,7 @@ const (
     massLossFactor = 10.0
     minBlobMassToExplode = 400.0
     maxBlobCountToExplode = 10
+    minBlobMass = 10
 
     velocityDecreaseFactor = 0.95
 
@@ -1084,6 +1085,14 @@ func (app* Application) startUpdateLoop() {
             profileEventUpdateBotPosition := startProfileEvent(&profile, "Update Bot Position")
             for botId, bot := range app.bots {
                 for blobId, blob := range bot.Blobs {
+
+                    if blob.Mass < minBlobMass {
+                        //killedBlobs.insert(botId2, blobId2)
+                        delete(bot.Blobs, blobId)
+
+                        break
+                    }
+
                     oldPosition := blob.Position
                     velocity    := calcBlobVelocity(&blob, bot.Command.Target)
                     time        := dt * 50
