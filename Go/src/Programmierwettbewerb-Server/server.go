@@ -58,6 +58,7 @@ const (
     mwMessageEvery = 1
     guiMessageEvery = 1
     guiStatisticsMessageEvery = 1
+    serverGuiPasswordFile = "../server_gui_password"
 )
 
 // -------------------------------------------------------------------------------------------------
@@ -874,6 +875,17 @@ func sendDataToGui(guiMessageCounter int, guiStatisticsMessageCounter int, deadB
 
 }
 
+func checkPasswordAgainstFile(password string) bool {
+    pw, err := ioutil.ReadFile(serverGuiPasswordFile)
+    if err != nil {
+        Logf(LtDebug, "Error while trying to load the password file %v. err: %v\n", serverGuiPasswordFile, err)
+        return false
+    }
+    pwString := strings.Trim(string(pw), "\n \t")
+
+    return pwString == password
+}
+
 func (app* Application) startUpdateLoop() {
     ticker := time.NewTicker(time.Millisecond * 30)
     var lastTime = time.Now()
@@ -938,12 +950,19 @@ func (app* Application) startUpdateLoop() {
                         Type    string  `json:"type"`
                         Value   int     `json:"value,string,omitempty"`
                         Image   string  `json:"image"`
+                        Password string `json:"password"`
                     }
 
                     var command Command
                     err := json.Unmarshal([]byte(commandString), &command)
                     if err == nil {
                         switch command.Type {
+                        case "Password":
+                            Logf(LtDebug, "The provided password is: %v \n", command.Password)
+                            if !checkPasswordAgainstFile(command.Password) {
+                                Logf(LtDebug, "The provided password %v is not correct!\n", command.Password)
+                                app.serverGuiIsConnected = false
+                            }
                         case "MinNumberOfBots":
                             app.settings.MinNumberOfBots = command.Value
                         case "MaxNumberOfBots":
@@ -1753,6 +1772,12 @@ func handleServerCommands(ws *websocket.Conn) {
             ws.Close()
             return
         }
+
+        if !app.serverGuiIsConnected {
+            ws.Close()
+            return
+        }
+
         app.serverCommands = append(app.serverCommands, message)
     }
 }
@@ -1928,6 +1953,8 @@ func handleServerControl(w http.ResponseWriter, r *http.Request) {
             imageNames = append(imageNames, entry.Name())
         }
     }
+
+
 
     data := struct {
         Address string
