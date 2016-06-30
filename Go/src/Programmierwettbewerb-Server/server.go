@@ -1084,11 +1084,17 @@ func (app* Application) startUpdateLoop() {
         {
             profileEventUpdateBotPosition := startProfileEvent(&profile, "Update Bot Position")
             for botId, bot := range app.bots {
+                botDied := false
                 for blobId, blob := range bot.Blobs {
 
                     if blob.Mass < minBlobMass {
                         //killedBlobs.insert(botId2, blobId2)
                         delete(bot.Blobs, blobId)
+
+                        if len(bot.Blobs) == 0 {
+                            botDied = true
+                            deadBots = append(deadBots, botId)
+                        }
 
                         break
                     }
@@ -1119,7 +1125,9 @@ func (app* Application) startUpdateLoop() {
 
                     app.bots[botId].Blobs[blobId] = blob
                 }
-                app.bots[botId] = bot
+                if !botDied {
+                    app.bots[botId] = bot
+                }
             }
             endProfileEvent(&profile, &profileEventUpdateBotPosition)
         }
