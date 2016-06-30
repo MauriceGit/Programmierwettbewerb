@@ -1310,7 +1310,7 @@ func (app* Application) startUpdateLoop() {
                     for blobId,_ := range bot.Blobs {
                         var singleBlob = bot.Blobs[blobId]
 
-                        if Dist(singleBlob.Position, toxin.Position) < singleBlob.Radius() && singleBlob.Mass >= minBlobMassToExplode && {
+                        if Dist(singleBlob.Position, toxin.Position) < singleBlob.Radius() && singleBlob.Mass >= minBlobMassToExplode {
 
                             // If a bot already has > 10 blobs (i.e.), don't explode, eat it!!
                             if len(bot.Blobs) > maxBlobCountToExplode {
