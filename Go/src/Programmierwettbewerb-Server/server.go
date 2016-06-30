@@ -1294,8 +1294,9 @@ func (app* Application) startUpdateLoop() {
         // Blob Collision with Toxin
         {
             profileEventCollisionWithToxin := startProfileEvent(&profile, "Collision with Toxin")
-            for tId,_ := range app.toxins {
-                var toxin = app.toxins[tId]
+            for tId,toxin := range app.toxins {
+                var toxinIsEaten = false
+                var toxinIsRepositioned = false
 
                 for botId, _ := range app.bots {
                     bot := app.bots[botId]
@@ -1309,26 +1310,23 @@ func (app* Application) startUpdateLoop() {
                     for blobId,_ := range bot.Blobs {
                         var singleBlob = bot.Blobs[blobId]
 
-                        if Dist(singleBlob.Position, toxin.Position) < singleBlob.Radius() && singleBlob.Mass >= minBlobMassToExplode {
+                        if Dist(singleBlob.Position, toxin.Position) < singleBlob.Radius() && singleBlob.Mass >= minBlobMassToExplode && {
 
-                            // If a bot already has > 10 blobs (i.e.), don't explode, ignore!
+                            // If a bot already has > 10 blobs (i.e.), don't explode, eat it!!
                             if len(bot.Blobs) > maxBlobCountToExplode {
                                 if toxin.IsSplit || len(app.toxins) >= app.settings.MaxNumberOfToxins {
                                     eatenToxins = append(eatenToxins, tId)
                                     delete(app.toxins, tId)
-                                    //Logf(LtDebug, "Test 0: len before: %v, eatenToxins: %v\n", len(eatenToxins), eatenToxins)
-                                    //Logf(LtDebug, "Test 0\n")
+                                    toxinIsEaten = true
                                 } else {
-
                                     toxin.Position = newToxinPos()
                                     toxin.IsSplitBy = BotId(0)
                                     toxin.IsSplit = false
                                     toxin.IsNew = true
                                     toxin.Mass = toxinMassMin
-                                    //Logf(LtDebug, "Test 1\n")
-
+                                    toxinIsRepositioned = true
                                 }
-                                continue
+                                break
                             }
 
                             subMap := make(map[BlobId]Blob)
@@ -1361,6 +1359,10 @@ func (app* Application) startUpdateLoop() {
                         }
                     }
 
+                    if toxinIsEaten || toxinIsRepositioned {
+                        break
+                    }
+
                     if exploded {
                         // Delete the origin of the exploded Blobs.
                         for _,blobKey := range blobsToDelete {
@@ -1377,7 +1379,9 @@ func (app* Application) startUpdateLoop() {
                     app.bots[botId] = bot
                 }
 
-                app.toxins[tId] = toxin
+                if !toxinIsEaten {
+                    app.toxins[tId] = toxin
+                }
             }
             endProfileEvent(&profile, &profileEventCollisionWithToxin)
         }
@@ -1517,26 +1521,19 @@ func (app* Application) startUpdateLoop() {
         ////////////////////////////////////////////////////////////////
         checkAllValuesOnNaN("end")
 
-        ////////////////////////////////////////////////////////////////
-        // SEND UPDATED DATA TO MIDDLEWARE AND GUI
-        ////////////////////////////////////////////////////////////////
-
 
 
         {
             profileEventSendDataToMiddlewareAndGui := startProfileEvent(&profile, "Send Data to Middleware|Gui")
 
+            ////////////////////////////////////////////////////////////////
+            // SEND UPDATED DATA TO MIDDLEWARE AND GUI
+            ////////////////////////////////////////////////////////////////
+
             sendDataGuiFinished := make(chan bool)
             sendDataMWFinished  := make(chan bool)
-
             go sendDataToMiddleware(mWMessageCounter, sendDataMWFinished)
-
-            ////////////////////////////////////////////////////////////////
-            // SEND UPDATED DATA TO GUI
-            ////////////////////////////////////////////////////////////////
-
             go sendDataToGui(guiMessageCounter, guiStatisticsMessageCounter, deadBots, eatenFoods, eatenToxins, sendDataGuiFinished)
-
             <- sendDataMWFinished
             <- sendDataGuiFinished
 
