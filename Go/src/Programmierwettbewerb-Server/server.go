@@ -257,9 +257,9 @@ func (app* Application) initialize() {
 
     app.profiling                   = false
 
-    app.foodDistributionName        = "fmctechnologies.bmp"
-    app.toxinDistributionName       = "fmctechnologies.bmp"
-    app.botDistributionName         = "bot_spawn.bmp"
+    app.foodDistributionName        = "black.bmp"
+    app.toxinDistributionName       = "black.bmp"
+    app.botDistributionName         = "black.bmp"
 
     app.foodDistribution            = loadSpawnImage(app.foodDistributionName, 10)
     app.toxinDistribution           = loadSpawnImage(app.toxinDistributionName, 10)
