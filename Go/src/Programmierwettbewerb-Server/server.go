@@ -931,7 +931,7 @@ func (app* Application) startUpdateLoop() {
         ////////////////////////////////////////////////////////////////
         {
             profileEventHandleEvents := startProfileEvent(&profile, "Handle Events")
-            if len(app.serverCommands) > 0 && app.serverGuiIsConnected {
+            if len(app.serverCommands) > 0 {
                 for _, commandString := range app.serverCommands {
                     type Command struct {
                         Type    string  `json:"type"`
@@ -1607,7 +1607,7 @@ func (app* Application) startUpdateLoop() {
             endProfileEvent(&profile, &profileEventSendDataToMiddlewareAndGui)
         }
 
-        if app.profiling {
+        if app.profiling && app.serverGuiIsConnected {
             type NanosecondProfileEvent struct {
                 Name            string
                 Parent          int
