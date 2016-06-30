@@ -424,24 +424,27 @@ func makeURLSpawnName(name string) string {
 
 func newFoodPos() Vec2 {
 
-    if len(app.foodDistribution) == 0 {
+    length := len(app.foodDistribution)
+    if length == 0 {
         return Vec2{}
     }
-    return app.foodDistribution[rand.Intn(len(app.foodDistribution))]
+    return app.foodDistribution[rand.Intn(length)]
 }
 func newToxinPos() Vec2 {
 
-    if len(app.toxinDistribution) == 0 {
+    length := len(app.toxinDistribution)
+    if length == 0 {
         return Vec2{}
     }
-    return app.toxinDistribution[rand.Intn(len(app.toxinDistribution))]
+    return app.toxinDistribution[rand.Intn(length)]
 }
 func newBotPos() Vec2 {
 
-    if len(app.botDistribution) == 0 {
+    length := len(app.botDistribution)
+    if length == 0 {
         return Vec2{}
     }
-    return app.botDistribution[rand.Intn(len(app.botDistribution))]
+    return app.botDistribution[rand.Intn(length)]
 }
 
 func calcBlobVelocityFromMass(vel Vec2, mass float32) Vec2 {
