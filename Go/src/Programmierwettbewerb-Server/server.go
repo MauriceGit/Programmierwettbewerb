@@ -1774,7 +1774,7 @@ func handleServerCommands(ws *websocket.Conn) {
         }
 
         if !app.serverGuiIsConnected {
-            ws.Close()
+            //ws.Close()
             return
         }
 
