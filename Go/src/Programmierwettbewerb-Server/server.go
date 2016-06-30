@@ -20,7 +20,7 @@ import (
     "golang.org/x/image/bmp"
     //"image/color"
     //"image"
-    //"reflect"
+    "reflect"
     //"strings"
     "html/template"
     "os/exec"
@@ -267,11 +267,17 @@ func (app* Application) initialize() {
 
     for i := FoodId(0); i < FoodId(app.settings.MaxNumberOfFoods); i++ {
         mass := foodMassMin + rand.Float32() * (foodMassMax - foodMassMin)
-        app.foods[i] = Food{ true, false, false, BotId(0), mass, newFoodPos(), RandomVec2() }
+        pos := newFoodPos()
+        if pos != (Vec2{}) {
+            app.foods[i] = Food{ true, false, false, BotId(0), mass, pos, RandomVec2() }
+        }
     }
 
     for i := 0; i < app.settings.MaxNumberOfToxins; i++ {
-        app.toxins[ToxinId(i)] = Toxin{true, false, newToxinPos(), false, BotId(0), toxinMassMin, RandomVec2()}
+        pos := newToxinPos()
+        if pos != (Vec2{}) {
+            app.toxins[ToxinId(i)] = Toxin{true, false, pos, false, BotId(0), toxinMassMin, RandomVec2()}
+        }
         // Mulv(RandomVec2(), app.fieldSize)
     }
 }
@@ -417,12 +423,24 @@ func makeURLSpawnName(name string) string {
 // -------------------------------------------------------------------------------------------------
 
 func newFoodPos() Vec2 {
+
+    if len(app.foodDistribution) == 0 {
+        return Vec2{}
+    }
     return app.foodDistribution[rand.Intn(len(app.foodDistribution))]
 }
 func newToxinPos() Vec2 {
+
+    if len(app.toxinDistribution) == 0 {
+        return Vec2{}
+    }
     return app.toxinDistribution[rand.Intn(len(app.toxinDistribution))]
 }
 func newBotPos() Vec2 {
+
+    if len(app.botDistribution) == 0 {
+        return Vec2{}
+    }
     return app.botDistribution[rand.Intn(len(app.botDistribution))]
 }
 
@@ -1015,7 +1033,12 @@ func (app* Application) startUpdateLoop() {
                             app.bots[mwInfo.botId] = bot
                         }
                         if mwInfo.createNewBot && len(app.bots) < app.settings.MaxNumberOfBots {
-                            app.bots[mwInfo.botId] = createStartingBot(mwInfo.ws, mwInfo.botInfo, mwInfo.statistics)
+                            bot := createStartingBot(mwInfo.ws, mwInfo.botInfo, mwInfo.statistics)
+                            if reflect.DeepEqual(bot,Bot{}) {
+                                app.bots[mwInfo.botId] = bot
+                            } else {
+                                Logf(LtDebug, "Due to a spawn image with a 0% spawn rate, there is no possible spawn position for this bot.\n")
+                            }
                         }
 
                     } else {
@@ -1130,13 +1153,19 @@ func (app* Application) startUpdateLoop() {
         {
             profileEventAddFoodOrToxin := startProfileEvent(&profile, "Add Food Or Toxin")
             if rand.Intn(100) <= 5 && len(app.toxins) < app.settings.MaxNumberOfToxins {
-                newToxinId := app.createToxinId()
-                app.toxins[newToxinId] = Toxin{true, false, newToxinPos(), false, 0, toxinMassMin, RandomVec2()}
+                pos := newToxinPos()
+                if pos != (Vec2{}) {
+                    newToxinId := app.createToxinId()
+                    app.toxins[newToxinId] = Toxin{true, false, pos, false, 0, toxinMassMin, RandomVec2()}
+                }
             }
             if rand.Intn(100) <= 5 && len(app.foods) < app.settings.MaxNumberOfFoods {
-                newFoodId := app.createFoodId()
                 mass := foodMassMin + rand.Float32() * (foodMassMax - foodMassMin)
-                app.foods[newFoodId] = Food{ true, false, false, 0, mass, newFoodPos(), RandomVec2() }
+                pos := newFoodPos()
+                if pos != (Vec2{}) {
+                    newFoodId := app.createFoodId()
+                    app.foods[newFoodId] = Food{ true, false, false, 0, mass, pos, RandomVec2() }
+                }
             }
             endProfileEvent(&profile, &profileEventAddFoodOrToxin)
         }
@@ -1319,12 +1348,19 @@ func (app* Application) startUpdateLoop() {
                                     delete(app.toxins, tId)
                                     toxinIsEaten = true
                                 } else {
-                                    toxin.Position = newToxinPos()
-                                    toxin.IsSplitBy = BotId(0)
-                                    toxin.IsSplit = false
-                                    toxin.IsNew = true
-                                    toxin.Mass = toxinMassMin
-                                    toxinIsRepositioned = true
+                                    pos := newToxinPos()
+                                    if pos != (Vec2{}) {
+                                        toxin.Position = pos
+                                        toxin.IsSplitBy = BotId(0)
+                                        toxin.IsSplit = false
+                                        toxin.IsNew = true
+                                        toxin.Mass = toxinMassMin
+                                        toxinIsRepositioned = true
+                                    } else {
+                                        eatenToxins = append(eatenToxins, tId)
+                                        delete(app.toxins, tId)
+                                        toxinIsEaten = true
+                                    }
                                 }
                                 break
                             }
@@ -1350,11 +1386,18 @@ func (app* Application) startUpdateLoop() {
                             blobsToDelete = append(blobsToDelete, blobId)
                             //eatenToxins = append(eatenToxins, tId)
 
-                            toxin.Position = newToxinPos()
-                            toxin.IsSplitBy = BotId(0)
-                            toxin.IsSplit = false
-                            toxin.IsNew = true
-                            toxin.Mass = toxinMassMin
+                            pos := newToxinPos()
+                            if pos != (Vec2{}) {
+                                toxin.Position = pos
+                                toxin.IsSplitBy = BotId(0)
+                                toxin.IsSplit = false
+                                toxin.IsNew = true
+                                toxin.Mass = toxinMassMin
+                            } else {
+                                eatenToxins = append(eatenToxins, tId)
+                                delete(app.toxins, tId)
+                                toxinIsEaten = true
+                            }
                             //delete(app.toxins, tId)
                         }
                     }
@@ -1421,9 +1464,15 @@ func (app* Application) startUpdateLoop() {
                                 delete(app.foods, foodId)
                                 eatenFoods = append(eatenFoods, foodId)
                             } else {
-                                food.Position = newFoodPos()
-                                food.IsNew = true
-                                app.foods[foodId] = food
+                                pos := newFoodPos()
+                                if pos != (Vec2{}) {
+                                    food.Position = pos
+                                    food.IsNew = true
+                                    app.foods[foodId] = food
+                                } else {
+                                    delete(app.foods, foodId)
+                                    eatenFoods = append(eatenFoods, foodId)
+                                }
                             }
                         }
                         bot.Blobs[blobId] = blob
@@ -1610,38 +1659,42 @@ func handleGui(ws *websocket.Conn) {
 }
 
 func createStartingBot(ws *websocket.Conn, botInfo BotInfo, statistics Statistics) Bot {
-    blob := Blob {
-        Position:       newBotPos(),  // TODO(henk): How do we decide this?
-        Mass:           100.0,
-        VelocityFac:    1.0,
-        IsSplit:        false,
-        ReunionTime:    0.0,
-        IndividualTargetVec:      NullVec2(),
-    }
-    statisticNew := Statistics{
-        MaxSize:            100.0,
-        MaxSurvivalTime:    0.0,
-        BlobKillCount:      0,
-        BotKillCount:       0,
-        ToxinThrow:         0,
-        SuccessfulToxin:    0,
-        SplitCount:         0,
-        SuccessfulSplit:    0,
-        SuccessfulTeam:     0,
-        BadTeaming:         0,
-}
+    pos := newBotPos()
+    if pos != (Vec2{}) {
+        blob := Blob {
+            Position:       pos,  // TODO(henk): How do we decide this?
+            Mass:           100.0,
+            VelocityFac:    1.0,
+            IsSplit:        false,
+            ReunionTime:    0.0,
+            IndividualTargetVec:      NullVec2(),
+        }
+        statisticNew := Statistics{
+            MaxSize:            100.0,
+            MaxSurvivalTime:    0.0,
+            BlobKillCount:      0,
+            BotKillCount:       0,
+            ToxinThrow:         0,
+            SuccessfulToxin:    0,
+            SplitCount:         0,
+            SuccessfulSplit:    0,
+            SuccessfulTeam:     0,
+            BadTeaming:         0,
+        }
 
-    return Bot{
-        Info:                   botInfo,
-        GuiNeedsInfoUpdate:     true,
-        ViewWindow:             ViewWindow{ Position: Vec2{0,0}, Size:Vec2{100,100} },
-        Blobs:                  map[BlobId]Blob{ 0: blob },
-        StatisticsThisGame:     statisticNew,
-        StatisticsOverall:      statistics,
-        Command:                BotCommand{ BatNone, RandomVec2(), },
-        Connection:             ws,
-        ConnectionAlive:        true,
+        return Bot{
+            Info:                   botInfo,
+            GuiNeedsInfoUpdate:     true,
+            ViewWindow:             ViewWindow{ Position: Vec2{0,0}, Size:Vec2{100,100} },
+            Blobs:                  map[BlobId]Blob{ 0: blob },
+            StatisticsThisGame:     statisticNew,
+            StatisticsOverall:      statistics,
+            Command:                BotCommand{ BatNone, RandomVec2(), },
+            Connection:             ws,
+            ConnectionAlive:        true,
+        }
     }
+    return Bot{}
 }
 
 func handleServerCommands(ws *websocket.Conn) {
