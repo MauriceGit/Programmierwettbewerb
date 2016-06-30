@@ -1040,7 +1040,7 @@ func (app* Application) startUpdateLoop() {
                             if !reflect.DeepEqual(bot,Bot{}) {
                                 app.bots[mwInfo.botId] = bot
                             } else {
-                                Logf(LtDebug, "Due to a spawn image with a 0\% spawn rate, there is no possible spawn position for this bot.\n")
+                                Logf(LtDebug, "Due to a spawn image with a 0 spawn rate, there is no possible spawn position for this bot.\n")
                             }
                         }
 
