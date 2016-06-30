@@ -998,10 +998,13 @@ func (app* Application) startUpdateLoop() {
                             Logf(LtDebug, "Killed bots above mass threshold\n")
                         case "FoodSpawnImage":
                             app.foodDistribution  = loadSpawnImage(command.Image, 10)
+                            app.foodDistributionName = command.Image
                         case "ToxinSpawnImage":
                             app.toxinDistribution = loadSpawnImage(command.Image, 10)
+                            app.toxinDistributionName = command.Image
                         case "BotSpawnImage":
                             app.botDistribution   = loadSpawnImage(command.Image, 10)
+                            app.botDistributionName = command.Image
                         }
                     } else {
                         Logf(LtDebug, "Err: %v\n", err.Error())
