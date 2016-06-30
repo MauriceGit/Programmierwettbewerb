@@ -931,7 +931,7 @@ func (app* Application) startUpdateLoop() {
         ////////////////////////////////////////////////////////////////
         {
             profileEventHandleEvents := startProfileEvent(&profile, "Handle Events")
-            if len(app.serverCommands) > 0 {
+            if len(app.serverCommands) > 0 && app.serverGuiIsConnected {
                 for _, commandString := range app.serverCommands {
                     type Command struct {
                         Type    string  `json:"type"`
