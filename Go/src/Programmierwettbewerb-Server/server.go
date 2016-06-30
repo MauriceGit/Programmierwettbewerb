@@ -772,7 +772,7 @@ func sendDataToMiddleware(mWMessageCounter int, finished chan bool) {
         }
     }
 
-    finished <- true
+    //finished <- true
 }
 
 func sendDataToGui(guiMessageCounter int, guiStatisticsMessageCounter int, deadBots []BotId, eatenFoods []FoodId, eatenToxins []ToxinId, finished chan bool) {
@@ -869,7 +869,7 @@ func sendDataToGui(guiMessageCounter int, guiStatisticsMessageCounter int, deadB
         app.bots[botId] = bot
     }
 
-    finished <- true
+    //finished <- true
 
 }
 
@@ -1584,10 +1584,10 @@ func (app* Application) startUpdateLoop() {
 
             sendDataGuiFinished := make(chan bool)
             sendDataMWFinished  := make(chan bool)
-            go sendDataToMiddleware(mWMessageCounter, sendDataMWFinished)
-            go sendDataToGui(guiMessageCounter, guiStatisticsMessageCounter, deadBots, eatenFoods, eatenToxins, sendDataGuiFinished)
-            <- sendDataMWFinished
-            <- sendDataGuiFinished
+            sendDataToMiddleware(mWMessageCounter, sendDataMWFinished)
+            sendDataToGui(guiMessageCounter, guiStatisticsMessageCounter, deadBots, eatenFoods, eatenToxins, sendDataGuiFinished)
+            //<- sendDataMWFinished
+            //<- sendDataGuiFinished
 
             for guiConnectionId, guiConnection := range app.guiConnections {
                 guiConnection.IsNewConnection = false
