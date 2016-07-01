@@ -217,6 +217,8 @@ type Application struct {
     serverCommands              []string
     messagesToServerGui         chan interface{}
     serverGuiIsConnected        bool
+    serverGuiPasswordChannel    chan string
+    serverGuiVerified           bool
 
     profiling                   bool
 
@@ -256,6 +258,8 @@ func (app* Application) initialize() {
     app.runningState                = make(chan bool, 1)
     app.messagesToServerGui         = make(chan interface{}, 10)
     app.serverGuiIsConnected        = false
+    app.serverGuiPasswordChannel    = make(chan string)
+    app.serverGuiVerified           = false
 
     app.profiling                   = false
 
@@ -955,13 +959,12 @@ func (app* Application) startUpdateLoop() {
 
                     var command Command
                     err := json.Unmarshal([]byte(commandString), &command)
-                    if err == nil {
+                    if err == nil  {
                         switch command.Type {
                         case "Password":
                             Logf(LtDebug, "The provided password is: %v \n", command.Password)
-                            if !checkPasswordAgainstFile(command.Password) {
-                                Logf(LtDebug, "The provided password %v is not correct!\n", command.Password)
-                                app.serverGuiIsConnected = false
+                            if !app.serverGuiVerified {
+                                app.serverGuiPasswordChannel <- command.Password
                             }
                         case "MinNumberOfBots":
                             app.settings.MinNumberOfBots = command.Value
@@ -1647,6 +1650,7 @@ func (app* Application) startUpdateLoop() {
         }
 
         if app.profiling && app.serverGuiIsConnected {
+            Logf(LtDebug, "Sending profile information\n")
             type NanosecondProfileEvent struct {
                 Name            string
                 Parent          int
@@ -1660,7 +1664,9 @@ func (app* Application) startUpdateLoop() {
                     Nanoseconds: element.Duration.Nanoseconds(),
                 })
             }
+
             app.messagesToServerGui <- events
+
         }
 
 
@@ -1745,15 +1751,21 @@ func handleServerCommands(ws *websocket.Conn) {
     app.serverGuiIsConnected = true
 
     go func() {
-        Logf(LtDebug, "Starting stuff!")
+        Logf(LtDebug, "Starting stuff!\n")
         for {
+            //Logf(LtDebug, "--> Profile Message to serverGui\n")
+
+
             message := <- app.messagesToServerGui
             if err := websocket.JSON.Send(ws, message); err != nil {
-                Logf(LtDebug, "%s\n", err.Error())
+                Logf(LtDebug, "ERROR when trying to send profiling information: %s\n", err.Error())
                 app.serverGuiIsConnected = false
+                app.serverGuiVerified = false
                 ws.Close()
+                Logf(LtDebug, "RETURNED\n")
                 return
             }
+
         }
     }()
 
@@ -1761,17 +1773,23 @@ func handleServerCommands(ws *websocket.Conn) {
         if connectionIsTerminated(app.runningState) {
             Logf(LtDebug, "HandleServerCommands is shutting down.\n")
             app.serverGuiIsConnected = false
-            ws.Close()
+            app.serverGuiVerified = false
+            //ws.Close()
             return
         }
+
+        Logf(LtDebug, "getMessage 1\n")
 
         var message string
         if err := websocket.Message.Receive(ws, &message); err != nil {
             Logf(LtDebug, "The command line with id: %v is closed because of: %v\n", commandId, err)
             app.serverGuiIsConnected = false
-            ws.Close()
+            app.serverGuiVerified = false
+            //ws.Close()
             return
         }
+
+        Logf(LtDebug, "getMessage 2\n")
 
         if !app.serverGuiIsConnected {
             //ws.Close()
@@ -1779,7 +1797,32 @@ func handleServerCommands(ws *websocket.Conn) {
         }
 
         app.serverCommands = append(app.serverCommands, message)
+
+        Logf(LtDebug, "getMessage 3, %v\n", app.serverGuiVerified)
+
+        if !app.serverGuiVerified {
+
+            Logf(LtDebug, "What do we get here: AAAAAAAAAAAAAAAAAAAAH\n")
+            pw := <- app.serverGuiPasswordChannel
+
+            Logf(LtDebug, "What do we get here: %v\n", pw)
+
+            if !checkPasswordAgainstFile(pw) {
+                Logf(LtDebug, "The provided password %v is not correct!\n", pw)
+                app.serverGuiVerified = false
+                app.serverGuiIsConnected = false
+                //ws.Close()
+                return
+            } else {
+                app.serverGuiVerified = true
+            }
+        }
+
+        Logf(LtDebug, "getMessage 4\n")
     }
+
+
+
 }
 
 func handleMiddleware(ws *websocket.Conn) {

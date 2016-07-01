@@ -27,16 +27,17 @@
             window.onload = function() {
                 sock = new WebSocket(wsuri);
 
-
-                var pw = prompt("Please enter a password to access the command section:");
-
-                if (pw == null) {
-                    pw = "NotThere";
-                }
-                sock.send(JSON.stringify({ type:"Password", password:pw }));
-
                 sock.onopen = function() {
                     console.log("connected to " + wsuri);
+
+                    var pw = prompt("Please enter a password to access the command section:");
+                    if (pw == null) {
+                        pw = "NotThere";
+                    }
+                    sock.send(JSON.stringify({ type:"Password", password:pw }));
+
+                    console.log("send messge....");
+
                 }
 
                 sock.onclose = function(e) {
