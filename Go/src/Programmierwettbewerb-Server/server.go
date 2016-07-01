@@ -728,19 +728,6 @@ func nobodyIsWatching() bool {
     return !someoneIsThere
 }
 
-<<<<<<< HEAD
-type FoodOctreeValue struct {
-    Position    Vec2
-    Size        float32
-}
-
-func (value *FoodOctreeValue) GetPosition() Vec2 {
-    return value.Position
-}
-
-func (value *FoodOctreeValue) GetSize() float32 {
-    return value.Size
-=======
 func sendDataToMiddleware(mWMessageCounter int, finished chan bool) {
 
     // TODO(Maurice/henk):
@@ -886,8 +873,6 @@ func sendDataToGui(guiMessageCounter int, guiStatisticsMessageCounter int, deadB
     }
 
     //finished <- true
-
->>>>>>> 2af5fc3381768fb19bdc8f1fed4c35637924ce92
 }
 
 func checkPasswordAgainstFile(password string) bool {
@@ -899,6 +884,22 @@ func checkPasswordAgainstFile(password string) bool {
     pwString := strings.Trim(string(pw), "\n \t")
 
     return pwString == password
+}
+
+const foodBufferSize int = 100
+type FoodBuffer struct {
+    values      [foodBufferSize]interface{}
+    count       int
+}
+
+func (buffer *FoodBuffer) Append(value interface{}) {    
+    if buffer.count + 1 < foodBufferSize {
+        buffer.values[buffer.count] = value
+        buffer.count += 1
+    } else {
+        fmt.Printf("No capacity\n")
+        os.Exit(1)
+    }
 }
 
 func (app* Application) startUpdateLoop() {
@@ -1508,19 +1509,43 @@ func (app* Application) startUpdateLoop() {
         // Eating food (by bots and toxins!)
         //
         {
-            octree := NewOctree()
-            profileEventOctreeBuilding := startProfileEvent(&profile, "Octree Building")
-            for _, food := range app.foods {
-                value := new(FoodOctreeValue)
-                value.Position = food.Position
-                value.Size = Radius(food.Mass)
-                octree.Insert(value)
-            }            
-            endProfileEvent(&profile, &profileEventOctreeBuilding);
+            quadTree := NewQuadTree(NewQuad(Vec2{0,0}, 1000))                
+            profileEventQuadTreeBuilding := startProfileEvent(&profile, "QuadTree Building")
+            {
+                for _, food := range app.foods {
+                    quadTree.Insert(food.Position, 42)
+                }
+                //PrintQuadTreeInfo(quadTree.GetInfo())
+            }
+            endProfileEvent(&profile, &profileEventQuadTreeBuilding);
             
             
             
+            profileEventQuadTreeSearching := startProfileEvent(&profile, "QuadTree Seaching")
+            {
+                var buffer FoodBuffer
+                
+                for _, bot := range app.bots {
+                    for _, blob := range bot.Blobs {
+                        radius := Radius(blob.Mass)                    
+                        blobQuad := NewQuad(Vec2{ blob.Position.X - radius, blob.Position.Y - radius }, 2*radius)
+                        //fmt.Printf("%v\n", blobQuad) 
+                        
+                        quadTree.FindValuesInQuad(blobQuad, &buffer)
+                        
+                        if buffer.count > 0 {
+                            fmt.Printf("Count: %v\n", buffer.count)
+                        }
+                        
+                        buffer.count = 0
+                    }
+                }
+            }
+            endProfileEvent(&profile, &profileEventQuadTreeSearching)
             
+            
+            
+            TEST()
             
             
             
@@ -1582,7 +1607,9 @@ func (app* Application) startUpdateLoop() {
                     app.toxins[tId] = toxin
                 }
             }
-
+            endProfileEvent(&profile, &profileEventEatingFood)
+            
+            profileEventEatingBlobs := startProfileEvent(&profile, "Eating Blobs")
             for botId1, bot1 := range app.bots {
 
                 var bot1Mass float32
@@ -1640,7 +1667,7 @@ func (app* Application) startUpdateLoop() {
                 bot1.StatisticsThisGame = stats
                 app.bots[botId1] = bot1
             }
-            endProfileEvent(&profile, &profileEventEatingFood)
+            endProfileEvent(&profile, &profileEventEatingBlobs)            
         }
 
         ////////////////////////////////////////////////////////////////
