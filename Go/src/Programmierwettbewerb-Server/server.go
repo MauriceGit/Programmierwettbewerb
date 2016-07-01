@@ -27,6 +27,7 @@ import (
     "os/exec"
     "sync"
     "strings"
+    "net"
 )
 
 // -------------------------------------------------------------------------------------------------
@@ -83,25 +84,25 @@ func startProfileEvent(profile *Profile, name string) ProfileEvent {
     var profileEvent ProfileEvent
     profileEvent.Name = name
     profileEvent.Start = time.Now()
-    
+
     if len(profile.Stack) > 0 {
         profileEvent.Parent = profile.Stack[len(profile.Stack) - 1]
     } else {
         profileEvent.Parent = -1
     }
-    
+
     var index = len(profile.Events)
     profile.Events = append(profile.Events, profileEvent)
-    
+
     profile.Stack = append(profile.Stack, index)
-    
+
     return profileEvent
 }
 
 func endProfileEvent(profile *Profile, profileEvent *ProfileEvent) {
     var lastProfileEventIndex = profile.Stack[len(profile.Stack) - 1]
     profile.Stack = profile.Stack[:len(profile.Stack) - 1]
-    
+
     profile.Events[lastProfileEventIndex].Duration = time.Since(profileEvent.Start)
 }
 
@@ -116,14 +117,14 @@ func printProfile(profile Profile) {
         if element.Parent != -1 {
             fmt.Printf("\t")
         }
-        fmt.Printf("%s: %v (%.2f)\n", element.Name, element.Duration, relativeDuration)        
+        fmt.Printf("%s: %v (%.2f)\n", element.Name, element.Duration, relativeDuration)
         for i := 0; i < int(relativeDuration*100) + 1; i++ {
             fmt.Printf("#")
         }
-        fmt.Printf("\n")        
+        fmt.Printf("\n")
     }
 }
-    
+
 
 // -------------------------------------------------------------------------------------------------
 // Application
@@ -215,7 +216,7 @@ type Application struct {
     serverCommands              []string
     messagesToServerGui         chan interface{}
     serverGuiIsConnected        bool
-    
+
     profiling                   bool
 
     foodDistributionName        string
@@ -232,7 +233,7 @@ var mutex = &sync.Mutex{}
 
 func (app* Application) initialize() {
     app.settings.MinNumberOfBots    = 10
-    app.settings.MaxNumberOfBots    = 100
+    app.settings.MaxNumberOfBots    = 50
     app.settings.MaxNumberOfFoods   = 400
     app.settings.MaxNumberOfToxins  = 200
 
@@ -254,7 +255,7 @@ func (app* Application) initialize() {
     app.runningState                = make(chan bool, 1)
     app.messagesToServerGui         = make(chan interface{}, 10)
     app.serverGuiIsConnected        = false
-    
+
     app.profiling                   = false
 
     app.foodDistributionName        = "fmctechnologies.bmp"
@@ -704,6 +705,7 @@ func nobodyIsWatching() bool {
     return !someoneIsThere
 }
 
+<<<<<<< HEAD
 type FoodOctreeValue struct {
     Position    Vec2
     Size        float32
@@ -715,6 +717,154 @@ func (value *FoodOctreeValue) GetPosition() Vec2 {
 
 func (value *FoodOctreeValue) GetSize() float32 {
     return value.Size
+=======
+func sendDataToMiddleware(mWMessageCounter int, finished chan bool) {
+
+    // TODO(Maurice/henk):
+    // MAURICE: Could be VERY MUCH simplified, if we just convert All blobs to the right format once and then sort out later who gets what data!
+    // HENK: First we would have to determine which blobs, toxins and foods are visible to the bots. We would have to profile that to check whats faster.
+    if mWMessageCounter % mwMessageEvery == 0 {
+        for botId, bot := range app.bots {
+            var connection = app.bots[botId].Connection
+
+            // Collecting other blobs
+            var otherBlobs []ServerMiddlewareBlob
+            for otherBotId, otherBot := range app.bots {
+                if botId != otherBotId {
+                    for otherBlobId, otherBlob := range otherBot.Blobs {
+                        if isInViewWindow(bot.ViewWindow, otherBlob.Position, otherBlob.Radius()) {
+                            otherBlobs = append(otherBlobs, makeServerMiddlewareBlob(otherBotId, otherBlobId, otherBlob))
+                        }
+                    }
+                }
+            }
+
+            // Collecting foods
+            var foods []Food
+            for _, food := range app.foods {
+                if isInViewWindow(bot.ViewWindow, food.Position, Radius(food.Mass)) {
+                    foods = append(foods, food)
+                }
+            }
+
+            // Collecting toxins
+            var toxins []Toxin
+            for _, toxin := range app.toxins {
+                if isInViewWindow(bot.ViewWindow, toxin.Position, Radius(toxin.Mass)) {
+                    toxins = append(toxins, toxin)
+                }
+            }
+
+            var wrapper = ServerMiddlewareGameState{
+                MyBlob:         makeServerMiddlewareBlobs(botId),
+                OtherBlobs:     otherBlobs,
+                Food:           foods,
+                Toxin:          toxins,
+            }
+            websocket.JSON.Send(connection, wrapper)
+        }
+    }
+
+    finished <- true
+}
+
+func sendDataToGui(guiMessageCounter int, guiStatisticsMessageCounter int, deadBots []BotId, eatenFoods []FoodId, eatenToxins []ToxinId, finished chan bool) {
+
+    // Pre-calculate the list for eaten Toxins
+    //reallyDeadToxins := make([]ToxinId, 0)
+    //copied := copy(reallyDeadToxins, eatenToxins)
+    //Logf(LtDebug, "copied %v elements\n", copied)
+
+    //
+    // Send the data to the clients
+    //
+    for guiId, guiConnection := range app.guiConnections {
+        var connection = app.guiConnections[guiId].Connection
+
+        message := newServerGuiUpdateMessage()
+
+        //Logf(LtDebug, "Botcount: %v\n", app.bots)
+
+        for botId, bot := range app.bots {
+
+            key := strconv.Itoa(int(botId))
+            if bot.GuiNeedsInfoUpdate || guiConnection.IsNewConnection {
+                message.CreatedOrUpdatedBotInfos[key] = bot.Info
+            }
+
+            if guiMessageCounter % guiMessageEvery == 0 {
+                message.CreatedOrUpdatedBots[key] = makeServerGuiBot(bot)
+            }
+
+            if guiStatisticsMessageCounter % guiStatisticsMessageEvery == 0 {
+                message.StatisticsThisGame[key] = bot.StatisticsThisGame
+                // @Todo: The global one MUCH more rarely!
+                message.StatisticsGlobal[key] = bot.StatisticsOverall
+            }
+
+        }
+
+        message.DeletedBotInfos = deadBots
+        message.DeletedBots = deadBots
+        //for _, botId := range deadBots {
+        //    message.DeletedBots = append(message.DeletedBots, botId)
+        //    message.DeletedBotInfos = append(message.DeletedBotInfos, botId)
+        //}
+
+        if guiMessageCounter % guiMessageEvery == 0 {
+            for foodId, food := range app.foods {
+                if food.IsMoving || food.IsNew || guiConnection.IsNewConnection {
+                    key := strconv.Itoa(int(foodId))
+                    message.CreatedOrUpdatedFoods[key] = makeServerGuiFood(food)
+                }
+            }
+        }
+
+        message.DeletedFoods = eatenFoods
+        //for _, foodId := range eatenFoods {
+        //    message.DeletedFoods = append(message.DeletedFoods, foodId)
+        //}
+
+        if guiMessageCounter % guiMessageEvery == 0 {
+            for toxinId, toxin := range app.toxins {
+                if toxin.IsNew || toxin.IsMoving || guiConnection.IsNewConnection {
+                    key := strconv.Itoa(int(toxinId))
+                    message.CreatedOrUpdatedToxins[key] = makeServerGuiToxin(toxin)
+                }
+            }
+        }
+
+        message.DeletedToxins = eatenToxins
+
+        err := websocket.JSON.Send(connection, message)
+        if err != nil {
+            Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
+            //return
+        }
+    }
+
+    for toxinId, toxin := range app.toxins {
+        if toxin.IsNew {
+            toxin.IsNew = false
+            app.toxins[toxinId] = toxin
+        }
+    }
+    for foodId, food := range app.foods {
+        if food.IsNew {
+            food.IsNew = false
+            app.foods[foodId] = food
+        }
+    }
+
+
+    for botId, bot := range app.bots {
+        bot.GuiNeedsInfoUpdate = false
+        app.bots[botId] = bot
+    }
+
+    finished <- true
+
+>>>>>>> 2af5fc3381768fb19bdc8f1fed4c35637924ce92
 }
 
 func (app* Application) startUpdateLoop() {
@@ -729,7 +879,7 @@ func (app* Application) startUpdateLoop() {
     var mWMessageCounter = 0
     var guiStatisticsMessageCounter = 0
 
-    var lastMiddlewareStart = float32(0.0)    
+    var lastMiddlewareStart = float32(0.0)
 
     for t := range ticker.C {
         profile := NewProfile()
@@ -897,7 +1047,7 @@ func (app* Application) startUpdateLoop() {
             }
             endProfileEvent(&profile, &profileEventReadFromMiddleware)
         }
-        
+
         ////////////////////////////////////////////////////////////////
         // ADD SOME MIDDLEWARES/BOTS IF NEEDED
         ////////////////////////////////////////////////////////////////
@@ -912,7 +1062,7 @@ func (app* Application) startUpdateLoop() {
             lastMiddlewareStart += dt
             endProfileEvent(&profile, &profileEventAddDummyBots)
         }
-        
+
         ////////////////////////////////////////////////////////////////
         // UPDATE BOT POSITION
         ////////////////////////////////////////////////////////////////
@@ -1005,7 +1155,7 @@ func (app* Application) startUpdateLoop() {
             }
             endProfileEvent(&profile, &profileEventAddFoodOrToxin)
         }
-        
+
         ////////////////////////////////////////////////////////////////
         // UPDATE FOOD POSITION
         ////////////////////////////////////////////////////////////////
@@ -1024,10 +1174,10 @@ func (app* Application) startUpdateLoop() {
             }
             endProfileEvent(&profile, &profileEventFoodPosition)
         }
-        
+
         ////////////////////////////////////////////////////////////////
         // UPDATE TOXIN POSITION
-        ////////////////////////////////////////////////////////////////        
+        ////////////////////////////////////////////////////////////////
         {
             profileEventToxinPosition := startProfileEvent(&profile, "Toxin Position")
             for toxinId, toxin := range app.toxins {
@@ -1044,7 +1194,7 @@ func (app* Application) startUpdateLoop() {
             }
             endProfileEvent(&profile, &profileEventToxinPosition)
         }
-        
+
         ////////////////////////////////////////////////////////////////
         // DELETE RANDOM TOXIN IF THERE ARE TOO MANY
         ////////////////////////////////////////////////////////////////
@@ -1060,7 +1210,7 @@ func (app* Application) startUpdateLoop() {
             }
             endProfileEvent(&profile, &profileEventDeleteToxins)
         }
-        
+
         ////////////////////////////////////////////////////////////////
         // DELETE RANDOM FOOD IF THERE ARE TOO MANY
         ////////////////////////////////////////////////////////////////
@@ -1076,7 +1226,7 @@ func (app* Application) startUpdateLoop() {
             }
             endProfileEvent(&profile, &profileEventDeleteFood)
         }
-        
+
         ////////////////////////////////////////////////////////////////
         // BOT INTERACTION WITH EVERYTHING
         ////////////////////////////////////////////////////////////////
@@ -1155,7 +1305,7 @@ func (app* Application) startUpdateLoop() {
             }
             endProfileEvent(&profile, &profileEventSubblobReunion)
         }
-        
+
         // Blob Collision with Toxin
         {
             profileEventCollisionWithToxin := startProfileEvent(&profile, "Collision with Toxin")
@@ -1351,7 +1501,7 @@ func (app* Application) startUpdateLoop() {
                             for blobId2, blob2 := range app.bots[botId2].Blobs {
                                 //blob2 := bot2.Blobs[blobId2]
 
-                                inRadius := Dist(blob2.Position, blob1.Position) < blob1.Radius()
+                                inRadius := DistFast(blob2.Position, blob1.Position) < blob1.Radius()*blob1.Radius()
                                 smaller := blob2.Mass < 0.9*blob1.Mass
 
                                 if smaller && inRadius {
@@ -1406,170 +1556,44 @@ func (app* Application) startUpdateLoop() {
         ////////////////////////////////////////////////////////////////
         // SEND UPDATED DATA TO MIDDLEWARE AND GUI
         ////////////////////////////////////////////////////////////////
+
+
+
         {
-            profileEventSendDataToMiddleware := startProfileEvent(&profile, "Send Data to Middleware")
-            // TODO(Maurice/henk):
-            // MAURICE: Could be VERY MUCH simplified, if we just convert All blobs to the right format once and then sort out later who gets what data!
-            // HENK: First we would have to determine which blobs, toxins and foods are visible to the bots. We would have to profile that to check whats faster.
-            if mWMessageCounter % mwMessageEvery == 0 {
-                for botId, bot := range app.bots {
-                    var connection = app.bots[botId].Connection
+            profileEventSendDataToMiddlewareAndGui := startProfileEvent(&profile, "Send Data to Middleware|Gui")
 
-                    // Collecting other blobs
-                    var otherBlobs []ServerMiddlewareBlob
-                    for otherBotId, otherBot := range app.bots {
-                        if botId != otherBotId {
-                            for otherBlobId, otherBlob := range otherBot.Blobs {
-                                if isInViewWindow(bot.ViewWindow, otherBlob.Position, otherBlob.Radius()) {
-                                    otherBlobs = append(otherBlobs, makeServerMiddlewareBlob(otherBotId, otherBlobId, otherBlob))
-                                }
-                            }
-                        }
-                    }
+            sendDataGuiFinished := make(chan bool)
+            sendDataMWFinished  := make(chan bool)
 
-                    // Collecting foods
-                    var foods []Food
-                    for _, food := range app.foods {
-                        if isInViewWindow(bot.ViewWindow, food.Position, Radius(food.Mass)) {
-                            foods = append(foods, food)
-                        }
-                    }
+            go sendDataToMiddleware(mWMessageCounter, sendDataMWFinished)
 
-                    // Collecting toxins
-                    var toxins []Toxin
-                    for _, toxin := range app.toxins {
-                        if isInViewWindow(bot.ViewWindow, toxin.Position, Radius(toxin.Mass)) {
-                            toxins = append(toxins, toxin)
-                        }
-                    }
+            ////////////////////////////////////////////////////////////////
+            // SEND UPDATED DATA TO GUI
+            ////////////////////////////////////////////////////////////////
 
-                    var wrapper = ServerMiddlewareGameState{
-                        MyBlob:         makeServerMiddlewareBlobs(botId),
-                        OtherBlobs:     otherBlobs,
-                        Food:           foods,
-                        Toxin:          toxins,
-                    }
-                    websocket.JSON.Send(connection, wrapper)
-                }
-            }
-            endProfileEvent(&profile, &profileEventSendDataToMiddleware)
-        }
+            go sendDataToGui(guiMessageCounter, guiStatisticsMessageCounter, deadBots, eatenFoods, eatenToxins, sendDataGuiFinished)
 
+            <- sendDataMWFinished
+            <- sendDataGuiFinished
 
-        ////////////////////////////////////////////////////////////////
-        // SEND UPDATED DATA TO GUI
-        ////////////////////////////////////////////////////////////////
-        {
-            profileEventSendDataToGui := startProfileEvent(&profile, "Send Data to Gui")
-            // Pre-calculate the list for eaten Toxins
-            //reallyDeadToxins := make([]ToxinId, 0)
-            //copied := copy(reallyDeadToxins, eatenToxins)
-            //Logf(LtDebug, "copied %v elements\n", copied)
+            for guiConnectionId, guiConnection := range app.guiConnections {
+                guiConnection.IsNewConnection = false
+                app.guiConnections[guiConnectionId] = guiConnection
 
-            //
-            // Send the data to the clients
-            //
-            for guiId, guiConnection := range app.guiConnections {
-                var connection = app.guiConnections[guiId].Connection
-
-                message := newServerGuiUpdateMessage()
-
-                //Logf(LtDebug, "Botcount: %v\n", app.bots)
-
-                for botId, bot := range app.bots {
-
-                    key := strconv.Itoa(int(botId))
-                    if bot.GuiNeedsInfoUpdate || guiConnection.IsNewConnection {
-                        message.CreatedOrUpdatedBotInfos[key] = bot.Info
-                    }
-
-                    if guiMessageCounter % guiMessageEvery == 0 {
-                        message.CreatedOrUpdatedBots[key] = makeServerGuiBot(bot)
-                    }
-
-                    if guiStatisticsMessageCounter % guiStatisticsMessageEvery == 0 {
-                        message.StatisticsThisGame[key] = bot.StatisticsThisGame
-                        // @Todo: The global one MUCH more rarely!
-                        message.StatisticsGlobal[key] = bot.StatisticsOverall
-                    }
-
-                }
-
-                message.DeletedBotInfos = deadBots
-                message.DeletedBots = deadBots
-                //for _, botId := range deadBots {
-                //    message.DeletedBots = append(message.DeletedBots, botId)
-                //    message.DeletedBotInfos = append(message.DeletedBotInfos, botId)
-                //}
-
-                if guiMessageCounter % guiMessageEvery == 0 {
-                    for foodId, food := range app.foods {
-                        if food.IsMoving || food.IsNew || guiConnection.IsNewConnection {
-                            key := strconv.Itoa(int(foodId))
-                            message.CreatedOrUpdatedFoods[key] = makeServerGuiFood(food)
-                        }
-                    }
-                }
-
-                message.DeletedFoods = eatenFoods
-                //for _, foodId := range eatenFoods {
-                //    message.DeletedFoods = append(message.DeletedFoods, foodId)
-                //}
-
-                if guiMessageCounter % guiMessageEvery == 0 {
-                    for toxinId, toxin := range app.toxins {
-                        if toxin.IsNew || toxin.IsMoving || guiConnection.IsNewConnection {
-                            key := strconv.Itoa(int(toxinId))
-                            message.CreatedOrUpdatedToxins[key] = makeServerGuiToxin(toxin)
-                        }
-                    }
-                }
-
-                message.DeletedToxins = eatenToxins
-
-                err := websocket.JSON.Send(connection, message)
+                err := websocket.Message.Send(guiConnection.Connection, "alive_test")
                 if err != nil {
-                    Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
-                    //return
+                    Logf(LtDebug, "Gui %v is deleted because of network failure. Alive test failed.\n", guiConnectionId)
+                    delete(app.guiConnections, guiConnectionId)
                 }
             }
-            endProfileEvent(&profile, &profileEventSendDataToGui)
+
+            guiMessageCounter += 1
+            mWMessageCounter += 1
+            guiStatisticsMessageCounter += 1
+
+            endProfileEvent(&profile, &profileEventSendDataToMiddlewareAndGui)
         }
 
-        for toxinId, toxin := range app.toxins {
-            if toxin.IsNew {
-                toxin.IsNew = false
-                app.toxins[toxinId] = toxin
-            }
-        }
-        for foodId, food := range app.foods {
-            if food.IsNew {
-                food.IsNew = false
-                app.foods[foodId] = food
-            }
-        }
-
-
-        for botId, bot := range app.bots {
-            bot.GuiNeedsInfoUpdate = false
-            app.bots[botId] = bot
-        }
-
-        for guiConnectionId, guiConnection := range app.guiConnections {
-            guiConnection.IsNewConnection = false
-            app.guiConnections[guiConnectionId] = guiConnection
-
-            err := websocket.Message.Send(guiConnection.Connection, "alive_test")
-            if err != nil {
-                Logf(LtDebug, "Gui %v is deleted because of network failure. Alive test failed.\n", guiConnectionId)
-                delete(app.guiConnections, guiConnectionId)
-            }
-        }
-        
-        guiMessageCounter += 1
-        mWMessageCounter += 1
-        guiStatisticsMessageCounter += 1
-        
         if app.profiling {
             type NanosecondProfileEvent struct {
                 Name            string
@@ -1578,14 +1602,17 @@ func (app* Application) startUpdateLoop() {
             }
             events := make([]NanosecondProfileEvent, 0, 100)
             for _, element := range profile.Events {
-                events = append(events, NanosecondProfileEvent{ 
-                    Name: element.Name, 
+                events = append(events, NanosecondProfileEvent{
+                    Name: element.Name,
                     Parent: element.Parent,
                     Nanoseconds: element.Duration.Nanoseconds(),
                 })
             }
             app.messagesToServerGui <- events
         }
+
+
+
     }
 }
 
@@ -1658,9 +1685,9 @@ func createStartingBot(ws *websocket.Conn, botInfo BotInfo, statistics Statistic
 
 func handleServerCommands(ws *websocket.Conn) {
     commandId := app.createServerCommandId()
-    
+
     app.serverGuiIsConnected = true
-    
+
     go func() {
         Logf(LtDebug, "Starting stuff!")
         for {
@@ -1673,7 +1700,7 @@ func handleServerCommands(ws *websocket.Conn) {
             }
         }
     }()
-    
+
     for {
         if connectionIsTerminated(app.runningState) {
             Logf(LtDebug, "HandleServerCommands is shutting down.\n")
@@ -1765,6 +1792,15 @@ func handleMiddleware(ws *websocket.Conn) {
                 // So we take the time to sort out old statistics from files here and not
                 // in the main game loop (so adding, say, 100 bots, doesn't affect the other, normal computations!)
                 isAllowed, statisticsOverall := CheckPotentialPlayer(message.BotInfo.Name)
+
+                sourceIP := strings.Split(ws.Request().RemoteAddr, ":")[0]
+                myIP := getIP()
+
+                if message.BotInfo.Name == "dummy" && sourceIP != myIP && sourceIP != "localhost" && sourceIP != "127.0.0.1" {
+                    isAllowed = false
+                    //Logf(LtDebug, "sourceIP: %v, myIP: %v\n", sourceIP, myIP)
+                    Logf(LtDebug, "The player name 'dummy' is not allowed!\n")
+                }
 
                 if !isAllowed {
                     Logf(LtDebug, "The player %v is not allowed to play. Please add %v to your bot.names.\n", message.BotInfo.Name, message.BotInfo.Name)
@@ -1915,10 +1951,41 @@ func connectionIsTerminated(runningState chan(bool)) bool {
     return false
 }
 
+func getIP() string {
+    addrs, err := net.InterfaceAddrs()
+    if err != nil {
+        os.Stderr.WriteString("Oops: " + err.Error() + "\n")
+        os.Exit(1)
+    }
+
+    for _, a := range addrs {
+        if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+            if ipnet.IP.To4() != nil {
+                //os.Stdout.WriteString(ipnet.IP.String() + "\n")
+                return ipnet.IP.String()
+            }
+        }
+    }
+    return "localhost"
+}
+
+func createConfigFile() {
+    f, err := os.Create("../pwb.conf")
+    if err != nil {
+        Logf(LtDebug, "Something went wront when creating the new file...: %v\n", err)
+    }
+    defer f.Close()
+
+    f.Write([]byte(getIP() + ":8080"))
+    f.Sync()
+}
+
 func main() {
     // TODO(henk): Maybe we wanna toggle this at runtime.
     SetLoggingDebug(true)
     SetLoggingVerbose(false)
+
+    createConfigFile()
 
     app.initialize()
 
