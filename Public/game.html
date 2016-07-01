@@ -40,6 +40,7 @@
             .dropdown {
                 top: 10;
                 left: 10;
+                z-index: 1;
                 position: absolute;
                 display: inline-block;
             }
@@ -47,6 +48,7 @@
             .dropdown-content {
                 display: none;
                 position: absolute;
+                z-index: 1;
                 background-color: #f9f9f9;
                 min-width: 300px;
                 overflow: auto;
@@ -62,6 +64,15 @@
 
             .dropdown a:hover {background-color: #f1f1f1}
 
+            .hideStats a:hover {background-color: #f1f1f1}
+            .hideStats {
+                top: 10;
+                left: 100;
+                z-index: 1;
+                position: absolute;
+                display: inline-block;
+            }
+
             .show {display:block;}
         </style>
     </head>
@@ -71,6 +82,9 @@
             <button onclick="cameraDropDownHandler()" class="dropbtn">Camera</button>
             <div id="cameraDropDown" class="dropdown-content">
             </div>
+        </div>
+        <div class="hideStats" tabindex="-1" id="hideStatsId">
+            <button onclick="hideStatsHandler()" class="dropbtn">Hide Stats</button>
         </div>
 
         <canvas id="canvas">Sorry, your browser doesn't support canvas.</canvas>
@@ -127,8 +141,14 @@
             var cameraMode = cmShowAll;
             var cameraBotToFollow = -1;
 
+            var showStats = 1;
+
             function cameraDropDownHandler() {
                 document.getElementById("cameraDropDown").classList.toggle("show");
+            }
+
+            function hideStatsHandler() {
+                showStats = !showStats;
             }
 
             window.onclick = function(event) {
@@ -528,6 +548,10 @@
                 var highscore = $("#highscore");
                 highscore.empty();
 
+                if (!showStats) {
+                    return;
+                }
+
                 var scores = calculateHighscore();
                 var tuples = scores[0];
                 var maxMass = scores[1];
@@ -544,6 +568,8 @@
                     containerNode = updateHighscoreForBotId(botInfoId, mass, maxMass);
                     highscore.append(containerNode);
                 }
+
+
             }
         </script>
     </body>

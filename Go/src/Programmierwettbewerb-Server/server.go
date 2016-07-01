@@ -21,7 +21,7 @@ import (
     "golang.org/x/image/bmp"
     //"image/color"
     //"image"
-    //"reflect"
+    "reflect"
     //"strings"
     "html/template"
     "os/exec"
@@ -40,7 +40,7 @@ const (
     thrownFoodMass = 10
     massToBeAllowedToThrow = 120
     botMinMass = 10
-    botMaxMass = 7000.0
+    botMaxMass = 10000.0
     blobReunionTime = 10.0
     blobSplitMass   = 100.0
     blobSplitVelocity = 1.5
@@ -52,12 +52,14 @@ const (
     massLossFactor = 10.0
     minBlobMassToExplode = 400.0
     maxBlobCountToExplode = 10
+    minBlobMass = 10
 
     velocityDecreaseFactor = 0.95
 
     mwMessageEvery = 1
     guiMessageEvery = 1
     guiStatisticsMessageEvery = 1
+    serverGuiPasswordFile = "../server_gui_password"
 )
 
 // -------------------------------------------------------------------------------------------------
@@ -258,9 +260,9 @@ func (app* Application) initialize() {
 
     app.profiling                   = false
 
-    app.foodDistributionName        = "fmctechnologies.bmp"
-    app.toxinDistributionName       = "fmctechnologies.bmp"
-    app.botDistributionName         = "bot_spawn.bmp"
+    app.foodDistributionName        = "black.bmp"
+    app.toxinDistributionName       = "black.bmp"
+    app.botDistributionName         = "black.bmp"
 
     app.foodDistribution            = loadSpawnImage(app.foodDistributionName, 10)
     app.toxinDistribution           = loadSpawnImage(app.toxinDistributionName, 10)
@@ -268,11 +270,17 @@ func (app* Application) initialize() {
 
     for i := FoodId(0); i < FoodId(app.settings.MaxNumberOfFoods); i++ {
         mass := foodMassMin + rand.Float32() * (foodMassMax - foodMassMin)
-        app.foods[i] = Food{ true, false, false, BotId(0), mass, newFoodPos(), RandomVec2() }
+        pos := newFoodPos()
+        if pos != (Vec2{}) {
+            app.foods[i] = Food{ true, false, false, BotId(0), mass, pos, RandomVec2() }
+        }
     }
 
     for i := 0; i < app.settings.MaxNumberOfToxins; i++ {
-        app.toxins[ToxinId(i)] = Toxin{true, false, newToxinPos(), false, BotId(0), toxinMassMin, RandomVec2()}
+        pos := newToxinPos()
+        if pos != (Vec2{}) {
+            app.toxins[ToxinId(i)] = Toxin{true, false, pos, false, BotId(0), toxinMassMin, RandomVec2()}
+        }
         // Mulv(RandomVec2(), app.fieldSize)
     }
 }
@@ -418,13 +426,28 @@ func makeURLSpawnName(name string) string {
 // -------------------------------------------------------------------------------------------------
 
 func newFoodPos() Vec2 {
-    return app.foodDistribution[rand.Intn(len(app.foodDistribution))]
+
+    length := len(app.foodDistribution)
+    if length == 0 {
+        return Vec2{}
+    }
+    return app.foodDistribution[rand.Intn(length)]
 }
 func newToxinPos() Vec2 {
-    return app.toxinDistribution[rand.Intn(len(app.toxinDistribution))]
+
+    length := len(app.toxinDistribution)
+    if length == 0 {
+        return Vec2{}
+    }
+    return app.toxinDistribution[rand.Intn(length)]
 }
 func newBotPos() Vec2 {
-    return app.botDistribution[rand.Intn(len(app.botDistribution))]
+
+    length := len(app.botDistribution)
+    if length == 0 {
+        return Vec2{}
+    }
+    return app.botDistribution[rand.Intn(length)]
 }
 
 func calcBlobVelocityFromMass(vel Vec2, mass float32) Vec2 {
@@ -765,7 +788,7 @@ func sendDataToMiddleware(mWMessageCounter int, finished chan bool) {
         }
     }
 
-    finished <- true
+    //finished <- true
 }
 
 func sendDataToGui(guiMessageCounter int, guiStatisticsMessageCounter int, deadBots []BotId, eatenFoods []FoodId, eatenToxins []ToxinId, finished chan bool) {
@@ -862,9 +885,20 @@ func sendDataToGui(guiMessageCounter int, guiStatisticsMessageCounter int, deadB
         app.bots[botId] = bot
     }
 
-    finished <- true
+    //finished <- true
 
 >>>>>>> 2af5fc3381768fb19bdc8f1fed4c35637924ce92
+}
+
+func checkPasswordAgainstFile(password string) bool {
+    pw, err := ioutil.ReadFile(serverGuiPasswordFile)
+    if err != nil {
+        Logf(LtDebug, "Error while trying to load the password file %v. err: %v\n", serverGuiPasswordFile, err)
+        return false
+    }
+    pwString := strings.Trim(string(pw), "\n \t")
+
+    return pwString == password
 }
 
 func (app* Application) startUpdateLoop() {
@@ -931,12 +965,19 @@ func (app* Application) startUpdateLoop() {
                         Type    string  `json:"type"`
                         Value   int     `json:"value,string,omitempty"`
                         Image   string  `json:"image"`
+                        Password string `json:"password"`
                     }
 
                     var command Command
                     err := json.Unmarshal([]byte(commandString), &command)
                     if err == nil {
                         switch command.Type {
+                        case "Password":
+                            Logf(LtDebug, "The provided password is: %v \n", command.Password)
+                            if !checkPasswordAgainstFile(command.Password) {
+                                Logf(LtDebug, "The provided password %v is not correct!\n", command.Password)
+                                app.serverGuiIsConnected = false
+                            }
                         case "MinNumberOfBots":
                             app.settings.MinNumberOfBots = command.Value
                         case "MaxNumberOfBots":
@@ -992,10 +1033,13 @@ func (app* Application) startUpdateLoop() {
                             Logf(LtDebug, "Killed bots above mass threshold\n")
                         case "FoodSpawnImage":
                             app.foodDistribution  = loadSpawnImage(command.Image, 10)
+                            app.foodDistributionName = command.Image
                         case "ToxinSpawnImage":
                             app.toxinDistribution = loadSpawnImage(command.Image, 10)
+                            app.toxinDistributionName = command.Image
                         case "BotSpawnImage":
                             app.botDistribution   = loadSpawnImage(command.Image, 10)
+                            app.botDistributionName = command.Image
                         }
                     } else {
                         Logf(LtDebug, "Err: %v\n", err.Error())
@@ -1030,7 +1074,12 @@ func (app* Application) startUpdateLoop() {
                             app.bots[mwInfo.botId] = bot
                         }
                         if mwInfo.createNewBot && len(app.bots) < app.settings.MaxNumberOfBots {
-                            app.bots[mwInfo.botId] = createStartingBot(mwInfo.ws, mwInfo.botInfo, mwInfo.statistics)
+                            bot := createStartingBot(mwInfo.ws, mwInfo.botInfo, mwInfo.statistics)
+                            if !reflect.DeepEqual(bot,Bot{}) {
+                                app.bots[mwInfo.botId] = bot
+                            } else {
+                                Logf(LtDebug, "Due to a spawn image with a 0 spawn rate, there is no possible spawn position for this bot.\n")
+                            }
                         }
 
                     } else {
@@ -1069,7 +1118,21 @@ func (app* Application) startUpdateLoop() {
         {
             profileEventUpdateBotPosition := startProfileEvent(&profile, "Update Bot Position")
             for botId, bot := range app.bots {
+                botDied := false
                 for blobId, blob := range bot.Blobs {
+
+                    if blob.Mass < minBlobMass {
+                        //killedBlobs.insert(botId2, blobId2)
+                        delete(bot.Blobs, blobId)
+
+                        if len(bot.Blobs) == 0 {
+                            botDied = true
+                            deadBots = append(deadBots, botId)
+                        }
+
+                        break
+                    }
+
                     oldPosition := blob.Position
                     velocity    := calcBlobVelocity(&blob, bot.Command.Target)
                     time        := dt * 50
@@ -1096,7 +1159,9 @@ func (app* Application) startUpdateLoop() {
 
                     app.bots[botId].Blobs[blobId] = blob
                 }
-                app.bots[botId] = bot
+                if !botDied {
+                    app.bots[botId] = bot
+                }
             }
             endProfileEvent(&profile, &profileEventUpdateBotPosition)
         }
@@ -1145,13 +1210,19 @@ func (app* Application) startUpdateLoop() {
         {
             profileEventAddFoodOrToxin := startProfileEvent(&profile, "Add Food Or Toxin")
             if rand.Intn(100) <= 5 && len(app.toxins) < app.settings.MaxNumberOfToxins {
-                newToxinId := app.createToxinId()
-                app.toxins[newToxinId] = Toxin{true, false, newToxinPos(), false, 0, toxinMassMin, RandomVec2()}
+                pos := newToxinPos()
+                if pos != (Vec2{}) {
+                    newToxinId := app.createToxinId()
+                    app.toxins[newToxinId] = Toxin{true, false, pos, false, 0, toxinMassMin, RandomVec2()}
+                }
             }
             if rand.Intn(100) <= 5 && len(app.foods) < app.settings.MaxNumberOfFoods {
-                newFoodId := app.createFoodId()
                 mass := foodMassMin + rand.Float32() * (foodMassMax - foodMassMin)
-                app.foods[newFoodId] = Food{ true, false, false, 0, mass, newFoodPos(), RandomVec2() }
+                pos := newFoodPos()
+                if pos != (Vec2{}) {
+                    newFoodId := app.createFoodId()
+                    app.foods[newFoodId] = Food{ true, false, false, 0, mass, pos, RandomVec2() }
+                }
             }
             endProfileEvent(&profile, &profileEventAddFoodOrToxin)
         }
@@ -1309,8 +1380,9 @@ func (app* Application) startUpdateLoop() {
         // Blob Collision with Toxin
         {
             profileEventCollisionWithToxin := startProfileEvent(&profile, "Collision with Toxin")
-            for tId,_ := range app.toxins {
-                var toxin = app.toxins[tId]
+            for tId,toxin := range app.toxins {
+                var toxinIsEaten = false
+                var toxinIsRepositioned = false
 
                 for botId, _ := range app.bots {
                     bot := app.bots[botId]
@@ -1326,24 +1398,28 @@ func (app* Application) startUpdateLoop() {
 
                         if Dist(singleBlob.Position, toxin.Position) < singleBlob.Radius() && singleBlob.Mass >= minBlobMassToExplode {
 
-                            // If a bot already has > 10 blobs (i.e.), don't explode, ignore!
+                            // If a bot already has > 10 blobs (i.e.), don't explode, eat it!!
                             if len(bot.Blobs) > maxBlobCountToExplode {
                                 if toxin.IsSplit || len(app.toxins) >= app.settings.MaxNumberOfToxins {
                                     eatenToxins = append(eatenToxins, tId)
                                     delete(app.toxins, tId)
-                                    //Logf(LtDebug, "Test 0: len before: %v, eatenToxins: %v\n", len(eatenToxins), eatenToxins)
-                                    //Logf(LtDebug, "Test 0\n")
+                                    toxinIsEaten = true
                                 } else {
-
-                                    toxin.Position = newToxinPos()
-                                    toxin.IsSplitBy = BotId(0)
-                                    toxin.IsSplit = false
-                                    toxin.IsNew = true
-                                    toxin.Mass = toxinMassMin
-                                    //Logf(LtDebug, "Test 1\n")
-
+                                    pos := newToxinPos()
+                                    if pos != (Vec2{}) {
+                                        toxin.Position = pos
+                                        toxin.IsSplitBy = BotId(0)
+                                        toxin.IsSplit = false
+                                        toxin.IsNew = true
+                                        toxin.Mass = toxinMassMin
+                                        toxinIsRepositioned = true
+                                    } else {
+                                        eatenToxins = append(eatenToxins, tId)
+                                        delete(app.toxins, tId)
+                                        toxinIsEaten = true
+                                    }
                                 }
-                                continue
+                                break
                             }
 
                             subMap := make(map[BlobId]Blob)
@@ -1367,13 +1443,24 @@ func (app* Application) startUpdateLoop() {
                             blobsToDelete = append(blobsToDelete, blobId)
                             //eatenToxins = append(eatenToxins, tId)
 
-                            toxin.Position = newToxinPos()
-                            toxin.IsSplitBy = BotId(0)
-                            toxin.IsSplit = false
-                            toxin.IsNew = true
-                            toxin.Mass = toxinMassMin
+                            pos := newToxinPos()
+                            if pos != (Vec2{}) {
+                                toxin.Position = pos
+                                toxin.IsSplitBy = BotId(0)
+                                toxin.IsSplit = false
+                                toxin.IsNew = true
+                                toxin.Mass = toxinMassMin
+                            } else {
+                                eatenToxins = append(eatenToxins, tId)
+                                delete(app.toxins, tId)
+                                toxinIsEaten = true
+                            }
                             //delete(app.toxins, tId)
                         }
+                    }
+
+                    if toxinIsEaten || toxinIsRepositioned {
+                        break
                     }
 
                     if exploded {
@@ -1392,7 +1479,9 @@ func (app* Application) startUpdateLoop() {
                     app.bots[botId] = bot
                 }
 
-                app.toxins[tId] = toxin
+                if !toxinIsEaten {
+                    app.toxins[tId] = toxin
+                }
             }
             endProfileEvent(&profile, &profileEventCollisionWithToxin)
         }
@@ -1453,9 +1542,15 @@ func (app* Application) startUpdateLoop() {
                                 delete(app.foods, foodId)
                                 eatenFoods = append(eatenFoods, foodId)
                             } else {
-                                food.Position = newFoodPos()
-                                food.IsNew = true
-                                app.foods[foodId] = food
+                                pos := newFoodPos()
+                                if pos != (Vec2{}) {
+                                    food.Position = pos
+                                    food.IsNew = true
+                                    app.foods[foodId] = food
+                                } else {
+                                    delete(app.foods, foodId)
+                                    eatenFoods = append(eatenFoods, foodId)
+                                }
                             }
                         }
                         bot.Blobs[blobId] = blob
@@ -1553,28 +1648,21 @@ func (app* Application) startUpdateLoop() {
         ////////////////////////////////////////////////////////////////
         checkAllValuesOnNaN("end")
 
-        ////////////////////////////////////////////////////////////////
-        // SEND UPDATED DATA TO MIDDLEWARE AND GUI
-        ////////////////////////////////////////////////////////////////
-
 
 
         {
             profileEventSendDataToMiddlewareAndGui := startProfileEvent(&profile, "Send Data to Middleware|Gui")
 
+            ////////////////////////////////////////////////////////////////
+            // SEND UPDATED DATA TO MIDDLEWARE AND GUI
+            ////////////////////////////////////////////////////////////////
+
             sendDataGuiFinished := make(chan bool)
             sendDataMWFinished  := make(chan bool)
-
-            go sendDataToMiddleware(mWMessageCounter, sendDataMWFinished)
-
-            ////////////////////////////////////////////////////////////////
-            // SEND UPDATED DATA TO GUI
-            ////////////////////////////////////////////////////////////////
-
-            go sendDataToGui(guiMessageCounter, guiStatisticsMessageCounter, deadBots, eatenFoods, eatenToxins, sendDataGuiFinished)
-
-            <- sendDataMWFinished
-            <- sendDataGuiFinished
+            sendDataToMiddleware(mWMessageCounter, sendDataMWFinished)
+            sendDataToGui(guiMessageCounter, guiStatisticsMessageCounter, deadBots, eatenFoods, eatenToxins, sendDataGuiFinished)
+            //<- sendDataMWFinished
+            //<- sendDataGuiFinished
 
             for guiConnectionId, guiConnection := range app.guiConnections {
                 guiConnection.IsNewConnection = false
@@ -1594,7 +1682,7 @@ func (app* Application) startUpdateLoop() {
             endProfileEvent(&profile, &profileEventSendDataToMiddlewareAndGui)
         }
 
-        if app.profiling {
+        if app.profiling && app.serverGuiIsConnected {
             type NanosecondProfileEvent struct {
                 Name            string
                 Parent          int
@@ -1649,38 +1737,42 @@ func handleGui(ws *websocket.Conn) {
 }
 
 func createStartingBot(ws *websocket.Conn, botInfo BotInfo, statistics Statistics) Bot {
-    blob := Blob {
-        Position:       newBotPos(),  // TODO(henk): How do we decide this?
-        Mass:           100.0,
-        VelocityFac:    1.0,
-        IsSplit:        false,
-        ReunionTime:    0.0,
-        IndividualTargetVec:      NullVec2(),
-    }
-    statisticNew := Statistics{
-        MaxSize:            100.0,
-        MaxSurvivalTime:    0.0,
-        BlobKillCount:      0,
-        BotKillCount:       0,
-        ToxinThrow:         0,
-        SuccessfulToxin:    0,
-        SplitCount:         0,
-        SuccessfulSplit:    0,
-        SuccessfulTeam:     0,
-        BadTeaming:         0,
-}
+    pos := newBotPos()
+    if pos != (Vec2{}) {
+        blob := Blob {
+            Position:       pos,  // TODO(henk): How do we decide this?
+            Mass:           100.0,
+            VelocityFac:    1.0,
+            IsSplit:        false,
+            ReunionTime:    0.0,
+            IndividualTargetVec:      NullVec2(),
+        }
+        statisticNew := Statistics{
+            MaxSize:            100.0,
+            MaxSurvivalTime:    0.0,
+            BlobKillCount:      0,
+            BotKillCount:       0,
+            ToxinThrow:         0,
+            SuccessfulToxin:    0,
+            SplitCount:         0,
+            SuccessfulSplit:    0,
+            SuccessfulTeam:     0,
+            BadTeaming:         0,
+        }
 
-    return Bot{
-        Info:                   botInfo,
-        GuiNeedsInfoUpdate:     true,
-        ViewWindow:             ViewWindow{ Position: Vec2{0,0}, Size:Vec2{100,100} },
-        Blobs:                  map[BlobId]Blob{ 0: blob },
-        StatisticsThisGame:     statisticNew,
-        StatisticsOverall:      statistics,
-        Command:                BotCommand{ BatNone, RandomVec2(), },
-        Connection:             ws,
-        ConnectionAlive:        true,
+        return Bot{
+            Info:                   botInfo,
+            GuiNeedsInfoUpdate:     true,
+            ViewWindow:             ViewWindow{ Position: Vec2{0,0}, Size:Vec2{100,100} },
+            Blobs:                  map[BlobId]Blob{ 0: blob },
+            StatisticsThisGame:     statisticNew,
+            StatisticsOverall:      statistics,
+            Command:                BotCommand{ BatNone, RandomVec2(), },
+            Connection:             ws,
+            ConnectionAlive:        true,
+        }
     }
+    return Bot{}
 }
 
 func handleServerCommands(ws *websocket.Conn) {
@@ -1716,6 +1808,12 @@ func handleServerCommands(ws *websocket.Conn) {
             ws.Close()
             return
         }
+
+        if !app.serverGuiIsConnected {
+            //ws.Close()
+            return
+        }
+
         app.serverCommands = append(app.serverCommands, message)
     }
 }
@@ -1891,6 +1989,8 @@ func handleServerControl(w http.ResponseWriter, r *http.Request) {
             imageNames = append(imageNames, entry.Name())
         }
     }
+
+
 
     data := struct {
         Address string

@@ -27,6 +27,14 @@
             window.onload = function() {
                 sock = new WebSocket(wsuri);
 
+
+                var pw = prompt("Please enter a password to access the command section:");
+
+                if (pw == null) {
+                    pw = "NotThere";
+                }
+                sock.send(JSON.stringify({ type:"Password", password:pw }));
+
                 sock.onopen = function() {
                     console.log("connected to " + wsuri);
                 }
@@ -38,23 +46,23 @@
                     var profile = $("#profile");
                     profile.empty();
                     var profileData = JSON.parse(e.data);
-                    
+
                     var sum = 0;
                     for (var i = 0; i < profileData.length; ++i) {
                         sum += profileData[i].Nanoseconds;
                     }
-                    
+
                     var table = $("<table class=\"table table-striped\"></table>");
-                    
+
                     var thead = $("<thead><tr><th>Name</th><th>Percentage</th><th>Time</th></tr></thead>");
                     table.append(thead);
-                    
+
                     var tbody = $("<tbody></tbody>");
                     table.append(tbody);
-                    
+
                     for (var i = 0; i < profileData.length; ++i) {
                         var percentage = profileData[i].Nanoseconds / sum;
-                        var row = $("<tr></tr>");                        
+                        var row = $("<tr></tr>");
                         row.append("<td class=\"col-md-4\">" + profileData[i].Name + "</td>");
                         var col = $("<td class=\"col-md-4\"></td>");
                         var bar = $("<div></div>");
@@ -67,7 +75,7 @@
                         row.append("<td class=\"col-md-4\">" + profileData[i].Nanoseconds/1000 + " µs" +  "</td>");
                         tbody.append(row);
                     }
-                    
+
                     profile.append(table);
                 }
 
@@ -96,9 +104,9 @@
                 $("#restart").on('click', function() {
                     sock.send(JSON.stringify({ type:"RestartServer" }));
                 });
-                
+
                 $("#toggleProfile").on('click', function() {
-                   sock.send(JSON.stringify({ type:"ToggleProfiling" })); 
+                   sock.send(JSON.stringify({ type:"ToggleProfiling" }));
                 });
 
                 var foodImageHandlerMaker = function(imageName) {
@@ -231,7 +239,7 @@
                             <h4>Profiling</h4>
                             <button id="toggleProfile" type="button" class="btn btn-info">Toggle Profiling</button>
                             <div id="profile">
-                                
+
                             </div>
                             <hr>
                             <h4>Restart server</h4>
