@@ -1512,8 +1512,8 @@ func (app* Application) startUpdateLoop() {
             quadTree := NewQuadTree(NewQuad(Vec2{0,0}, 1000))                
             profileEventQuadTreeBuilding := startProfileEvent(&profile, "QuadTree Building")
             {
-                for _, food := range app.foods {
-                    quadTree.Insert(food.Position, 42)
+                for foodId, food := range app.foods {
+                    quadTree.Insert(food.Position, foodId)
                 }
                 //PrintQuadTreeInfo(quadTree.GetInfo())
             }
@@ -1525,20 +1525,50 @@ func (app* Application) startUpdateLoop() {
             {
                 var buffer FoodBuffer
                 
-                for _, bot := range app.bots {
-                    for _, blob := range bot.Blobs {
+                for botId, bot := range app.bots {
+                    for blobId, blob := range bot.Blobs {
                         radius := Radius(blob.Mass)                    
                         blobQuad := NewQuad(Vec2{ blob.Position.X - radius, blob.Position.Y - radius }, 2*radius)
                         //fmt.Printf("%v\n", blobQuad) 
                         
                         quadTree.FindValuesInQuad(blobQuad, &buffer)
-                        
+                        /*
                         if buffer.count > 0 {
                             fmt.Printf("Count: %v\n", buffer.count)
                         }
+                        * */
+                        for i := 0; i < buffer.count; i = i + 1 {
+                            id, ok := buffer.values[i].(FoodId)
+                            if !ok {
+                                fmt.Printf("Notok!")
+                                os.Exit(1)
+                            }
+                            foodId := id
+                            food := app.foods[foodId]
+                            
+                            if Length(Sub(food.Position, blob.Position)) < blob.Radius() {
+                                blob.Mass = blob.Mass + food.Mass
+                                if food.IsThrown {
+                                    delete(app.foods, foodId)
+                                    eatenFoods = append(eatenFoods, foodId)
+                                } else {
+                                    pos := newFoodPos()
+                                    if pos != (Vec2{}) {
+                                        food.Position = pos
+                                        food.IsNew = true
+                                        app.foods[foodId] = food
+                                    } else {
+                                        delete(app.foods, foodId)
+                                        eatenFoods = append(eatenFoods, foodId)
+                                    }
+                                }
+                            }
+                        }
+                        bot.Blobs[blobId] = blob
                         
                         buffer.count = 0
                     }
+                    app.bots[botId] = bot
                 }
             }
             endProfileEvent(&profile, &profileEventQuadTreeSearching)
@@ -1555,8 +1585,10 @@ func (app* Application) startUpdateLoop() {
             
             
             profileEventEatingFood := startProfileEvent(&profile, "Eating Food")
+            /*
             for foodId, food := range app.foods {
                 // Bots eating food
+
 
                 for botId, bot := range app.bots {
                     for blobId, blob := range bot.Blobs {
@@ -1583,8 +1615,6 @@ func (app* Application) startUpdateLoop() {
                     app.bots[botId] = bot
                 }
 
-
-
                 // Toxins eating food (even if accidently!)
                 for tId, toxin := range app.toxins {
                     if food.IsThrown {
@@ -1607,6 +1637,7 @@ func (app* Application) startUpdateLoop() {
                     app.toxins[tId] = toxin
                 }
             }
+            */
             endProfileEvent(&profile, &profileEventEatingFood)
             
             profileEventEatingBlobs := startProfileEvent(&profile, "Eating Blobs")

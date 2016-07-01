@@ -331,7 +331,7 @@ func (empty *emptyNode) FindValuesInQuad(quad Quad, buffer ValueBuffer) {
 
 func (leaf *leafNode) FindValuesInQuad(quad Quad, buffer ValueBuffer) {
     if quadsOverlap(quad, leaf.quad) {
-        buffer.Append(leaf.entry)
+        buffer.Append(leaf.entry.value)
     }
 }
 
@@ -346,7 +346,7 @@ func (inner *innerNode) FindValuesInQuad(quad Quad, buffer ValueBuffer) {
 
 func (equal *equalNode) FindValuesInQuad(quad Quad, buffer ValueBuffer) {
     if quadsOverlap(quad, equal.quad) {
-        buffer.Append(equal.entry)
+        buffer.Append(equal.entry.value)
         equal.next.FindValuesInQuad(quad, buffer)
     }
 }
