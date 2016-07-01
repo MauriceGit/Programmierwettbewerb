@@ -959,7 +959,7 @@ func (app* Application) startUpdateLoop() {
 
                     var command Command
                     err := json.Unmarshal([]byte(commandString), &command)
-                    if err == nil  {
+                    if err == nil && (app.serverGuiVerified || command.Type == "Password") {
                         switch command.Type {
                         case "Password":
                             Logf(LtDebug, "The provided password is: %v \n", command.Password)
@@ -1030,7 +1030,9 @@ func (app* Application) startUpdateLoop() {
                             app.botDistributionName = command.Image
                         }
                     } else {
-                        Logf(LtDebug, "Err: %v\n", err.Error())
+                        if err != nil {
+                            Logf(LtDebug, "Err: %v\n", err.Error())
+                        }
                     }
                 }
 
@@ -1649,8 +1651,7 @@ func (app* Application) startUpdateLoop() {
             endProfileEvent(&profile, &profileEventSendDataToMiddlewareAndGui)
         }
 
-        if app.profiling && app.serverGuiIsConnected {
-            Logf(LtDebug, "Sending profile information\n")
+        if app.profiling && app.serverGuiIsConnected && app.serverGuiVerified {
             type NanosecondProfileEvent struct {
                 Name            string
                 Parent          int
@@ -1668,9 +1669,6 @@ func (app* Application) startUpdateLoop() {
             app.messagesToServerGui <- events
 
         }
-
-
-
     }
 }
 
@@ -1751,18 +1749,23 @@ func handleServerCommands(ws *websocket.Conn) {
     app.serverGuiIsConnected = true
 
     go func() {
-        Logf(LtDebug, "Starting stuff!\n")
+        Logf(LtDebug, "Starting ServerGui: %v\n", commandId)
         for {
-            //Logf(LtDebug, "--> Profile Message to serverGui\n")
-
-
             message := <- app.messagesToServerGui
+
+            // This is not the most current ServerGui any more!
+            if app.nextServerCommandId > commandId+1 {
+                Logf(LtDebug, "\n\nServerGui: %v is not the most current any more!\n\n", commandId)
+                // write the message back to the channel, so the other go routines can get it!
+                app.messagesToServerGui <- message
+                return
+            }
+
             if err := websocket.JSON.Send(ws, message); err != nil {
-                Logf(LtDebug, "ERROR when trying to send profiling information: %s\n", err.Error())
+                Logf(LtDebug, "ERROR when trying to send profiling information to %v: %s\n", commandId, err.Error())
                 app.serverGuiIsConnected = false
                 app.serverGuiVerified = false
                 ws.Close()
-                Logf(LtDebug, "RETURNED\n")
                 return
             }
 
@@ -1770,55 +1773,46 @@ func handleServerCommands(ws *websocket.Conn) {
     }()
 
     for {
+
         if connectionIsTerminated(app.runningState) {
             Logf(LtDebug, "HandleServerCommands is shutting down.\n")
             app.serverGuiIsConnected = false
             app.serverGuiVerified = false
-            //ws.Close()
+            ws.Close()
             return
         }
-
-        Logf(LtDebug, "getMessage 1\n")
 
         var message string
         if err := websocket.Message.Receive(ws, &message); err != nil {
-            Logf(LtDebug, "The command line with id: %v is closed because of: %v\n", commandId, err)
-            app.serverGuiIsConnected = false
+            Logf(LtDebug, "\n\nThe command line with id: %v is closed because of: %v\n\n", commandId, err)
+            ws.Close()
+
+            if app.nextServerCommandId == commandId+1 {
+                app.serverGuiIsConnected = false
+            }
             app.serverGuiVerified = false
-            //ws.Close()
-            return
-        }
-
-        Logf(LtDebug, "getMessage 2\n")
-
-        if !app.serverGuiIsConnected {
-            //ws.Close()
             return
         }
 
         app.serverCommands = append(app.serverCommands, message)
 
-        Logf(LtDebug, "getMessage 3, %v\n", app.serverGuiVerified)
-
         if !app.serverGuiVerified {
+            pw := <-app.serverGuiPasswordChannel
+            app.serverGuiVerified = checkPasswordAgainstFile(pw)
 
-            Logf(LtDebug, "What do we get here: AAAAAAAAAAAAAAAAAAAAH\n")
-            pw := <- app.serverGuiPasswordChannel
-
-            Logf(LtDebug, "What do we get here: %v\n", pw)
-
-            if !checkPasswordAgainstFile(pw) {
-                Logf(LtDebug, "The provided password %v is not correct!\n", pw)
-                app.serverGuiVerified = false
-                app.serverGuiIsConnected = false
-                //ws.Close()
-                return
+            if !app.serverGuiVerified {
+                if err := websocket.Message.Send(ws, "unsuccessfulLogin"); err != nil {
+                    Logf(LtDebug, "unsuccessfulLogin didnt work...%v\n", err)
+                    return
+                }
             } else {
-                app.serverGuiVerified = true
+                if err := websocket.Message.Send(ws, "successfulLogin"); err != nil {
+                    Logf(LtDebug, "successfulLogin didnt work...%v\n", err)
+                    return
+                }
             }
-        }
 
-        Logf(LtDebug, "getMessage 4\n")
+        }
     }
 
 

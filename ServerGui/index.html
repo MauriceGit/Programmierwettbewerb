@@ -36,7 +36,7 @@
                     }
                     sock.send(JSON.stringify({ type:"Password", password:pw }));
 
-                    console.log("send messge....");
+                    console.log("send message....");
 
                 }
 
@@ -44,6 +44,18 @@
                     console.log("connection closed (" + e.code + ")");
                 }
                 sock.onmessage = function(e) {
+
+                    if (e.data == "unsuccessfulLogin") {
+                        sock.close();
+                        console.log("unsuccessfulLogin");
+                        alert("The login was not successful. The websocket is closed.");
+                        return;
+                    }
+
+                    if (e.data == "successfulLogin") {
+                        alert("The login was successful.");
+                    }
+
                     var profile = $("#profile");
                     profile.empty();
                     var profileData = JSON.parse(e.data);
