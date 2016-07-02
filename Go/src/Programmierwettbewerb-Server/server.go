@@ -270,15 +270,13 @@ func (app* Application) initialize() {
 
     for i := FoodId(0); i < FoodId(app.settings.MaxNumberOfFoods); i++ {
         mass := foodMassMin + rand.Float32() * (foodMassMax - foodMassMin)
-        pos := newFoodPos()
-        if pos != (Vec2{}) {
+        if pos, ok := newFoodPos(); ok {
             app.foods[i] = Food{ true, false, false, BotId(0), mass, pos, RandomVec2() }
         }
     }
 
     for i := 0; i < app.settings.MaxNumberOfToxins; i++ {
-        pos := newToxinPos()
-        if pos != (Vec2{}) {
+        if pos, ok := newToxinPos(); ok {
             app.toxins[ToxinId(i)] = Toxin{true, false, pos, false, BotId(0), toxinMassMin, RandomVec2()}
         }
         // Mulv(RandomVec2(), app.fieldSize)
@@ -425,29 +423,27 @@ func makeURLSpawnName(name string) string {
 
 // -------------------------------------------------------------------------------------------------
 
-func newFoodPos() Vec2 {
-
+func newFoodPos() (Vec2, bool) {
     length := len(app.foodDistribution)
     if length == 0 {
-        return Vec2{}
+        return Vec2{}, false
     }
-    return app.foodDistribution[rand.Intn(length)]
+    return app.foodDistribution[rand.Intn(length)], true
 }
-func newToxinPos() Vec2 {
 
+func newToxinPos() (Vec2, bool) {
     length := len(app.toxinDistribution)
     if length == 0 {
-        return Vec2{}
+        return Vec2{}, false
     }
-    return app.toxinDistribution[rand.Intn(length)]
+    return app.toxinDistribution[rand.Intn(length)], true
 }
-func newBotPos() Vec2 {
-
+func newBotPos() (Vec2, bool) {
     length := len(app.botDistribution)
     if length == 0 {
-        return Vec2{}
+        return Vec2{}, false
     }
-    return app.botDistribution[rand.Intn(length)]
+    return app.botDistribution[rand.Intn(length)], true
 }
 
 func calcBlobVelocityFromMass(vel Vec2, mass float32) Vec2 {
@@ -612,7 +608,6 @@ func randomVecOnCircle(radius float32) Vec2 {
 }
 
 func explodeBlob(botId BotId, blobId BlobId, newMap *map[BlobId]Blob)  {
-
     blobCount := 12
     splitRadius := float32(3.0)
 
@@ -1207,17 +1202,15 @@ func (app* Application) startUpdateLoop() {
         ////////////////////////////////////////////////////////////////
         {
             profileEventAddFoodOrToxin := startProfileEvent(&profile, "Add Food Or Toxin")
-            if rand.Intn(100) <= 5 && len(app.toxins) < app.settings.MaxNumberOfToxins {
-                pos := newToxinPos()
-                if pos != (Vec2{}) {
+            if rand.Intn(100) <= 5 && len(app.toxins) < app.settings.MaxNumberOfToxins {                
+                if pos, ok := newToxinPos(); ok {
                     newToxinId := app.createToxinId()
                     app.toxins[newToxinId] = Toxin{true, false, pos, false, 0, toxinMassMin, RandomVec2()}
                 }
             }
             if rand.Intn(100) <= 5 && len(app.foods) < app.settings.MaxNumberOfFoods {
                 mass := foodMassMin + rand.Float32() * (foodMassMax - foodMassMin)
-                pos := newFoodPos()
-                if pos != (Vec2{}) {
+                if pos, ok := newFoodPos(); ok {
                     newFoodId := app.createFoodId()
                     app.foods[newFoodId] = Food{ true, false, false, 0, mass, pos, RandomVec2() }
                 }
@@ -1377,6 +1370,16 @@ func (app* Application) startUpdateLoop() {
 
         // Blob Collision with Toxin
         {
+            // QuadTree Building
+            profileEventQuadTreeBuilding := startProfileEvent(&profile, "QuadTree Building (Toxins)")
+            quadTree := NewQuadTree(NewQuad(Vec2{0, 0}, 1000))
+            {
+                for toxinId, toxin := range app.toxins {
+                    quadTree.Insert(toxin.Position, toxinId)
+                }
+            }
+            endProfileEvent(&profile, &profileEventQuadTreeBuilding)
+            
             profileEventCollisionWithToxin := startProfileEvent(&profile, "Collision with Toxin")
             for tId,toxin := range app.toxins {
                 var toxinIsEaten = false
@@ -1403,8 +1406,7 @@ func (app* Application) startUpdateLoop() {
                                     delete(app.toxins, tId)
                                     toxinIsEaten = true
                                 } else {
-                                    pos := newToxinPos()
-                                    if pos != (Vec2{}) {
+                                    if pos, ok := newToxinPos(); ok {
                                         toxin.Position = pos
                                         toxin.IsSplitBy = BotId(0)
                                         toxin.IsSplit = false
@@ -1439,10 +1441,8 @@ func (app* Application) startUpdateLoop() {
                             }
 
                             blobsToDelete = append(blobsToDelete, blobId)
-                            //eatenToxins = append(eatenToxins, tId)
 
-                            pos := newToxinPos()
-                            if pos != (Vec2{}) {
+                            if pos, ok := newToxinPos(); ok {
                                 toxin.Position = pos
                                 toxin.IsSplitBy = BotId(0)
                                 toxin.IsSplit = false
@@ -1453,7 +1453,6 @@ func (app* Application) startUpdateLoop() {
                                 delete(app.toxins, tId)
                                 toxinIsEaten = true
                             }
-                            //delete(app.toxins, tId)
                         }
                     }
 
@@ -1507,7 +1506,7 @@ func (app* Application) startUpdateLoop() {
         //
         {
             quadTree := NewQuadTree(NewQuad(Vec2{0,0}, 1000))                
-            profileEventQuadTreeBuilding := startProfileEvent(&profile, "QuadTree Building")
+            profileEventQuadTreeBuilding := startProfileEvent(&profile, "QuadTree Building (Foods)")
             {
                 for foodId, food := range app.foods {
                     quadTree.Insert(food.Position, foodId)
@@ -1543,8 +1542,7 @@ func (app* Application) startUpdateLoop() {
                                     delete(app.foods, foodId)
                                     eatenFoods = append(eatenFoods, foodId)
                                 } else {
-                                    pos := newFoodPos()
-                                    if pos != (Vec2{}) {
+                                    if pos, ok := newFoodPos(); ok {
                                         food.Position = pos
                                         food.IsNew = true
                                         app.foods[foodId] = food
@@ -1761,8 +1759,7 @@ func handleGui(ws *websocket.Conn) {
 }
 
 func createStartingBot(ws *websocket.Conn, botInfo BotInfo, statistics Statistics) Bot {
-    pos := newBotPos()
-    if pos != (Vec2{}) {
+    if pos, ok := newBotPos(); ok {
         blob := Blob {
             Position:       pos,  // TODO(henk): How do we decide this?
             Mass:           100.0,
