@@ -1506,7 +1506,7 @@ func (app* Application) startUpdateLoop() {
         }
 
         //
-        // Eating food (by bots and toxins!)
+        // Eating Foods
         //
         {
             quadTree := NewQuadTree(NewQuad(Vec2{0,0}, 1000))                
@@ -1515,34 +1515,28 @@ func (app* Application) startUpdateLoop() {
                 for foodId, food := range app.foods {
                     quadTree.Insert(food.Position, foodId)
                 }
-                //PrintQuadTreeInfo(quadTree.GetInfo())
             }
             endProfileEvent(&profile, &profileEventQuadTreeBuilding);
             
             
-            
-            profileEventQuadTreeSearching := startProfileEvent(&profile, "QuadTree Seaching")
+            //
+            // Blobs eating Foods
+            //
+            profileEventQuadTreeSearching := startProfileEvent(&profile, "QuadTree Seaching (Blobs eating Foods)")
             {
                 var buffer FoodBuffer
                 
                 for botId, bot := range app.bots {
                     for blobId, blob := range bot.Blobs {
-                        radius := Radius(blob.Mass)                    
+                        radius := Radius(blob.Mass)
                         blobQuad := NewQuad(Vec2{ blob.Position.X - radius, blob.Position.Y - radius }, 2*radius)
-                        //fmt.Printf("%v\n", blobQuad) 
                         
                         quadTree.FindValuesInQuad(blobQuad, &buffer)
-                        /*
-                        if buffer.count > 0 {
-                            fmt.Printf("Count: %v\n", buffer.count)
-                        }
-                        * */
+
+                        // Plow through the result of the query from the tree.
                         for i := 0; i < buffer.count; i = i + 1 {
-                            id, ok := buffer.values[i].(FoodId)
-                            if !ok {
-                                fmt.Printf("Notok!")
-                                os.Exit(1)
-                            }
+                            id, _ := buffer.values[i].(FoodId)
+
                             foodId := id
                             food := app.foods[foodId]
                             
@@ -1573,71 +1567,46 @@ func (app* Application) startUpdateLoop() {
             }
             endProfileEvent(&profile, &profileEventQuadTreeSearching)
             
-            
-            
-            TEST()
-            
-            
-            
-            
-            
-            
-            
-            
-            profileEventEatingFood := startProfileEvent(&profile, "Eating Food")
-            /*
-            for foodId, food := range app.foods {
-                // Bots eating food
+            //
+            // Toxins eating Foods
+            //
+            profileEventEatingFood := startProfileEvent(&profile, "QuadTree Searching (Toxins eating Foods)")
+            {
+                var buffer FoodBuffer
 
+                for tId, toxin := range app.toxins {
+                    radius := Radius(toxin.Mass)
+                    toxinQuad := NewQuad(Vec2{ toxin.Position.X - radius, toxin.Position.Y - radius }, 2*radius)
 
-                for botId, bot := range app.bots {
-                    for blobId, blob := range bot.Blobs {
+                    quadTree.FindValuesInQuad(toxinQuad, &buffer)                
+                    
+                    for i := 0; i < buffer.count; i = i + 1 {
+                        foodId, _ := buffer.values[i].(FoodId)
+                        food := app.foods[foodId]
+                        
+                        if food.IsThrown {
+                            if Length(Sub(food.Position, toxin.Position)) < Radius(toxin.Mass) {
+                                toxin.Mass = toxin.Mass + food.Mass
+                                // Always get the velocity of the last eaten food so the toxin (when split)
+                                // gets the right velocity of the last input.
+                                if Length(food.Velocity) <= 0.01 {
+                                    food.Velocity = RandomVec2()
+                                }
+                                toxin.IsSplitBy = food.IsThrownBy
+                                //Logf(LtDebug, "Food is thrown by %v\n", toxin.IsSplitBy)
+                                toxin.Velocity = Muls(NormalizeOrZero(food.Velocity), 100)
 
-                        if Length(Sub(food.Position, blob.Position)) < blob.Radius() {
-                            blob.Mass = blob.Mass + food.Mass
-                            if food.IsThrown {
                                 delete(app.foods, foodId)
                                 eatenFoods = append(eatenFoods, foodId)
-                            } else {
-                                pos := newFoodPos()
-                                if pos != (Vec2{}) {
-                                    food.Position = pos
-                                    food.IsNew = true
-                                    app.foods[foodId] = food
-                                } else {
-                                    delete(app.foods, foodId)
-                                    eatenFoods = append(eatenFoods, foodId)
-                                }
+
                             }
-                        }
-                        bot.Blobs[blobId] = blob
-                    }
-                    app.bots[botId] = bot
-                }
-
-                // Toxins eating food (even if accidently!)
-                for tId, toxin := range app.toxins {
-                    if food.IsThrown {
-                        if Length(Sub(food.Position, toxin.Position)) < Radius(toxin.Mass) {
-                            toxin.Mass = toxin.Mass + food.Mass
-                            // Always get the velocity of the last eaten food so the toxin (when split)
-                            // gets the right velocity of the last input.
-                            if Length(food.Velocity) <= 0.01 {
-                                food.Velocity = RandomVec2()
-                            }
-                            toxin.IsSplitBy = food.IsThrownBy
-                            //Logf(LtDebug, "Food is thrown by %v\n", toxin.IsSplitBy)
-                            toxin.Velocity = Muls(NormalizeOrZero(food.Velocity), 100)
-
-                            delete(app.foods, foodId)
-                            eatenFoods = append(eatenFoods, foodId)
-
                         }
                     }
                     app.toxins[tId] = toxin
+                    
+                    buffer.count = 0
                 }
             }
-            */
             endProfileEvent(&profile, &profileEventEatingFood)
             
             profileEventEatingBlobs := startProfileEvent(&profile, "Eating Blobs")
