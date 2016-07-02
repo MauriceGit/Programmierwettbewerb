@@ -896,9 +896,6 @@ func (buffer *FoodBuffer) Append(value interface{}) {
     if buffer.count + 1 < foodBufferSize {
         buffer.values[buffer.count] = value
         buffer.count += 1
-    } else {
-        fmt.Printf("No capacity\n")
-        os.Exit(1)
     }
 }
 
