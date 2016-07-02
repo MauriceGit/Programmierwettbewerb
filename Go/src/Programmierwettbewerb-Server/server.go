@@ -1371,6 +1371,7 @@ func (app* Application) startUpdateLoop() {
         // Blob Collision with Toxin
         {
             // QuadTree Building
+            /*
             profileEventQuadTreeBuilding := startProfileEvent(&profile, "QuadTree Building (Toxins)")
             quadTree := NewQuadTree(NewQuad(Vec2{0, 0}, 1000))
             {
@@ -1379,6 +1380,7 @@ func (app* Application) startUpdateLoop() {
                 }
             }
             endProfileEvent(&profile, &profileEventQuadTreeBuilding)
+            */
             
             profileEventCollisionWithToxin := startProfileEvent(&profile, "Collision with Toxin")
             for tId,toxin := range app.toxins {
