@@ -1711,7 +1711,7 @@ func (app* Application) startUpdateLoop() {
             endProfileEvent(&profile, &profileEventSendDataToMiddlewareAndGui)
         }
 
-        if app.profiling && app.serverGuiIsConnected && app.serverGuiVerified {
+        if false && app.profiling && app.serverGuiIsConnected && app.serverGuiVerified {
             type NanosecondProfileEvent struct {
                 Name            string
                 Parent          int
