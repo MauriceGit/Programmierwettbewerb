@@ -61,7 +61,7 @@ func pullSVN(pathToSvn string) {
     // This will be "svn update" in the end
     //cmd := exec.Command("git", "pull")
     // This is just for debugging purposes!
-    cmd := exec.Command("svn update")
+    cmd := exec.Command("svn", "update")
     cmd.Dir = pathToSvn
     output, err := cmd.CombinedOutput() // returnes: output, err := ...
     printError(err)
