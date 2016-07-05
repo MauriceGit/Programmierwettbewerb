@@ -1407,7 +1407,7 @@ func (app* Application) startUpdateLoop() {
                         if Dist(singleBlob.Position, toxin.Position) < singleBlob.Radius() && singleBlob.Mass >= minBlobMassToExplode {
 
                             // If a bot already has > 10 blobs (i.e.), don't explode, eat it!!
-                            if len(bot.Blobs) > maxBlobCountToExplode {
+                            if len(bot.Blobs) > maxBlobCountToExplode && !toxin.IsSplit {
                                 if toxin.IsSplit || len(app.toxins) >= app.settings.MaxNumberOfToxins {
                                     eatenToxins = append(eatenToxins, tId)
                                     delete(app.toxins, tId)

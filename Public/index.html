@@ -316,25 +316,48 @@
             </div>
             <div>
                 <h3>Einzuhaltende Vorgaben</h3>
-                <p>
-                    Jedes SVN-Repository enthält eine Datei: 'bot.names'. Diese kann beliebig editiert werden und enthält pro Zeile einen
-                    Namen, unter denen ihr euren Bot auf unserem Server testen könnt (siehe das <i>-name</i> flag der Middleware).
-                <p>
-                <p>
-                    Bots mit Namen, welche nicht in der (hochgeladenen) bot.names auftauchen, werden vom Server abgewiesen.
-                <p>
-                <p>
-                    Um eine Eindeutigkeit zu gewährleisten, denkt euch bitte eindeutige Namen aus oder nutzt einen originellen Prefix für
-                    eure Bots.
-                <p>
-                <p>
-                    Bitte nehmt davon Abstand, unter fremden Namen zu testen. Wiederholtes Verletzen dieser Regel kann zur Disqualifikation
-                    führen (Ja, wir loggen alle Daten dazu ;)).
-                <p>
-                <p>
-                    Grund dafür ist, dass wir auf dem Server Statistiken für jedes Repository führen. Gleichzeitig möchten wir die Möglichkeit bieten,
-                    anonym zu testen, dass andere Mitspieler nicht wissen, von wem der großartige Super-Bot grade ist, der alles auf dem Server auffrisst :)
-                <p>
+                <ul>
+                    <li> <b>Executable:</b>
+                        <p>
+                            In eurem SVN-Repository muss eine (auf 64-Bit Linux) ausführbare Datei liegen, welche euren Bot startet.
+                        <p>
+                        <p>
+                            (Theoretisch reicht es, wenn diese zur Austragung vorhanden ist. Allerdings möchten wir Gruppen-Tests mit allen
+                            lauffähigen Bots durchführen und würden uns freuen, wenn ihr die Datei bereitstellt, sobald etwas bei euch läuft)
+                        <p>
+                        <p>
+                            Diese muss den Namen eures SVN-Repositories tragen und darf eine beliebige Endung haben. Also beispielsweise:
+                            <i><b>svn_09.py</b></i> oder <i><b>svn_09.sh</b></i> oder <i><b>svn_09</b></i>.
+                        <p>
+                        <p>
+                            Wenn ihr einen Interpreter wie z.B. Java starten möchtet, bietet es sich an, euer Programm in ein kurzes Shell-Skript zu
+                            verpacken und StdIn/StdOut durch-zu-reichen.
+                        <p>
+                    </li>
+                    <li> <b>Bot-Namen:</b>
+                         <p>
+                            Jedes SVN-Repository enthält eine Datei: 'bot.names'. Diese kann beliebig editiert werden und enthält pro Zeile einen
+                            Namen, unter denen ihr euren Bot auf unserem Server testen könnt (siehe das <i>-name</i> flag der Middleware).
+                        <p>
+                        <p>
+                            Bots mit Namen, welche nicht in der (hochgeladenen) bot.names auftauchen, werden vom Server abgewiesen.
+                        <p>
+                        <p>
+                            Um eine Eindeutigkeit zu gewährleisten, denkt euch bitte eindeutige Namen aus oder nutzt einen originellen Prefix für
+                            eure Bots.
+                        <p>
+                        <p>
+                            Bitte nehmt davon Abstand, unter fremden Namen zu testen. Wiederholtes Verletzen dieser Regel kann zur Disqualifikation
+                            führen (Ja, wir loggen alle Daten dazu ;)).
+                        <p>
+                        <p>
+                            Grund dafür ist, dass wir auf dem Server Statistiken für jedes Repository führen. Gleichzeitig möchten wir die Möglichkeit bieten,
+                            anonym zu testen, dass andere Mitspieler nicht wissen, von wem der großartige Super-Bot grade ist, der alles auf dem Server auffrisst :)
+                        <p>
+                    </li>
+                </ul>
+
+
             </div>
 
             <h1 class="offset">Datenformate</h1>
