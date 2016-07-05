@@ -11,7 +11,7 @@
             .jumbotron {
                 background-image: url(Images/GameSample.jpg);
                 color: white;
-            }  
+            }
             .hidden {
                 display:none;
             }
@@ -27,41 +27,41 @@
         </style>
         <script>
             var currentView = "";
-            
+
             var views = {
                 "home": { button:"#mnuHome", htmlContainer:"#mainHTML" },
                 "rules": { button:"#mnuRules", htmlContainer:"#rulesHTML" },
                 "botDevelopment": { button:"#mnuBotDevelopment", htmlContainer:"#botDevelopmentHTML" },
                 "simulations": { button:"#mnuSimulations", htmlContainer:"#simulationsHTML" },
             };
-        
-            function openView(name) {                
+
+            function openView(name) {
                 var mainContainer = $("#container");
-                
+
                 if (currentView != "") {
-                    var previousHtmlContainer = $(views[currentView].htmlContainer);                    
-                    var previousButton = $(views[currentView].button);                    
-                    
+                    var previousHtmlContainer = $(views[currentView].htmlContainer);
+                    var previousButton = $(views[currentView].button);
+
                     previousHtmlContainer.html(mainContainer.children());
                     previousButton.removeClass("active");
                 }
-                
+
                 var currentHtmlContainer = $(views[name].htmlContainer);
                 var currentButton = $(views[name].button);
 
-                mainContainer.html(currentHtmlContainer.children());                
+                mainContainer.html(currentHtmlContainer.children());
                 currentButton.addClass("active");
-                
+
                 currentView = name;
             }
-            
+
             $(window).load(function(){
                 openView("home");
-                
+
                 function handlerMaker(view) {
                     return function() { openView(view); };
                 }
-                
+
                 for (var view in views) {
                     if (views.hasOwnProperty(view)) {
                         $(views[view].button).click(handlerMaker(view));
@@ -74,37 +74,205 @@
         <div id="mainHTML" class="hidden">
             <div id="jumbotron" class="jumbotron">
                 <h1>Agar.io</h1>
-                <p>FH Wedel - Programmierwettbewerb Wintersemenster 2016</p> 
+                <p>FH Wedel - Programmierwettbewerb Wintersemenster 2016</p>
             </div>
             <a type="button" class="btn btn-success btn-block" href="game.html">Zum Spiel!</a>
         </div>
+
         <div id="rulesHTML" class="hidden">
             <div class="row">
-                <div class="col-sm-4">
-                    <h3>Regel 1</h3>
-                    <p>Lorem ipsum dolor sit amet, consectetur adipisicing elit...</p>
-                    <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris...</p>
+                <div class=".col-sm-4 .col-md-3">
+                    <h3><b>Ziel des Spiels</b></h3>
+                    <p>
+                        Das Spiel ist sehr stark dem originalen <a href="http://www.agar.io">Agar.io</a> nachempfunden.
+                        Ziel des Spiels ist es, möglichst lange zu überleben und möglichst viel Masse aufzubauen.
+                    </p>
+                    <p>
+                        Dies wird erreicht, indem man Futter (grau) oder/und andere Spieler frisst.
+                    </p>
+                    <p style="color:#808080"><small>
+                        Für den Wettbewerb werden die Größe und Überlebenszeit nicht die einzigen Gewinn-Kriterien bleiben.
+                        Weitere mögliche Gewinn-Kriterien können sein:
+                        <ul style="color:#808080">
+                            <li>Aggressivität</li>
+                            <li>Anzahl gefressener Gegnerischer Blobs</li>
+                            <li>Anzahl gefressener Gegner (dass dieser ausscheidet)</li>
+                            <li>Anzahl erfolgreiches Teilen (Gegnerische Blobs werden dabei gefressen)</li>
+                            <li>Wie oft erfolgreich Gift in einen Gegner 'geworfen' wurde</li>
+                            <li>Wie gut der Bot im Team spielt (__Noch nicht final!__)</li>
+                            <li>...</li>
+                        </ul>
+                    </small></p>
                 </div>
                 <div class="col-sm-4">
-                    <h3>Regel 2</h3>
-                    <p>Lorem ipsum dolor sit amet, consectetur adipisicing elit...</p>
-                    <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris...</p>
+                    <h3><b>Steuerung</b></h3>
+                    <p>
+                        Alle Blobs eures Programms werden als eine Einheit gesteuert und bewegen sich zu der
+                        zuletzt genannten Zielposition (Letzte Ausgabe eures Programms).
+                        Dabei können Blobs im Normalfall nicht ineinander fahren und werden vom Server bei einer Kollision
+                        wieder auseinander geschoben.
+                    </p>
+                    <p style="color:#808080"><small>
+                        Die zuletzt genannte Zielposition wird beibehalten, bis sich euer Programm wieder meldet.
+                        So ist es in Ordnung, wenn ihr länger für eine Berechnung braucht. Der Server nutzt in jedem Schritt
+                        dann die alten Ziel-Koordinaten, bis diese erreicht wurden.
+                    </small></p>
+                    <p style="color:#808080"><small>
+                        Euer Programm bekommt danach wieder die aktuellsten Daten und überspringt dabei eventuell die Informationen
+                        von ein paar Frames (Dies ist im Normallfall unkritisch). Es wird keine Queue aufgebaut.
+                    </small></p>
                 </div>
                 <div class="col-sm-4">
-                    <h3>Regel 3</h3>
-                    <p>Lorem ipsum dolor sit amet, consectetur adipisicing elit...</p>
-                    <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris...</p>
+                    <h3><b>Wann kann ich was fressen?</b></h3>
+                    <ul>
+                        <li>Futter kann immer gefressen werden.</li>
+                        <li>Gegnerische Blobs können gefressen werden, sobald der eigene Blob mindestens 10% größer ist.</li>
+                        <li>
+                            Gift kann gefressen werden, wenn man insgesamt aus mehr als 10 Blobs besteht!
+                            <p style="color:#808080"><small>Ausnahme: Das Gift wurde von einem anderen Spieler geteilt. Dann explodiert man trotzdem.</small></p>
+                        </li>
+                    </ul>
+
+                </div>
+                <div class="col-sm-4">
+                    <h3><b>Aktionen</b></h3>
+                    <ul>
+                        <li>
+                            None
+                            <p>Man fährt ganz normal zu den gewählten Koordinaten</p>
+                        </li>
+                        <li>
+                            Split
+                            <p>
+                                Alle eigenen Blobs mit einer Größe von >= 100, teilen sich in Richtung der Ziel-Koordinaten.
+                                Die geteilten und neuen Blobs haben danach 50% der ursprungs-Masse. Die gesamtmasse bleibt also gleich.
+                            </p>
+                            <p style="color:#808080"><small>
+                                Die neuen Blobs bekommen eine Beschleunigung in Richtung der Ziel-Koordinaten, die mit der Zeit abnimmt.
+                            </small></p>
+                        </li>
+                        <li>
+                            Throw
+                            <p>
+                                Alle eigenen Blobs mit einer Größe von >= 100, werfen ein Futter in Richtung der Ziel-Koordinaten.
+                                Dieses verhält sich wie normales Futter.
+                            </p>
+                            <p style="color:#808080"><small>
+                                Das Futter hat eine Masse von 10. Die Masse wird von den eigenen Blobs abgezogen.
+                            </small></p>
+                            <p style="color:#808080"><small>
+                                Das Futter bekommt eine Beschleunigung in Richtung der Ziel-Koordinaten, die mit der Zeit abnimmt.
+                            </small></p>
+                        </li>
+
+                    </ul>
+                </div>
+                <div class="col-sm-4">
+                    <h3><b>Kollision eines Blobs mit Gift</b></h3>
+                    <ul>
+                        <li>
+                            Gift kann gefressen werden, wenn man aus mehr als 10 Blobs besteht (Und mehr als 400 Masse hat).
+                        </li>
+                        <li>
+                            Nichts passiert, wenn der Blob weniger als 400 Masse hat.
+                        </li>
+                        <li>
+                            In allen anderen Fällen explodiert der Blob in 12 gleichgroße Blobs.
+                            <p style="color:#808080"><small>
+                                Das Gift wird dabei gelöscht und ist nicht mehr vorhanden.
+                            </small></p>
+                            <p style="color:#808080"><small>
+                                Alle neuen Blobs bekommen eine Beschleunigung in zufällige Richtungen, die mit der Zeit abnimmt.
+                            </small></p>
+                        </li>
+                    </ul>
+                </div>
+                <div class="col-sm-4">
+                    <h3><b>Wiedervereinigen von Blobs</b></h3>
+                    <p>
+                        Blobs, die explodieren sind oder beim Teilen entstanden sind, können sich erst nach einer gewissen Zeit wiedervereinigen.
+                    </p>
+                    <p>
+                        Die Wiedervereinigen von Blobs passiert automatisch.
+                    </p>
+                    <p style="color:#808080"><small>
+                        Geteilte oder explodierte Blobs bekommen einen Zeitraum zugewiesen (dieser kann sich evtl. aufaddieren), für den sie sich nicht wieder vereinigen
+                        können. Nach Ablauf dieser Zeit findet eine Wiedervereinigung mit einem anderen eigenen Blob statt (nur bei Kontakt).
+                    </small></p>
+                    <p style="color:#808080"><small>
+                        Der Zeitraum bis zu einer Wiedervereinigung beträgt 10 Sekunden.
+                    </small></p>
+                </div>
+                <div class="col-sm-4">
+                    <h3><b>Ein Gift gezielt teilen</b></h3>
+                    <p>
+                        Gift ist in der Lage, Futter zu fressen.
+                    </p>
+                    <p>
+                        Gift mit einer Masse von > 119 teilt sich in die gegensätzliche Richtung, von der das letzte Futter kam.
+                    </p>
+                    <p style="color:#808080"><small>
+                        Die Grundmasse von Gift ist 100. Ein Gift teilt sich also nach Aufnahme von 2 Futter.
+                    </small></p>
+                    <p style="color:#808080"><small>
+                        Dieser Umstand kann gezielt genutzt werden, um große, gegnerische Blobs, zum Explodieren zu bringen.
+                    </small></p>
+                    <p style="color:#808080"><small>
+                        Um Futter in das Gift zu 'pumpen', ist es am Einfachsten, auf das Gift zu zufahren und dabei >=2x in Folge
+                        Futter abzugeben (Throw).
+                    </small></p>
+                    <p style="color:#808080"><small>
+                        Das neue Gift bekommt eine Beschleunigung, welche mit der Zeit abnimmt.
+                    </small></p>
+                </div>
+                <div class="col-sm-4">
+                    <h3><b>Allgemeines</b></h3>
+                    <p>
+                        Je größer Blobs sind, desto langsamer werden sie.
+                    </p>
+                    <p>
+                        Jeder Bot sieht nur einen kleinen Ausschnitt des Spielfeldes (Sichtfenster).
+                    </p>
+                    <p>
+                        Je größer die Gesamtmasse eines Bots ist, desto größer ist das Sichtfenster des Bots.
+                    </p>
+                    <p>
+                        Ein Bot kann nie aus mehr als 18 Blobs bestehen.
+                    </p>
+                </div>
+                <div class="col-sm-4">
+                    <h3><b>Tipps</b></h3>
+                    <p>
+                        Um kleinere Gegner zu fressen, man kann sich in die Richtung des Gegners teilen und so diesen evtl. einholen und fressen.
+                    </p>
+                    <p>
+                        Man kann versuchen, Gegner in eine Ecke oder den Rand des Spielfeldes zu drängen.
+                    </p>
+                    <p>
+                        Wenn ein Blob explodiert ist, ist er leichtes Futter und für eine gewisse Zeit (relativ) wehrlos.
+                    </p>
+                    <p>
+                        Wenn man sich teilt, ist man schneller (weil kleiner).
+                    </p>
+                    <p>
+                        Wenn sich ein Gegner teilt, um einen zu fressen, kann man meistens überleben, indem man sich auch teilt, um zumindest die Hälfte
+                        der eigenen Blobs zu retten.
+                    </p>
+                    <p>
+
+                    </p>
                 </div>
             </div>
         </div>
+
         <div id="botDevelopmentHTML" class="hidden">
             <h1>Einleitung</h1>
             <hr>
             <div>
                 <p>
-                    Alle Berechnungen zur Änderung des Spielzustands werden von einem Server übernommen. Pro Berechnungsschritt übermittelt 
+                    Alle Berechnungen zur Änderung des Spielzustands werden von einem Server übernommen. Pro Berechnungsschritt übermittelt
                     dieser euren Bots den aktuellen Spielzustand, den ihr anschließend auswerten und in ein Kommando übersetzen müsst. Dieses müsst ihr
-                    dem Server zurückschicken, um die nächste Handlung eures Bots bekannt zu geben. 
+                    dem Server zurückschicken, um die nächste Handlung eures Bots bekannt zu geben.
                 <p>
                 </p>
                     Damit ihr euch keine Gedanken, um die konkrete Übertragung von Daten zum Server machen müsst, haben wir ein kleines Program geschrieben, das euch diese Aufgabe abnimmt. Diese
@@ -115,6 +283,14 @@
                 <p>Zum Testen startet ihr eure Bots wie folgt:</p>
                 <pre>
 ./Programmierwettbewerb-Middleware -bot=myBot -name=myName</pre>
+                <p>Das Verwenden der Middleware erfordert keinerlei Installation.</p>
+                <p>Die Middleware erwartet eine direkt ausführbare Datei als <i>-bot</i> -Argument.</p>
+                <p>Die Middleware ist für ein 64-Bit Linux kompiliert.</p>
+                <p>Die Middleware kann natürlich selbst kompiliert werden. Folgt dabei bitte den Informationen unseres Github-Repositories (Link oben rechts).</p>
+                <p>
+                    Ihr könnt euch die
+                </p>
+
             </div>
             <h1 class="offset">Datenformate</h1>
             <hr>
@@ -194,7 +370,7 @@ type Output     = (BlobAction, Position)</pre>
                 </div>
             </div>
             <p>Bitte sagt Bescheid, wenn ihr weitere Sprachen kennt, mit denen dieses Format leicht zu parsen ist. Wenn ihr eure Parser anderen Teilnehmern bereitstellen wollt, nehmen wir diese natürlich auch gerne in diese Auflistung auf.</p>
-            <h1 class="offset">Beispiel-Bots</h1>            
+            <h1 class="offset">Beispiel-Bots</h1>
             <hr>
             <div class="row">
                 <div class="col-sm-6">
@@ -203,7 +379,7 @@ type Output     = (BlobAction, Position)</pre>
 def process(data) {
      // TODO: Calculate the target and action of your bot!
 }
-                    
+
 while (1):
     line = sys.stdin.readline()
     data = eval(line)
@@ -313,17 +489,17 @@ int main() {
             <div id="navbar" class="navbar-collapse collapse">
                 <ul class="nav navbar-nav">
                     <li class="active" id="mnuHome"><a href="#">Home</a></li>
-                    <!--<li id="mnuRules"><a href="#">Spielregeln</a></li>-->
+                    <li id="mnuRules"><a href="#">Spielregeln</a></li>
                     <li id="mnuBotDevelopment"><a href="#">Bot-Entwicklung</a></li>
                     <!--<li id="mnuSimulations"><a href="#">Server-Simulationen</a></li>-->
                 </ul>
                 <ul class="nav navbar-nav navbar-right">
-                    <li><a href="https://github.com/hpatjens/Programmierwettbewerb">Repository</a></li>                    
+                    <li><a href="https://github.com/hpatjens/Programmierwettbewerb">Repository</a></li>
                 </ul>
             </div><!--/.nav-collapse -->
             </div>
         </nav>
-        
+
         <div id="container" class="container">
         </div>
     </body>

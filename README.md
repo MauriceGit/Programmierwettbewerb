@@ -6,6 +6,8 @@
 
 Execute make.sh in the repository.
 
-### Windows ###
+### Information ####
 
-Execute make.bat in the repository.
+For additional information, see the following link:
+
+[http://cagine.fh-wedel.de:8080/](http://cagine.fh-wedel.de:8080/)

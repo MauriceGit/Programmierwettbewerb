@@ -38,7 +38,7 @@ const (
     foodMassMin = 8
     foodMassMax = 12
     thrownFoodMass = 10
-    massToBeAllowedToThrow = 120
+    massToBeAllowedToThrow = 100
     botMinMass = 10
     botMaxMass = 10000.0
     blobReunionTime = 10.0
@@ -891,7 +891,7 @@ type FoodBuffer struct {
     count       int
 }
 
-func (buffer *FoodBuffer) Append(value interface{}) {    
+func (buffer *FoodBuffer) Append(value interface{}) {
     if buffer.count + 1 < foodBufferSize {
         buffer.values[buffer.count] = value
         buffer.count += 1
@@ -1207,7 +1207,7 @@ func (app* Application) startUpdateLoop() {
         ////////////////////////////////////////////////////////////////
         {
             profileEventAddFoodOrToxin := startProfileEvent(&profile, "Add Food Or Toxin")
-            if rand.Intn(100) <= 5 && len(app.toxins) < app.settings.MaxNumberOfToxins {                
+            if rand.Intn(100) <= 5 && len(app.toxins) < app.settings.MaxNumberOfToxins {
                 if pos, ok := newToxinPos(); ok {
                     newToxinId := app.createToxinId()
                     app.toxins[newToxinId] = Toxin{true, false, pos, false, 0, toxinMassMin, RandomVec2()}
@@ -1386,7 +1386,7 @@ func (app* Application) startUpdateLoop() {
             }
             endProfileEvent(&profile, &profileEventQuadTreeBuilding)
             */
-            
+
             profileEventCollisionWithToxin := startProfileEvent(&profile, "Collision with Toxin")
             for tId,toxin := range app.toxins {
                 var toxinIsEaten = false
@@ -1512,7 +1512,7 @@ func (app* Application) startUpdateLoop() {
         // Eating Foods
         //
         {
-            quadTree := NewQuadTree(NewQuad(Vec2{0,0}, 1000))                
+            quadTree := NewQuadTree(NewQuad(Vec2{0,0}, 1000))
             profileEventQuadTreeBuilding := startProfileEvent(&profile, "QuadTree Building (Foods)")
             {
                 for foodId, food := range app.foods {
@@ -1520,20 +1520,20 @@ func (app* Application) startUpdateLoop() {
                 }
             }
             endProfileEvent(&profile, &profileEventQuadTreeBuilding);
-            
-            
+
+
             //
             // Blobs eating Foods
             //
             profileEventQuadTreeSearching := startProfileEvent(&profile, "QuadTree Seaching (Blobs eating Foods)")
             {
                 var buffer FoodBuffer
-                
+
                 for botId, bot := range app.bots {
                     for blobId, blob := range bot.Blobs {
                         radius := Radius(blob.Mass)
                         blobQuad := NewQuad(Vec2{ blob.Position.X - radius, blob.Position.Y - radius }, 2*radius)
-                        
+
                         quadTree.FindValuesInQuad(blobQuad, &buffer)
 
                         // Plow through the result of the query from the tree.
@@ -1542,7 +1542,7 @@ func (app* Application) startUpdateLoop() {
 
                             foodId := id
                             food := app.foods[foodId]
-                            
+
                             if Length(Sub(food.Position, blob.Position)) < blob.Radius() {
                                 blob.Mass = blob.Mass + food.Mass
                                 if food.IsThrown {
@@ -1561,14 +1561,14 @@ func (app* Application) startUpdateLoop() {
                             }
                         }
                         bot.Blobs[blobId] = blob
-                        
+
                         buffer.count = 0
                     }
                     app.bots[botId] = bot
                 }
             }
             endProfileEvent(&profile, &profileEventQuadTreeSearching)
-            
+
             //
             // Toxins eating Foods
             //
@@ -1580,12 +1580,12 @@ func (app* Application) startUpdateLoop() {
                     radius := Radius(toxin.Mass)
                     toxinQuad := NewQuad(Vec2{ toxin.Position.X - radius, toxin.Position.Y - radius }, 2*radius)
 
-                    quadTree.FindValuesInQuad(toxinQuad, &buffer)                
-                    
+                    quadTree.FindValuesInQuad(toxinQuad, &buffer)
+
                     for i := 0; i < buffer.count; i = i + 1 {
                         foodId, _ := buffer.values[i].(FoodId)
                         food := app.foods[foodId]
-                        
+
                         if food.IsThrown {
                             if Length(Sub(food.Position, toxin.Position)) < Radius(toxin.Mass) {
                                 toxin.Mass = toxin.Mass + food.Mass
@@ -1605,12 +1605,12 @@ func (app* Application) startUpdateLoop() {
                         }
                     }
                     app.toxins[tId] = toxin
-                    
+
                     buffer.count = 0
                 }
             }
             endProfileEvent(&profile, &profileEventEatingFood)
-            
+
             profileEventEatingBlobs := startProfileEvent(&profile, "Eating Blobs")
             for botId1, bot1 := range app.bots {
 
@@ -1669,7 +1669,7 @@ func (app* Application) startUpdateLoop() {
                 bot1.StatisticsThisGame = stats
                 app.bots[botId1] = bot1
             }
-            endProfileEvent(&profile, &profileEventEatingBlobs)            
+            endProfileEvent(&profile, &profileEventEatingBlobs)
         }
 
         ////////////////////////////////////////////////////////////////
