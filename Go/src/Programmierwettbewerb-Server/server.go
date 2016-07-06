@@ -448,7 +448,7 @@ func newBotPos() (Vec2, bool) {
         return Vec2{}, false
     }
     // Check, that the player doesn't spawn inside another blob!
-    for {
+    for i := 1; i < 10; i++{
         pos := app.botDistribution[rand.Intn(length)]
         if len(app.bots) == 0 {
             return pos, true
