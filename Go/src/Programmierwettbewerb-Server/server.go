@@ -447,7 +447,28 @@ func newBotPos() (Vec2, bool) {
     if length == 0 {
         return Vec2{}, false
     }
-    return app.botDistribution[rand.Intn(length)], true
+    // Check, that the player doesn't spawn inside another blob!
+    for {
+        pos := app.botDistribution[rand.Intn(length)]
+        if len(app.bots) == 0 {
+            return pos, true
+        }
+        allGood := true
+        for _,bot := range(app.bots) {
+            for _,blob := range(bot.Blobs) {
+                var dist = Dist(pos, blob.Position)
+                var minDist  = blob.Radius() + 30
+
+                if minDist > dist {
+                    allGood = false
+                }
+            }
+        }
+        if allGood {
+            return pos, true
+        }
+    }
+    return Vec2{}, false
 }
 
 func calcBlobVelocityFromMass(vel Vec2, mass float32) Vec2 {
@@ -778,7 +799,8 @@ func sendDataToMiddleware(mWMessageCounter int, finished chan bool) {
 }
 
 func sendDataToGui( guiMessageCounter int, guiStatisticsMessageCounter int, deadBots []BotId, eatenFoods []FoodId, eatenToxins []ToxinId,
-                    guiConnections map[GuiId]GuiConnection, bots map[BotId]Bot, toxins map[ToxinId]Toxin, foods map[FoodId]Food) {
+                    guiConnections map[GuiId]GuiConnection, bots map[BotId]Bot, toxins map[ToxinId]Toxin, foods map[FoodId]Food,
+                    finished chan bool) {
 
     // Pre-calculate the list for eaten Toxins
     //reallyDeadToxins := make([]ToxinId, 0)
@@ -852,6 +874,7 @@ func sendDataToGui( guiMessageCounter int, guiStatisticsMessageCounter int, dead
             //return
         }
     }
+    finished <- true
 
 }
 
@@ -1668,6 +1691,8 @@ func (app* Application) startUpdateLoop() {
             ////////////////////////////////////////////////////////////////
 
             sendDataMWFinished  := make(chan bool)
+            sendDataGuiFinished  := make(chan bool)
+
             go sendDataToMiddleware(mWMessageCounter, sendDataMWFinished)
 
             // Copy everything and send those to the gui! So it is completely asynchrone!
@@ -1687,9 +1712,10 @@ func (app* Application) startUpdateLoop() {
             for k,v := range app.foods {
                 foodsCpy[k] = v
             }
-            go sendDataToGui(guiMessageCounter, guiStatisticsMessageCounter, deadBots, eatenFoods, eatenToxins, guiConnectionsCpy, botsCpy, toxinsCpy, foodsCpy)
+            go sendDataToGui(guiMessageCounter, guiStatisticsMessageCounter, deadBots, eatenFoods, eatenToxins, guiConnectionsCpy, botsCpy, toxinsCpy, foodsCpy, sendDataGuiFinished)
 
             <- sendDataMWFinished
+            <- sendDataGuiFinished
 
             for toxinId, toxin := range app.toxins {
                 if toxin.IsNew {
