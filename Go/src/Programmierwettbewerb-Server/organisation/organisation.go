@@ -45,15 +45,15 @@ func updateAllData()  {
     //Logf(LtDebug, "Results: %v\n", playerData)
 }
 
-func printError(err error) {
+func printError(err error, path string) {
     if err != nil {
-        Logf(LtDebug, "==> Error: %s\n", err.Error())
+        Logf(LtDebug, "==> Error for %s: %s\n", path, err.Error())
     }
 }
 
-func printOutput(outs []byte) {
+func printOutput(outs []byte, path string) {
     if len(outs) > 0 {
-        Logf(LtDebug, "==> Output: %s\n", string(outs))
+        Logf(LtDebug, "==> Output for %s: %s\n", path, string(outs))
     }
 }
 
@@ -64,8 +64,8 @@ func pullSVN(pathToSvn string) {
     cmd := exec.Command("svn", "update")
     cmd.Dir = pathToSvn
     output, err := cmd.CombinedOutput() // returnes: output, err := ...
-    printError(err)
-    printOutput(output)
+    printError(err, pathToSvn)
+    printOutput(output, pathToSvn)
 }
 
 // readLines reads a whole file into memory

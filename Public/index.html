@@ -288,7 +288,7 @@
                 <p>Die Middleware ist für ein 64-Bit Linux kompiliert.</p>
                 <p>Die Middleware kann natürlich selbst kompiliert werden. Folgt dabei bitte den Informationen unseres Github-Repositories (Link oben rechts).</p>
                 <p>
-                    Die Middleware findet ihr unter folgendem Link:
+                    Die Middleware liegt bereits in eurem SVN-Repository. Ansonsten findet ihr sie auch unter folgendem Link:
                 </p>
                 <a href="https://github.com/hpatjens/Programmierwettbewerb/raw/master/Programmierwettbewerb-Middleware">Programmierwettbewerb-Middleware</a>
             </div>
@@ -335,17 +335,17 @@
                         </p>
                         <p>
                             Diese muss den Namen eures SVN-Repositories tragen und darf eine beliebige Endung haben. Also beispielsweise:
-                            <i><b>svn_09.py</b></i> oder <i><b>svn_09.sh</b></i> oder <i><b>svn_09</b></i>.
-                        </p>
-                        <p>
-                            Wenn ihr einen Interpreter wie z.B. Java starten möchtet, bietet es sich an, euer Programm in ein kurzes Shell-Skript zu
-                            verpacken und StdIn/StdOut durch-zu-reichen.
+                            <i><b>pwb_09.py</b></i>, <i><b>pwb_09.sh</b></i> oder <i><b>pwb_09</b></i>.
                         </p>
                     </li>
                     <li> <b>Bot-Namen:</b>
                         <p>
                             Jedes SVN-Repository enthält eine Datei: 'bot.names'. Diese kann beliebig editiert werden und enthält pro Zeile einen
                             Namen, unter denen ihr euren Bot auf unserem Server testen könnt (siehe das <i>-name</i> flag der Middleware).
+                        </p>
+                        <p>
+                            <b>Im Wettbewerb wird der erste Eintrag (1. Zeile) der bot.names als offizieller Bot-Name genutzt</b>. Bitte tragt dort euren
+                            finalen Wunschnamen ein.
                         </p>
                         <p>
                             Bots mit Namen, welche nicht in der (hochgeladenen) bot.names auftauchen, werden vom Server abgewiesen.
@@ -361,6 +361,11 @@
                         <p>
                             Grund dafür ist, dass wir auf dem Server Statistiken für jedes Repository führen. Gleichzeitig möchten wir die Möglichkeit bieten,
                             anonym zu testen, dass andere Mitspieler nicht wissen, von wem der großartige Super-Bot grade ist, der alles auf dem Server auffrisst :)
+                        </p>
+                        <p>
+                            Der Server macht selbstständig SVN-Updates und vergleicht die Einträge der bot.names mit dem angegebenen Namen von der Middleware.
+                            Die Updates erfolgen jedoch nur alle paar Minuten. Daher kann es sein, dass ihr nach einem 'SVN commit' ein paar Minuten warten müsst,
+                            bis ihr mit den neuen Nicknames testen könnt.
                         </p>
                     </li>
                 </ul>
