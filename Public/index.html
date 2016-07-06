@@ -310,7 +310,7 @@
                     <dt>-bot</dt>
                     <dd>Zur Angabe eures Bots. Hier wird eine direkt ausführbare Datei erwartet.</dd>
                     <dt>-name</dt>
-                    <dd>Euer Name für diesen Test. Dieser muss in der Datei <i>bot.names</i> in eurem Repository hinterlegt sein.</dd>
+                    <dd>Euer Name für diesen Test. Dieser muss in der Datei <code>bot.names</code> in eurem Repository hinterlegt sein.</dd>
                     <dt>-numBots</dt>
                     <dd>Anzahl der Bots, die ihr starten wollt. Wird dieser Parameter nicht angegeben, startet die Middleware einen Bot.</dd>
                 </dl>
@@ -319,25 +319,6 @@
                 </p>
             </div>
 
-            <h1><!--Betriebssystem und -->Vorgaben</h1>
-            <hr>
-
-            <!--<div>
-                <h3>Betriebssystem</h3>
-                <p>
-                    Das Referenzsystem, auf dem spätestens zur Austragung des Wettbewerbes alles laufen muss, ist ein 64-Bit Linux.
-                </p>
-                <p>
-                    Offiziell unterstützt werden daher von unserer Seite nur Programme, welche mit einem 64-Bit Linux kompatibel sind.
-                </p>
-                <p>
-                    Die von uns bereit gestellte Middleware erfüllt diese Anforderung. Selbstverständlich kann die Middleware (welche in Golang geschrieben ist)
-                    auch für verschiedene andere Betriebssysteme kompiliert und genutzt werden (Link zu unserem GitHub: oben rechts).
-                </p>
-                <p>
-                    Wir würden euch jedoch bitten im SVN eine ausführbare 64-Bit Linux-Executable bereit zu halten (Für uns zum Testen).
-                </p>
-            </div>-->
             <div class="row">
                 <div class="col-sm-6">
                     <h3>Executable</h3>
@@ -349,19 +330,19 @@
                     <h4>Name</h4>
                     <p class="indent">
                         <p class="indent">In eurem Repository muss eine ausführbare Datei mit dem Namen eures Repositories liegen. Sie darf jedoch eine beliebige Dateiendung haben.</p>                        
-                        <p class="indent">Zum Beispiel: <code>svn_09</code> <code>svn_09.py</code> <code>svn_09.sh</code></p>
+                        <p class="indent">Zum Beispiel: <code>pwb_00</code> <code>pwb_00.py</code> <code>pwb_00.sh</code></p>
                     </p>
                     
                     <h4>Direkter Aufruf</h4>
                     <p class="indent">
-                        Wenn euch der Compiler bereits eine Executable bereitstellt, könnt ihr das Skript <code>pwb_09.sh</code> löschen 
+                        Wenn euch der Compiler bereits eine Executable bereitstellt, könnt ihr das Skript <code>pwb_00.sh</code> löschen 
                         und die <i>korrekt benannte</i> Executable ins Home-Verzeichnis des Repositories legen.
                     </p>
                     
                     <h4>Indirekter Aufruf</h4>
                     <p class="indent">
                         Für den Fall, dass ihr einen Interpreter verwendet oder euer Programm aus anderen Gründen nicht direkt aufgerufen werden kann, haben wir euch 
-                        ein Skript bereitgestellt. Dies liegt in euren Repositories und trägt bereits den korrekten Namen: <code>pwb_09.sh</code>. Im Skript müsst ihr 
+                        ein Skript bereitgestellt. Dies liegt in euren Repositories und trägt bereits den korrekten Namen: <code>pwb_00.sh</code>. Im Skript müsst ihr 
                         nur noch an der markierten Stelle euren Programm-Aufruf eintragen.
                         <div class="further indent">
                             Bitte nutzt diesen Weg, damit die Pipes <code>stdin</code>, <code>stdout</code> und <code>stderr</code> beim Starten eures Programms korrekt verbunden werden.
@@ -384,11 +365,22 @@
                         Um eine Eindeutigkeit zu gewährleisten, denkt euch bitte eindeutige Namen aus oder nutzt einen originellen Präfix für eure Bots.
                     </p>
                     
+                    <h4>Name im Wettbewerb</h4>
+                    <p class="indent">
+                        Im Wettbewerb wird der erste Eintrag (1. Zeile) der <code>bot.names</code> als offizieller Bot-Name genutzt. Bitte tragt dort euren
+                        finalen Wunschnamen ein.
+                    </p>
+                    
                     <h4>Hintergrund</h4>
                     <p class="indent">
                         Grund dafür ist, dass wir auf dem Server Statistiken für jedes Repository führen. Gleichzeitig möchten wir die Möglichkeit bieten,
                         anonym zu testen, dass andere Mitspieler nicht wissen, von wem der großartige Super-Bot grade ist, der alles auf dem Server auffrisst. :)
                         Bots mit Namen, welche nicht in der (hochgeladenen) bot.names auftauchen, werden vom Server abgewiesen.
+                        <p class="further indent">
+                            Der Server macht selbstständig SVN-Updates und vergleicht die Einträge der bot.names mit dem angegebenen Namen von der Middleware.
+                            Die Updates erfolgen jedoch nur alle paar Minuten. Daher kann es sein, dass ihr nach einem 'SVN commit' ein paar Minuten warten müsst,
+                            bis ihr mit den neuen Nicknames testen könnt.
+                        </p>
                     </p>
                     
                     <h4>Eigene Namen verwenden</h4>
