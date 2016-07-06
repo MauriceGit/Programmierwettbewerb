@@ -1957,11 +1957,11 @@ func handleMiddleware(ws *websocket.Conn) {
                 if message.BotInfo.Name == "dummy" && sourceIP != myIP && sourceIP != "localhost" && sourceIP != "127.0.0.1" {
                     isAllowed = false
                     //Logf(LtDebug, "sourceIP: %v, myIP: %v\n", sourceIP, myIP)
-                    Logf(LtDebug, "The player name 'dummy' is not allowed!\n")
+                    Logf(LtDebug, "The player name 'dummy' is not allowed! Request from: %s, at: %s\n", sourceIP, time.Now().Format(time.RFC850))
                 }
 
                 if !isAllowed {
-                    Logf(LtDebug, "The player %v is not allowed to play. Please add %v to your bot.names.\n", message.BotInfo.Name, message.BotInfo.Name)
+                    Logf(LtDebug, "The player %v is not allowed to play. Please add %v to your bot.names. Request from: %s, at: %s\n", message.BotInfo.Name, message.BotInfo.Name, sourceIP, time.Now().Format(time.RFC850))
                     ws.Close()
                     return
                 }
@@ -1977,7 +1977,7 @@ func handleMiddleware(ws *websocket.Conn) {
                                 ws:                 ws,
                               }
 
-                Logf(LtDebug, "Bot %v registered: %v.\n", botId, *message.BotInfo)
+                Logf(LtDebug, "Bot %v registered: %v. From: %s, at: %s\n", botId, *message.BotInfo, sourceIP, time.Now().Format(time.RFC850))
             } else {
                 Logf(LtDebug, "Got a dirty message from bot %v. BotInfo is nil.\n", botId)
             }
