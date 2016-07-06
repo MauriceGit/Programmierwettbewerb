@@ -255,13 +255,13 @@ func CheckPotentialPlayer(playerNickname string) (bool, Statistics) {
         for _,nick := range svn.Nicknames {
             if nick == playerNickname {
                 i=i
-                Logf(LtDebug, "The player %v can be associated with the svn-repos %v\n", playerNickname, i)
+                Logf(LtDebug, "The player %v can be associated with the svn-repos %v. At: %v\n", playerNickname, i, time.Now().Format(time.RFC850))
                 return true, svn.Statistics
             }
         }
     }
 
-    Logf(LtDebug, "The player %v can not be associated with any svn-repos!\n", playerNickname)
+    Logf(LtDebug, "The player %v can not be associated with any svn-repos! At: %v\n", playerNickname, time.Now().Format(time.RFC850))
     return false, Statistics{}
 }
 
