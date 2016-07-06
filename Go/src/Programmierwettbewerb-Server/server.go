@@ -774,10 +774,11 @@ func sendDataToMiddleware(mWMessageCounter int, finished chan bool) {
         }
     }
 
-    //finished <- true
+    finished <- true
 }
 
-func sendDataToGui(guiMessageCounter int, guiStatisticsMessageCounter int, deadBots []BotId, eatenFoods []FoodId, eatenToxins []ToxinId, finished chan bool) {
+func sendDataToGui( guiMessageCounter int, guiStatisticsMessageCounter int, deadBots []BotId, eatenFoods []FoodId, eatenToxins []ToxinId,
+                    guiConnections map[GuiId]GuiConnection, bots map[BotId]Bot, toxins map[ToxinId]Toxin, foods map[FoodId]Food) {
 
     // Pre-calculate the list for eaten Toxins
     //reallyDeadToxins := make([]ToxinId, 0)
@@ -852,26 +853,6 @@ func sendDataToGui(guiMessageCounter int, guiStatisticsMessageCounter int, deadB
         }
     }
 
-    for toxinId, toxin := range app.toxins {
-        if toxin.IsNew {
-            toxin.IsNew = false
-            app.toxins[toxinId] = toxin
-        }
-    }
-    for foodId, food := range app.foods {
-        if food.IsNew {
-            food.IsNew = false
-            app.foods[foodId] = food
-        }
-    }
-
-
-    for botId, bot := range app.bots {
-        bot.GuiNeedsInfoUpdate = false
-        app.bots[botId] = bot
-    }
-
-    //finished <- true
 }
 
 func checkPasswordAgainstFile(password string) bool {
@@ -1686,12 +1667,46 @@ func (app* Application) startUpdateLoop() {
             // SEND UPDATED DATA TO MIDDLEWARE AND GUI
             ////////////////////////////////////////////////////////////////
 
-            sendDataGuiFinished := make(chan bool)
             sendDataMWFinished  := make(chan bool)
-            sendDataToMiddleware(mWMessageCounter, sendDataMWFinished)
-            sendDataToGui(guiMessageCounter, guiStatisticsMessageCounter, deadBots, eatenFoods, eatenToxins, sendDataGuiFinished)
-            //<- sendDataMWFinished
-            //<- sendDataGuiFinished
+            go sendDataToMiddleware(mWMessageCounter, sendDataMWFinished)
+
+            // Copy everything and send those to the gui! So it is completely asynchrone!
+            var guiConnectionsCpy = make(map[GuiId]GuiConnection)
+            var botsCpy = make(map[BotId]Bot)
+            var toxinsCpy = make(map[ToxinId]Toxin)
+            var foodsCpy = make(map[FoodId]Food)
+            for k,v := range app.guiConnections {
+                guiConnectionsCpy[k] = v
+            }
+            for k,v := range app.bots {
+                botsCpy[k] = v
+            }
+            for k,v := range app.toxins {
+                toxinsCpy[k] = v
+            }
+            for k,v := range app.foods {
+                foodsCpy[k] = v
+            }
+            go sendDataToGui(guiMessageCounter, guiStatisticsMessageCounter, deadBots, eatenFoods, eatenToxins, guiConnectionsCpy, botsCpy, toxinsCpy, foodsCpy)
+
+            <- sendDataMWFinished
+
+            for toxinId, toxin := range app.toxins {
+                if toxin.IsNew {
+                    toxin.IsNew = false
+                    app.toxins[toxinId] = toxin
+                }
+            }
+            for foodId, food := range app.foods {
+                if food.IsNew {
+                    food.IsNew = false
+                    app.foods[foodId] = food
+                }
+            }
+            for botId, bot := range app.bots {
+                bot.GuiNeedsInfoUpdate = false
+                app.bots[botId] = bot
+            }
 
             for guiConnectionId, guiConnection := range app.guiConnections {
                 guiConnection.IsNewConnection = false
@@ -1703,7 +1718,6 @@ func (app* Application) startUpdateLoop() {
                     delete(app.guiConnections, guiConnectionId)
                 }
             }
-
             guiMessageCounter += 1
             mWMessageCounter += 1
             guiStatisticsMessageCounter += 1
