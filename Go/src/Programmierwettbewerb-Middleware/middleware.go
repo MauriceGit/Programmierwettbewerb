@@ -39,7 +39,18 @@ const (
 // -------------------------------------------------------------------------------------------------
 
 func usage() {
-    fmt.Fprintf(os.Stderr, "Usage: -bot=PATH to specify the bot.\n") // TODO(henk): Add an example.
+    fmt.Fprintf(os.Stderr, "NAME\n")
+    fmt.Fprintf(os.Stderr, "    Programmierwettbewerb-Middleware -bot=BOT -name=NAME [-numBots=NUM]\n")
+    fmt.Fprintf(os.Stderr, "\n")
+    fmt.Fprintf(os.Stderr, "DESCRIPTION\n")
+    fmt.Fprintf(os.Stderr, "    BOT\n")
+    fmt.Fprintf(os.Stderr, "        executable\n")
+    fmt.Fprintf(os.Stderr, "\n")
+    fmt.Fprintf(os.Stderr, "    NAME\n")
+    fmt.Fprintf(os.Stderr, "        name from your bot.names\n")
+    fmt.Fprintf(os.Stderr, "\n")
+    fmt.Fprintf(os.Stderr, "    NUM\n")
+    fmt.Fprintf(os.Stderr, "        number of bots to spawn\n")
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -66,6 +77,7 @@ const (
 
 func fatalExit(message string, code int) {
     Logln(LtAlways, message)
+    usage()
     os.Exit(code)
 }
 
@@ -176,8 +188,7 @@ func stopBot(bot Bot) {
     bot.stderr.Close()
 
     if err := bot.process.Process.Kill(); err != nil {
-        Logf(LtAlways, "Could not kill the bot. Error: %v\n", err.Error())
-        os.Exit(ecBotProblem)
+        fatalExit(fmt.Sprintf("Could not kill the bot. Error: %v\n", err.Error()), ecBotProblem)
     }
 }
 
@@ -547,6 +558,7 @@ func work(bot Bot, serverConnection ServerConnection, runningState chan(bool)) {
             Logf(LtAlways, "Something is wrong with your bot. We could not read your response.\n")
             Logf(LtAlways, "You sent us: \"%v\"\n", response)
             Logf(LtAlways, "We sent you: \"%v\"\n", messageString)
+            usage()
             os.Exit(0)
         }
 
@@ -588,8 +600,7 @@ func main() {
     //
     parseResult, err := parseArguments()
     if err != nil {
-        Logf(LtAlways, "Could not parse the arguments. Error: %v\n", err.Error())
-        os.Exit(ecParameterProblem)
+        fatalExit(fmt.Sprintf("Could not parse the arguments. Error: %v\n", err.Error()), ecParameterProblem)
     }
     SetLoggingDebug(parseResult.debug)
     SetLoggingVerbose(parseResult.verbose)
@@ -612,8 +623,7 @@ func main() {
 
 
             if err != nil {
-                Logf(LtAlways, "Could not start the bot. Error: %v\n", err.Error())
-                os.Exit(ecBotProblem)
+                fatalExit(fmt.Sprintf("Could not start the bot. Error: %v\n", err.Error()), ecBotProblem)
             }
             defer stopBot(bot)
 
@@ -636,8 +646,7 @@ func main() {
             runningState := make(chan bool, 1)
             serverConnection, err := setupServerConnection(address, botInfo, runningState, wg)
             if err != nil {
-                Logf(LtAlways, "Could not connect to Server. Error: %v\n", err.Error())
-                os.Exit(ecConnectionProblem)
+                fatalExit(fmt.Sprintf("Could not connect to Server. Error: %v\n", err.Error()), ecConnectionProblem)
             }
 
             //
