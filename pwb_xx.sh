@@ -13,18 +13,9 @@ program="python script.py"
 # Erstellung von named pipes um StdIn und StdOut umzuleiten.
 
 rm -f pIn pOut pErr
-
-if [[ ! -p pIn ]]; then
-    mkfifo pIn
-fi
-
-if [[ ! -p pOut ]]; then
-    mkfifo pOut
-fi
-
-if [[ ! -p pErr ]]; then
-    mkfifo pErr
-fi
+mkfifo pIn
+mkfifo pOut
+mkfifo pErr
 
 # Umleiten der Ein- und Ausgabe in named Pipes
 (eval "$program" < pIn 2> pErr 1> pOut) &
