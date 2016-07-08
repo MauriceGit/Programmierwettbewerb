@@ -218,8 +218,6 @@ type Application struct {
     serverCommands              []string
     messagesToServerGui         chan interface{}
     serverGuiIsConnected        bool
-    serverGuiPasswordChannel    chan string
-    serverGuiVerified           bool
 
     profiling                   bool
 
@@ -259,8 +257,6 @@ func (app* Application) initialize() {
     app.runningState                = make(chan bool, 1)
     app.messagesToServerGui         = make(chan interface{}, 10)
     app.serverGuiIsConnected        = false
-    app.serverGuiPasswordChannel    = make(chan string)
-    app.serverGuiVerified           = false
 
     app.profiling                   = false
 
@@ -966,18 +962,12 @@ func (app* Application) startUpdateLoop() {
                         Type    string  `json:"type"`
                         Value   int     `json:"value,string,omitempty"`
                         Image   string  `json:"image"`
-                        Password string `json:"password"`
                     }
 
                     var command Command
                     err := json.Unmarshal([]byte(commandString), &command)
-                    if err == nil && (app.serverGuiVerified || command.Type == "Password") {
+                    if err == nil {
                         switch command.Type {
-                        case "Password":
-                            Logf(LtDebug, "The provided password is: %v \n", command.Password)
-                            if !app.serverGuiVerified {
-                                app.serverGuiPasswordChannel <- command.Password
-                            }
                         case "MinNumberOfBots":
                             app.settings.MinNumberOfBots = command.Value
                         case "MaxNumberOfBots":
@@ -1751,7 +1741,7 @@ func (app* Application) startUpdateLoop() {
             endProfileEvent(&profile, &profileEventSendDataToMiddlewareAndGui)
         }
 
-        if false && app.profiling && app.serverGuiIsConnected && app.serverGuiVerified {
+        if app.profiling && app.serverGuiIsConnected {
             type NanosecondProfileEvent struct {
                 Name            string
                 Parent          int
@@ -1852,18 +1842,11 @@ func handleServerCommands(ws *websocket.Conn) {
         for {
             message := <- app.messagesToServerGui
 
-            // This is not the most current ServerGui any more!
-            if app.nextServerCommandId > commandId+1 {
-                Logf(LtDebug, "\n\nServerGui: %v is not the most current any more!\n\n", commandId)
-                // write the message back to the channel, so the other go routines can get it!
-                app.messagesToServerGui <- message
-                return
-            }
+
 
             if err := websocket.JSON.Send(ws, message); err != nil {
                 Logf(LtDebug, "ERROR when trying to send profiling information to %v: %s\n", commandId, err.Error())
                 app.serverGuiIsConnected = false
-                app.serverGuiVerified = false
                 ws.Close()
                 return
             }
@@ -1876,7 +1859,6 @@ func handleServerCommands(ws *websocket.Conn) {
         if connectionIsTerminated(app.runningState) {
             Logf(LtDebug, "HandleServerCommands is shutting down.\n")
             app.serverGuiIsConnected = false
-            app.serverGuiVerified = false
             ws.Close()
             return
         }
@@ -1886,32 +1868,10 @@ func handleServerCommands(ws *websocket.Conn) {
             Logf(LtDebug, "\n\nThe command line with id: %v is closed because of: %v\n\n", commandId, err)
             ws.Close()
 
-            if app.nextServerCommandId == commandId+1 {
-                app.serverGuiIsConnected = false
-            }
-            app.serverGuiVerified = false
             return
         }
 
         app.serverCommands = append(app.serverCommands, message)
-
-        if !app.serverGuiVerified {
-            pw := <-app.serverGuiPasswordChannel
-            app.serverGuiVerified = checkPasswordAgainstFile(pw)
-
-            if !app.serverGuiVerified {
-                if err := websocket.Message.Send(ws, "unsuccessfulLogin"); err != nil {
-                    Logf(LtDebug, "unsuccessfulLogin didnt work...%v\n", err)
-                    return
-                }
-            } else {
-                if err := websocket.Message.Send(ws, "successfulLogin"); err != nil {
-                    Logf(LtDebug, "successfulLogin didnt work...%v\n", err)
-                    return
-                }
-            }
-
-        }
     }
 
 
@@ -2081,35 +2041,51 @@ func getServerAddress() string {
 }
 
 func handleServerControl(w http.ResponseWriter, r *http.Request) {
-    var imageNames []string
-
-    entries, _ := ioutil.ReadDir("../Public/spawns")
-    for _, entry := range entries {
-        if filepath.Ext(makeLocalSpawnName(entry.Name())) == ".bmp" {
-            imageNames = append(imageNames, entry.Name())
-        }
-    }
 
 
+    Logf(LtDebug, "request: %v, %v\n", r.Form, r.PostForm)
 
-    data := struct {
-        Address string
-        ImageNames []string
-        FoodSpawnImage string
-        ToxinSpawnImage string
-        BotSpawnImage string
-    }{
-        Address:            "ws://" + getServerAddress() + "/servercommand/",
-        ImageNames:         imageNames,
-        FoodSpawnImage:     makeURLSpawnName(app.foodDistributionName),
-        ToxinSpawnImage:    makeURLSpawnName(app.toxinDistributionName),
-        BotSpawnImage:      makeURLSpawnName(app.botDistributionName),
-    }
+    //data := struct {}
 
     t := template.New("Server Control")
     page, _ := ioutil.ReadFile("../ServerGui/index.html")
     t, _ = t.Parse(string(page))
-    t.Execute(w, data)
+    t.Execute(w, nil)
+}
+
+func handleServerControlFinal(w http.ResponseWriter, r *http.Request) {
+    var imageNames []string
+
+    Logf(LtDebug, "Request for Password: %v\n", r.PostFormValue("Password"))
+
+    if checkPasswordAgainstFile(r.PostFormValue("Password")) {
+
+        entries, _ := ioutil.ReadDir("../Public/spawns")
+        for _, entry := range entries {
+            if filepath.Ext(makeLocalSpawnName(entry.Name())) == ".bmp" {
+                imageNames = append(imageNames, entry.Name())
+            }
+        }
+
+        data := struct {
+            Address string
+            ImageNames []string
+            FoodSpawnImage string
+            ToxinSpawnImage string
+            BotSpawnImage string
+        }{
+            Address:            "ws://" + getServerAddress() + "/servercommand/",
+            ImageNames:         imageNames,
+            FoodSpawnImage:     makeURLSpawnName(app.foodDistributionName),
+            ToxinSpawnImage:    makeURLSpawnName(app.toxinDistributionName),
+            BotSpawnImage:      makeURLSpawnName(app.botDistributionName),
+        }
+
+        t := template.New("Server Control")
+        page, _ := ioutil.ReadFile("../ServerGui/index_final.html")
+        t, _ = t.Parse(string(page))
+        t.Execute(w, data)
+    }
 }
 
 func handleGameHTML(w http.ResponseWriter, r *http.Request) {
@@ -2199,6 +2175,7 @@ func main() {
     http.Handle("/", http.FileServer(http.Dir("../Public/")))
     http.HandleFunc("/game.html", handleGameHTML)
     http.HandleFunc("/server/", handleServerControl)
+    http.HandleFunc("/server2/", handleServerControlFinal)
 
     // Websocket connections
 
