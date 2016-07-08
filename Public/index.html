@@ -151,12 +151,12 @@
                 </div>
                 <div class="col-sm-4">
                     <h3><b>Aktionen</b></h3>
-                    
+
                     <h4>None</h4>
                     <p class="indent">
                         Man fährt ganz normal zu den gewählten Koordinaten
                     </p>
-                    
+
                     <h4>Split</h4>
                     <p class="indent">
                         Alle eigenen Blobs mit einer Größe von >= 100, teilen sich in Richtung der Ziel-Koordinaten.
@@ -165,7 +165,7 @@
                     <p class="further indent">
                         Die neuen Blobs bekommen eine Beschleunigung in Richtung der Ziel-Koordinaten, die mit der Zeit abnimmt.
                     </p>
-                    
+
                     <h4>Throw</h4>
                     <p class="indent">
                         Alle eigenen Blobs mit einer Größe von >= 100, werfen ein Futter in Richtung der Ziel-Koordinaten.
@@ -328,29 +328,29 @@
                     <p class="indent">
                         Im Wettbewerb werden wir alles auf einem <b>64-Bit Linux</b> ausführen!
                     </p>
-                    
+
                     <h4>Name</h4>
                     <p class="indent">
-                        <p class="indent">In eurem Repository muss eine ausführbare Datei mit dem Namen eures Repositories liegen. Sie darf jedoch eine beliebige Dateiendung haben.</p>                        
+                        <p class="indent">In eurem Repository muss eine ausführbare Datei mit dem Namen eures Repositories liegen. Sie darf jedoch eine beliebige Dateiendung haben.</p>
                         <p class="indent">Zum Beispiel: <code>pwb_00</code> <code>pwb_00.py</code> <code>pwb_00.sh</code></p>
                     </p>
-                    
+
                     <h4>Direkter Aufruf</h4>
                     <p class="indent">
-                        Wenn euch der Compiler bereits eine Executable bereitstellt, könnt ihr das Skript <code>pwb_00.sh</code> löschen 
+                        Wenn euch der Compiler bereits eine Executable bereitstellt, könnt ihr das Skript <code>pwb_00.sh</code> löschen
                         und die <i>korrekt benannte</i> Executable ins Home-Verzeichnis des Repositories legen.
                     </p>
-                    
+
                     <h4>Indirekter Aufruf</h4>
                     <p class="indent">
-                        Für den Fall, dass ihr einen Interpreter verwendet oder euer Programm aus anderen Gründen nicht direkt aufgerufen werden kann, haben wir euch 
-                        ein Skript bereitgestellt. Dies liegt in euren Repositories und trägt bereits den korrekten Namen: <code>pwb_00.sh</code>. Im Skript müsst ihr 
+                        Für den Fall, dass ihr einen Interpreter verwendet oder euer Programm aus anderen Gründen nicht direkt aufgerufen werden kann, haben wir euch
+                        ein Skript bereitgestellt. Dies liegt in euren Repositories und trägt bereits den korrekten Namen: <code>pwb_00.sh</code>. Im Skript müsst ihr
                         nur noch an der markierten Stelle euren Programm-Aufruf eintragen.
                         <div class="further indent">
                             Bitte nutzt diesen Weg, damit die Pipes <code>stdin</code>, <code>stdout</code> und <code>stderr</code> beim Starten eures Programms korrekt verbunden werden.
                         </div>
                     </p>
-                    
+
                     <h4>Zusatzinformation für Faule</h4>
                     <p class="indent">
                         Die ausführbare Datei muss eigentlich erst für den Wettbewerb korrekt benannt sein und im Wurzel-Verzeichnis liegen. Wird würden jedoch gerne vorab einige Tests
@@ -359,20 +359,20 @@
                 </div>
                 <div class="col-sm-6">
                     <h3>Bot-Namen</h3>
-                    
+
                     <h4>Namen zum Testen eintragen</h4>
                     <p class="indent">
                         Jedes SVN-Repository enthält eine Datei mit dem Namen <code>bot.names</code>. Diese kann beliebig editiert werden und enthält pro Zeile einen
                         Namen, unter denen ihr euren Bot auf unserem Server testen könnt. Einen der eingetragenen Namen könnt ihr mit dem <code>-name</code>-Flag der Middleware angeben.
                         Um eine Eindeutigkeit zu gewährleisten, denkt euch bitte eindeutige Namen aus oder nutzt einen originellen Präfix für eure Bots.
                     </p>
-                    
+
                     <h4>Name im Wettbewerb</h4>
                     <p class="indent">
                         Im Wettbewerb wird der erste Eintrag (1. Zeile) der <code>bot.names</code> als offizieller Bot-Name genutzt. Bitte tragt dort euren
                         finalen Wunschnamen ein.
                     </p>
-                    
+
                     <h4>Hintergrund</h4>
                     <p class="indent">
                         Grund dafür ist, dass wir auf dem Server Statistiken für jedes Repository führen. Gleichzeitig möchten wir die Möglichkeit bieten,
@@ -384,7 +384,7 @@
                             bis ihr mit den neuen Nicknames testen könnt.
                         </p>
                     </p>
-                    
+
                     <h4>Eigene Namen verwenden</h4>
                     <p class="indent">
                         Bitte nehmt davon Abstand, unter fremden Namen zu testen. Wiederholtes Verletzen dieser Regel kann zur <b>Disqualifikation</b>
@@ -412,14 +412,16 @@ type Food       = (Position, Mass)
 type Toxin      = (Position, Mass)
 type OwnBlobs   = [Blob]
 type OtherBlobs = [Blob]
-type Input      = (OwnBlobs, OtherBlobs, [Food], [Toxin])</pre>
+
+<b>type Input      = (OwnBlobs, OtherBlobs, [Food], [Toxin])</b></pre>
                 </div>
                 <div class="col-sm-6">
                     <h3>Ausgabe <small>von euren Bots an die Middleware</small></h3>
                     <pre>
 data BlobAction = None | Throw | Split
 type Position   = (Float, Float)
-type Output     = (BlobAction, Position)</pre>
+
+<b>type Output     = (BlobAction, Position)</b></pre>
                 </div>
             </div>
             <div class="row">
