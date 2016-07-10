@@ -1,0 +1,63 @@
+
+Punkte für eine Vorstellung des Programmierwettbewerbs und der Aufgabe:
+
+- Begrüßung
+
+- Wir machen einen Programmierwettbewerb
+
+    - Was machen wir anders als die letzten Wettbewerbe?
+        - Echtzeit und endlich mal Bots, die live gegeneinander "kämpfen"
+        - Es geht um ein Spiel, was Agar.io sehr stark angenähert ist.
+            - Man besteht aus einem Blob und muss versuchen möglichst lange
+                zu überleben und möglichst viel Masse zu bekommen.
+            - Das geht, indem man das herumliegende Futter frisst oder
+                versucht, gegnerische Blobs zu fressen (Alles, was kleiner ist).
+
+        - Jeder entwickelt für sich aber alle testen anonym auf dem gleichen System
+            Also kann man sich am Niveau der Gegener orientieren und sieht, wie
+            man sich anstellt.
+            Außerdem kann man sich verabreden zum Testen und schon zwischendurch
+            kleinere Kämpfe austragen.
+        - Dort werden ununterbrochen Dummy-Bots spielen, gegen die immer getestet werden kann.
+
+        - Wir werden regelmäßig anonyme öffentliche Zwischentests machen und für einen festen Zeitraum
+            alle lauffähigen Bots starten und Zwischentests machen. (Angekündigt).
+
+    - Wie funktioniert das alles, was muss ich machen?
+        - Wir haben einen Server, welcher alle Berechnungen übernimmt und aus dem Internet
+            erreichbar ist: cagine.fh-wedel.de:8080 (An die Tafel !!!)
+        - Zudem stellen wir eine Middleware zur Verfügung, welches eurer Programm
+            startet und die gesamte Verbindung zu unserem Server übernimmt.
+        - Die Kommunikation ist, wie gewohnt, über StdIn und StdOut.
+        - Ihr bekommt dann eine Liste mit gegnerischen Blob-Positionen, Futter, etc.
+            und berechnet, wo ihr als nächste hinfahren möchtet.
+            Beispielsweise: "(None, (10,15))"
+        - Um es euch einfach zu machen, bieten wir bereits einen C- und Haskell-Parser an.
+            Mit Python kann mittels "eval" alles eingelesen werden.
+        - Wenn uns jemand helfen kann, einen Java-Parser zur Verfügung zu stellen, wären
+            wir sehr dankbar, ansonsten ist der in Planung.
+        - Zudem stellen wir ein Beispiel-Bot in Python zur Verfügung, an dem man sich
+            orientieren kann. (Der Code der Dummy-Bots, welche bereits spielen).
+
+    - Wir möchten gerne so viele Teilnehmer motivieren, wie uns möglich ist.
+    - Es wird Sponsoren geben und Preisgelder über mehrere Hundert Euro. Sowie
+        Gimmicks, wie SSD-Festplatten, Raspberry Pis, ...
+
+    - Austragung des Wettbewerbes wird Ende Oktober, sodass die vorlesungsfreie Zeit
+        zum entwickeln genutzt werden kann.
+
+    - Losgehen kann es ab sofort. Unser Server ist online, SVNs sind da und alle nötigen
+        Informationen sind verfügbar.
+
+    - Was müsst ihr tun?
+        - Geht auf: cagine.fh-wedel.de:8080
+        - Schickt uns: inf101074@fh-wedel.de / hpa@fh-wedel.de eine E-Mail, um ein SVN zu bekommen
+        - Baut etwas schickes und dominiert den Server :)
+        - Kommunikation läuft über die Newsgroup "Programmierwettbewerb",
+            per Mail, bei Henk im Büro oder wann immer ihr uns seht.
+
+
+
+
+
+
