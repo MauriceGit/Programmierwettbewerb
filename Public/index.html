@@ -385,6 +385,18 @@
                 </p>
             </div>
 
+            <h1>Repositories</h1>
+            <hr>
+            <p>
+                Für den Wettbewerb stellen wir euch SVN-Repositories bereit. Schreibt uns einfach eine Mail und wir schalten euch ein Repository frei. Unsere E-Mail Adressen findet ihr unter Kontakt.
+            </p>
+            <p>
+                Die Repositories findet ihr unter folgendem Link:<br>
+                <div style="margin: 20px;">
+                    <code>https://stud.fh-wedel.de/repos/pwb_ws2016/pwb_xx</code><br>
+                </div>
+            </p>
+
             <h1>Vorgaben</h1>
             <hr>
             <div class="row">
@@ -403,18 +415,9 @@
 
                     <h4>Direkter Aufruf</h4>
                     <p class="indent">
-                        Wenn euch der Compiler bereits eine Executable bereitstellt, könnt ihr das Skript <code>pwb_00.sh</code> löschen
-                        und die <i>korrekt benannte</i> Executable ins Home-Verzeichnis des Repositories legen.
-                    </p>
-
-                    <h4>Indirekter Aufruf</h4>
-                    <p class="indent">
-                        Für den Fall, dass ihr einen Interpreter verwendet oder euer Programm aus anderen Gründen nicht direkt aufgerufen werden kann, haben wir euch
-                        ein Skript bereitgestellt. Dies liegt in euren Repositories und trägt bereits den korrekten Namen: <code>pwb_00.sh</code>. Im Skript müsst ihr
-                        nur noch an der markierten Stelle euren Programm-Aufruf eintragen.
-                        <div class="further indent">
-                            Bitte nutzt diesen Weg, damit die Pipes <code>stdin</code>, <code>stdout</code> und <code>stderr</code> beim Starten eures Programms korrekt verbunden werden.
-                        </div>
+                        Wenn euch der Compiler bereits eine Executable bereitstellt, könnt ihr diese beim Aufruf der Middleware direkt angeben. Wenn ihr weitere Parameter übergeben wollt
+                        oder einen Interpreter verwendet, dann könnt ihr diese einfach zusätzlich angeben. So, als würdet ihr euren Bot über die Konsole starten.</br>
+                        <code>./Programmierwettbewerb-Middleware -bot="java mybot argument1 argument2" ...</code>
                     </p>
 
                     <h4>Zusatzinformation für Faule</h4>
@@ -458,7 +461,7 @@
                     </p>
                 </div>
             </div>
-
+            
             <h1 class="offset">Datenformate</h1>
             <hr>
             <p>
