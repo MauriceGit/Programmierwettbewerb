@@ -126,9 +126,9 @@ func parseArguments() (parseResult ParseResult, e error) {
         return result, errors.New("No bot path was given.")
     }
 
-    if _, err := os.Stat(result.botPath); os.IsNotExist(err) {
-        return result, errors.New(fmt.Sprintf("Could not find the bot %v", result.botPath))
-    }
+    //if _, err := os.Stat(result.botPath); os.IsNotExist(err) {
+    //    return result, errors.New(fmt.Sprintf("Could not find the bot %v", result.botPath))
+    //}
 
     return result, nil
 }
@@ -150,7 +150,12 @@ type Bot struct {
 }
 
 func startBot(parseResults ParseResult) (bot Bot, error error) {
-    bot.process = exec.Command(parseResults.botPath)
+
+
+    commandString := parseResults.botPath
+    stringList := strings.Fields(commandString)
+
+    bot.process = exec.Command(stringList[0], stringList[1:]...)
 
     stdin, err := bot.process.StdinPipe()
     if err != nil {
