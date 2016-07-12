@@ -50,9 +50,17 @@ type Config struct {
 
 func usage() {
     fmt.Fprintf(os.Stderr, "NAME\n")
-    fmt.Fprintf(os.Stderr, "    Programmierwettbewerb-Middleware -bot=BOT -name=NAME [-numBots=NUM]\n")
+    fmt.Fprintf(os.Stderr, "    Programmierwettbewerb-Middleware [-bot=BOT] [-name=NAME] [-numBots=NUM]\n")
     fmt.Fprintf(os.Stderr, "\n")
-    fmt.Fprintf(os.Stderr, "DESCRIPTION\n")
+    fmt.Fprintf(os.Stderr, "CONFIG\n")
+    fmt.Fprintf(os.Stderr, "    There should be a config file middleware.conf to define the default parameters:\n")
+    fmt.Fprintf(os.Stderr, "\n")
+    fmt.Fprintf(os.Stderr, "        name=\"myname\"\n")
+    fmt.Fprintf(os.Stderr, "        bot=\"java mybot arg1 arg2 ...\"\n")
+    fmt.Fprintf(os.Stderr, "\n")
+    fmt.Fprintf(os.Stderr, "    When arguments are provided to the program directly they will override the config file entries.\n")
+    fmt.Fprintf(os.Stderr, "\n")
+    fmt.Fprintf(os.Stderr, "ARGUMENTS\n")
     fmt.Fprintf(os.Stderr, "    BOT\n")
     fmt.Fprintf(os.Stderr, "        executable\n")
     fmt.Fprintf(os.Stderr, "\n")
@@ -129,16 +137,6 @@ func parseArguments() (parseResult ParseResult, e error) {
         numBots:    *numBotsFlag,
         serverURL:  *serverURLFlag,
     }
-
-    //Logf(LtDebug, "name given: '%v'\n", *botName)
-
-    //if result.botPath == "" {
-    //    return result, errors.New("No bot path was given.")
-    //}
-
-    //if _, err := os.Stat(result.botPath); os.IsNotExist(err) {
-    //    return result, errors.New(fmt.Sprintf("Could not find the bot %v", result.botPath))
-    //}
 
     return result, nil
 }
@@ -613,11 +611,15 @@ func readConfig(name string) Config {
     _, err := os.Stat(configfile)
     if err != nil {
         Logf(LtDebug, "Config file is missing: %v, %v\n", configfile)
+        usage()
+        os.Exit(1)
     }
 
     var config Config
     if _, err := toml.DecodeFile(configfile, &config); err != nil {
         Logf(LtDebug, "%v\n", err)
+        usage()
+        os.Exit(1)
     }
 
     return config
