@@ -10,6 +10,12 @@ type Vec2 struct {
     Y float32
 }
 
+type Vec3 struct {
+    X float32
+    Y float32
+    Z float32
+}
+
 func Add(lhs Vec2, rhs Vec2) Vec2 {
     return Vec2{ lhs.X + rhs.X, lhs.Y + rhs.Y }
 }

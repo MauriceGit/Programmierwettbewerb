@@ -626,6 +626,34 @@ func readConfig(name string) Config {
 }
 
 
+func hsvToRgb(color vec.Vec3) Color {
+    h := color.X
+    s := color.Y
+    v := color.Z
+
+    h_i := int(h / 60)
+    f := float32(h / 60.0 - float32(h_i))
+
+    p := v * (1 - s)
+    q := v * (1 - s*f)
+    t := v * (1 - s*(1 - f))
+
+    switch (h_i) {
+        case 0,6: return Color{ byte(v*255), byte(t*255), byte(p*255) }
+        case 1: return Color{ byte(q*255), byte(v*255), byte(p*255) }
+        case 2: return Color{ byte(p*255), byte(v*255), byte(t*255) }
+        case 3: return Color{ byte(p*255), byte(q*255), byte(v*255) }
+        case 4: return Color{ byte(t*255), byte(p*255), byte(v*255) }
+        case 5: return Color{ byte(v*255), byte(p*255), byte(q*255) }
+    }
+    return Color{}
+}
+
+func makeRandomColor() Color {
+    hsv := vec.Vec3{ rand.Float32()*360, 1, 0.5 + 0.5*rand.Float32() }
+    return hsvToRgb(hsv)
+}
+
 func main() {
     var wg sync.WaitGroup
 
@@ -685,7 +713,7 @@ func main() {
             rand.Seed( time.Now().UnixNano())
             botInfo := BotInfo{ // TODO(henk): These are all dummy values.
                 Name:       parseResult.botName,
-                Color:      Color{ byte(rand.Float32() * 255), byte(rand.Float32() * 255), byte(rand.Float32() * 255) },
+                Color:      makeRandomColor(),
                 ImagePath:  "",
             }
             runningState := make(chan bool, 1)
