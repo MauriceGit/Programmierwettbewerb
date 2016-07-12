@@ -2,6 +2,7 @@ Statistics/playerStats.json
 Go/bin/
 Go/pkg/
 Go/src/golang.org/
+Go/src/github.com/
 bin/
 BotCpp/Debug/
 BotCpp/.vs/

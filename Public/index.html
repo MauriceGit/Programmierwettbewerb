@@ -362,23 +362,46 @@
                     diese anschließend wieder zum Server zu schicken.
                 </p>
                 <center><img src="Images/InformationFlow1.png" alignment="center" /></center>
+                <h4>Programmiersprachen</h4>
+                <p>
+                    Es gibt keine Enschränkungen bzgl. der Programmiersprache. Wenn Compiler oder Interpreter im Rechenzentrum nicht installiert sind, sagt uns bitte bescheid und wir werden diese nachinstallieren.
+                </p>
+                
                 <h4>Testen</h4>
                 <p>
                     Testen könnt ihr eure Bots auf einem Server der FH-Wedel. Wenn ihr euch mit der Middleware auf den Server verbindet, wird dort <i>kein</i> neues Spiel für euch gestartet. Alle Bots befinden sich auf dem selben Spielfeld und können live gegeneinander antreten.
                 </p>
                 <p>
-                    Die Middleware zum Starten eurer Bots könnt ihr <a href="https://github.com/hpatjens/Programmierwettbewerb/raw/master/Programmierwettbewerb-Middleware">hier</a> herunterladen. Wir stellen jedoch nur eine 64-Bit Version für Linux bereit, da wir diese auch im Wettbewerb verwenden werden. Eine Installation ist nicht notwendig.<br>
+                    Die Middleware zum Starten eurer Bots könnt ihr <a href="https://github.com/hpatjens/Programmierwettbewerb/raw/master/Programmierwettbewerb-Middleware">hier</a> herunterladen. Wir stellen jedoch nur eine 64-Bit Version für Linux bereit, da wir diese auch im Wettbewerb verwenden werden. Eine Installation ist nicht notwendig. Wenn wir euch ein Repository anlegen, werden wir euch die Middleware dort ebenfalls bereitstellen.<br>
                 </p>
-                Beispiel-Aufruf:
+                <p>
+                    Zum Starten eures Bots mit Hilfe der Middleware müsst ihr die config-Datei <code>middleware.conf</code> anpassen. Diese sollte wie folgt aussehen:
+                </p>
                 <pre>
-./Programmierwettbewerb-Middleware -bot=myBot -name=myName</pre>
+bot=mybot
+name=myname</pre>
+                <dl class="dl-horizontal">
+                    <dt>mybot</dt>
+                    <dd>
+                        Im einfachsten Fall ist dies nur eine ausführbare Datei. Wenn ihr eurem Programm Parameter übergeben wollt könnt ihr diese hier ebenfalls angeben. Auch ein Interpreter kann hier angegeben werden.
+                    </dd>
+                    <dt>myname</dt>
+                    <dd>Hier gebt ihr den Namen an, unter dem ihr testen wollt. Dieser muss in der Datei <code>bot.names</code> in eurem Repository hinterlegt sein. Im Wettbewerb werden wir eurem Bot den Namen zuordnen, der hier eingetragen ist.</dd>
+                </dl>
+                
+                Starten der Middleware:
+                <pre>
+./Programmierwettbewerb-Middleware</pre>
+                <p>
+                    Die folgenden Parameter könnt ihr <i>optional</i> angeben. Diese überscheiben eure Angaben in der <code>middleware.conf</code>.
+                </p>
                 <dl class="dl-horizontal">
                     <dt>-bot</dt>
-                    <dd>Zur Angabe eures Bots. Hier wird eine direkt ausführbare Datei erwartet.</dd>
+                    <dd>Zur Angabe eures Bots. Hier gelten die gleichen Bedingungen wie in der <code>middleware.conf</code></dd>
                     <dt>-name</dt>
                     <dd>Euer Name für diesen Test. Dieser muss in der Datei <code>bot.names</code> in eurem Repository hinterlegt sein.</dd>
                     <dt>-numBots</dt>
-                    <dd>Anzahl der Bots, die ihr starten wollt. Wird dieser Parameter nicht angegeben, startet die Middleware einen Bot.</dd>
+                    <dd>Anzahl der Bots, die ihr starten wollt. Standardmäßig startet die Middleware einen Bot.</dd>
                 </dl>
                 <p>
                     Wenn ihr euch die Middleware selbst kompilieren wollt, könnt ihr dies selbstverständlich tun. Die Quellen findet ihr im <a href="https://github.com/hpatjens/Programmierwettbewerb/">Repository</a>.
@@ -406,24 +429,11 @@
                     <p class="indent">
                         Im Wettbewerb werden wir alles auf einem <b>64-Bit Linux</b> ausführen!
                     </p>
-
-                    <h4>Name</h4>
-                    <p class="indent">
-                        <p class="indent">In eurem Repository muss eine ausführbare Datei mit dem Namen eures Repositories liegen. Sie darf jedoch eine beliebige Dateiendung haben.</p>
-                        <p class="indent">Zum Beispiel: <code>pwb_00</code> <code>pwb_00.py</code> <code>pwb_00.sh</code></p>
-                    </p>
-
-                    <h4>Direkter Aufruf</h4>
-                    <p class="indent">
-                        Wenn euch der Compiler bereits eine Executable bereitstellt, könnt ihr diese beim Aufruf der Middleware direkt angeben. Wenn ihr weitere Parameter übergeben wollt
-                        oder einen Interpreter verwendet, dann könnt ihr diese einfach zusätzlich angeben. So, als würdet ihr euren Bot über die Konsole starten.</br>
-                        <code>./Programmierwettbewerb-Middleware -bot="java mybot argument1 argument2" ...</code>
-                    </p>
-
+                    
                     <h4>Zusatzinformation für Faule</h4>
                     <p class="indent">
-                        Die ausführbare Datei muss eigentlich erst für den Wettbewerb korrekt benannt sein und im Wurzel-Verzeichnis liegen. Wird würden jedoch gerne vorab einige Tests
-                        machen und bitten euch immer eine korrekt benannte ausführbare Datei bereitzustellen.
+                        Die ausführbare Datei muss eigentlich erst für den Wettbewerb korrekt in der middleware.conf eingetragen sein. Wird würden jedoch gerne vorab einige Tests
+                        machen und bitten euch immer eine ausführbare Datei einzutragen. Dies erleichtert euch zudem das Testen.
                     </p>
                 </div>
                 <div class="col-sm-6">
