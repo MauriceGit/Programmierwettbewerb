@@ -5,6 +5,7 @@ import (
     .   "Programmierwettbewerb-Server/shared"
 
     "golang.org/x/net/websocket"
+    "github.com/BurntSushi/toml"
     "fmt"
     "os"
     "time"
@@ -35,6 +36,15 @@ const (
     //globalDefaultAddress string = "ws://127.0.0.1:8080/middleware/"
     globalDefaultAddress string = "ws://cagine.fh-wedel.de:8080/middleware/"
 )
+
+
+// Info from config file
+type Config struct {
+    Name       string
+    Bot        string
+    Connection string
+}
+
 
 // -------------------------------------------------------------------------------------------------
 
@@ -120,11 +130,11 @@ func parseArguments() (parseResult ParseResult, e error) {
         serverURL:  *serverURLFlag,
     }
 
-    Logf(LtDebug, "name given: '%v'\n", *botName)
+    //Logf(LtDebug, "name given: '%v'\n", *botName)
 
-    if result.botPath == "" {
-        return result, errors.New("No bot path was given.")
-    }
+    //if result.botPath == "" {
+    //    return result, errors.New("No bot path was given.")
+    //}
 
     //if _, err := os.Stat(result.botPath); os.IsNotExist(err) {
     //    return result, errors.New(fmt.Sprintf("Could not find the bot %v", result.botPath))
@@ -597,6 +607,23 @@ func work(bot Bot, serverConnection ServerConnection, runningState chan(bool)) {
     }
 }
 
+// Reads info from config file
+func readConfig(name string) Config {
+    var configfile = name
+    _, err := os.Stat(configfile)
+    if err != nil {
+        Logf(LtDebug, "Config file is missing: %v, %v\n", configfile)
+    }
+
+    var config Config
+    if _, err := toml.DecodeFile(configfile, &config); err != nil {
+        Logf(LtDebug, "%v\n", err)
+    }
+
+    return config
+}
+
+
 func main() {
     var wg sync.WaitGroup
 
@@ -611,6 +638,17 @@ func main() {
     SetLoggingVerbose(parseResult.verbose)
     SetLoggingMute(parseResult.mute)
     SetLoggingPrefix("MIDDLEWARE")
+
+    var config = readConfig("middleware.conf")
+    if parseResult.botPath == "" {
+        parseResult.botPath = config.Bot
+    }
+    if parseResult.botName == "" {
+        parseResult.botName = config.Name
+    }
+    if parseResult.serverURL == "" {
+        parseResult.serverURL = config.Connection
+    }
 
     //
     // Start the bots, initialize the connections and start the work
