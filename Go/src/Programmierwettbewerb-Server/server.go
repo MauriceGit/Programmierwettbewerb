@@ -457,14 +457,22 @@ func newBotPos() (Vec2, bool) {
 
                 if minDist > dist {
                     allGood = false
+                    break
                 }
             }
+            if !allGood {
+				break
+			}
         }
         if allGood {
             return pos, true
         }
     }
-    return Vec2{}, false
+    
+    Logf(LtDebug, "Bot position could NOT be determined. Bot is started at a random position!\n")
+    
+    pos := app.botDistribution[rand.Intn(length)]
+    return pos, true
 }
 
 func calcBlobVelocityFromMass(vel Vec2, mass float32) Vec2 {
