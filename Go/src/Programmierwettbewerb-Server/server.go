@@ -235,7 +235,7 @@ var mutex = &sync.Mutex{}
 
 func (app* Application) initialize() {
     app.settings.MinNumberOfBots    = 10
-    app.settings.MaxNumberOfBots    = 50
+    app.settings.MaxNumberOfBots    = 100
     app.settings.MaxNumberOfFoods   = 400
     app.settings.MaxNumberOfToxins  = 200
 
@@ -1074,7 +1074,6 @@ func (app* Application) startUpdateLoop() {
                             app.bots[mwInfo.botId] = bot
                         }
                         if mwInfo.createNewBot && len(app.bots) < app.settings.MaxNumberOfBots {
-							Logf(LtDebug, "---> create Starting Bot.\n")
                             bot := createStartingBot(mwInfo.ws, mwInfo.botInfo, mwInfo.statistics)
                             if !reflect.DeepEqual(bot,Bot{}) {
                                 app.bots[mwInfo.botId] = bot
@@ -1806,9 +1805,6 @@ func handleGui(ws *websocket.Conn) {
 func createStartingBot(ws *websocket.Conn, botInfo BotInfo, statistics Statistics) Bot {
     if pos, ok := newBotPos(); ok {
 		
-		
-		Logf(LtDebug, "---> create Starting Bot __2__.\n")
-		
         blob := Blob {
             Position:       pos,  // TODO(henk): How do we decide this?
             Mass:           100.0,
@@ -1842,8 +1838,6 @@ func createStartingBot(ws *websocket.Conn, botInfo BotInfo, statistics Statistic
             ConnectionAlive:        true,
         }
     }
-    
-    Logf(LtDebug, "---> create Starting Bot __NO__.\n")
     
     return Bot{}
 }
