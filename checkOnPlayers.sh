@@ -15,12 +15,10 @@ while read -r line; do
     if [ -n "$successfullName" ]
     then
         echo -e "Player ${GREEN}$successfullName\t${NC} can be associated with ${GREEN}$svn${NC} at $time"
-        #echo "$successfullName $svn $time"
     else
         if [ -n "$failedName" ]
         then
             echo -e "Player ${RED}$failedName\t${NC} failed at                        $time"
-            #echo -e "Player $failedName\t can be associated with pwb_05 at $time"
         fi
     fi
 
