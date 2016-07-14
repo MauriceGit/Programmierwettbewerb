@@ -1793,6 +1793,8 @@ func sendMiddlewareMessages(ws *websocket.Conn, channel chan ServerMiddlewareGam
     Logf(LtDebug, "===> SendMiddlewareMessage go routine started.\n")
     sendingFastEnough := true
 
+    return
+
     for {
 
         // Alive Test!
