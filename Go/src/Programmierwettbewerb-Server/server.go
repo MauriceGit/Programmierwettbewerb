@@ -173,6 +173,8 @@ type Bot struct {
     StatisticsOverall   Statistics
     Command             BotCommand
     Connection          *websocket.Conn
+    MessageChannel      chan ServerMiddlewareGameState
+    Alive               chan bool
     ConnectionAlive     bool                // TODO(henk): What shall we do when the connection is lost?
 }
 
@@ -192,6 +194,9 @@ type MwInfo struct {
 
     createNewBot            bool
     botInfo                 BotInfo
+
+    messageChannel          chan ServerMiddlewareGameState
+    alive                   chan bool
 
     statistics              Statistics
 
@@ -762,7 +767,8 @@ func sendDataToMiddleware(mWMessageCounter int, finished chan bool) {
     // HENK: First we would have to determine which blobs, toxins and foods are visible to the bots. We would have to profile that to check whats faster.
     if mWMessageCounter % mwMessageEvery == 0 {
         for botId, bot := range app.bots {
-            var connection = app.bots[botId].Connection
+            //var connection = app.bots[botId].Connection
+            channel := app.bots[botId].MessageChannel
 
             // Collecting other blobs
             var otherBlobs []ServerMiddlewareBlob
@@ -798,7 +804,10 @@ func sendDataToMiddleware(mWMessageCounter int, finished chan bool) {
                 Food:           foods,
                 Toxin:          toxins,
             }
-            websocket.JSON.Send(connection, wrapper)
+
+            //websocket.JSON.Send(connection, wrapper)
+            channel <- wrapper
+
         }
     }
 
@@ -1078,7 +1087,12 @@ func (app* Application) startUpdateLoop() {
                             app.bots[mwInfo.botId] = bot
                         }
                         if mwInfo.createNewBot && len(app.bots) < app.settings.MaxNumberOfBots {
-                            bot := createStartingBot(mwInfo.ws, mwInfo.botInfo, mwInfo.statistics)
+
+                            bot := createStartingBot(mwInfo.ws, mwInfo.botInfo, mwInfo.statistics, mwInfo.messageChannel, mwInfo.alive)
+
+
+
+
                             if !reflect.DeepEqual(bot,Bot{}) {
                                 app.bots[mwInfo.botId] = bot
                             } else {
@@ -1774,6 +1788,62 @@ func (app* Application) startUpdateLoop() {
     }
 }
 
+func sendMiddlewareMessages(ws *websocket.Conn, channel chan ServerMiddlewareGameState, alive chan bool) {
+
+    Logf(LtDebug, "===> SendMiddlewareMessage go routine started.\n")
+    sendingFastEnough := true
+
+    for {
+
+        // Alive Test!
+        select {
+            case state, ok := <-alive:
+                if ok  && !state {
+                    Logf(LtDebug, "===> Alive failed - MW go routine shutting down!\n")
+                    return
+                }
+            default:
+        }
+
+
+        //var data []ServerGuiUpdateMessage
+            // Get Data from channel and send to websocket.
+            // Get all data and put it into a slice.
+            // Then go for the essential data in all, but the last message
+            // S'This shit possible ???
+            //
+            // First just send all of it...
+        select {
+            case message, ok := <-channel:
+                if ok {
+                    var err error
+                    if !sendingFastEnough {
+                        // Just send essential information!
+                        //err = websocket.JSON.Send(ws, message)
+
+                    } else {
+                        // Send the full message here!
+                        err = websocket.JSON.Send(ws, message)
+                    }
+
+                    //err := websocket.JSON.Send(ws, message)
+                    if err != nil {
+                        Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
+                    }
+
+                    // At least one time after a sent, the default case must be triggered,
+                    // so we actually know, that the data was sent faster then we calculated it.
+                    sendingFastEnough = false
+                } else {
+                    Logf(LtDebug, "===> Output 1\n")
+                }
+
+            default:
+                sendingFastEnough = true
+        }
+    }
+}
+
 func sendGuiMessages(ws *websocket.Conn, channel chan ServerGuiUpdateMessage, alive chan bool) {
 
     Logf(LtDebug, "===> SendGuiMessage go routine started.\n")
@@ -1808,8 +1878,6 @@ func sendGuiMessages(ws *websocket.Conn, channel chan ServerGuiUpdateMessage, al
                         //Logf(LtDebug, "===> Not sending fast enough!\n")
                         err = websocket.JSON.Send(ws, message)
 
-
-
                     } else {
                         // Send the full message here!
                         err = websocket.JSON.Send(ws, message)
@@ -1831,7 +1899,6 @@ func sendGuiMessages(ws *websocket.Conn, channel chan ServerGuiUpdateMessage, al
                 sendingFastEnough = true
         }
     }
-
 }
 
 func handleGui(ws *websocket.Conn) {
@@ -1872,7 +1939,8 @@ func handleGui(ws *websocket.Conn) {
     }
 }
 
-func createStartingBot(ws *websocket.Conn, botInfo BotInfo, statistics Statistics) Bot {
+
+func createStartingBot(ws *websocket.Conn, botInfo BotInfo, statistics Statistics, messageChannel chan ServerMiddlewareGameState, alive chan bool) Bot {
     if pos, ok := newBotPos(); ok {
 
         blob := Blob {
@@ -1904,6 +1972,8 @@ func createStartingBot(ws *websocket.Conn, botInfo BotInfo, statistics Statistic
             StatisticsThisGame:     statisticNew,
             StatisticsOverall:      statistics,
             Command:                BotCommand{ BatNone, RandomVec2(), },
+            MessageChannel:         messageChannel,
+            Alive:                  alive,
             Connection:             ws,
             ConnectionAlive:        true,
         }
@@ -1968,11 +2038,15 @@ func handleMiddleware(ws *websocket.Conn) {
         app.standbyMode <- true
     }
 
+    var messageChannel = make(chan ServerMiddlewareGameState, 1000)
+    var isAlive        = make(chan bool, 1)
+
     var err error
     for {
 
         if connectionIsTerminated(app.runningState) {
             Logf(LtDebug, "handleMiddleware is shutting down.\n")
+            isAlive <- false
             ws.Close()
             return
         }
@@ -1983,6 +2057,8 @@ func handleMiddleware(ws *websocket.Conn) {
         var message MessageMiddlewareServer
         if err = websocket.JSON.Receive(ws, &message); err != nil {
             Logf(LtDebug, "Can't receive from bot %v. Error: %v\n", botId, err)
+
+            isAlive <- false
 
             ws.Close()
 
@@ -1997,6 +2073,8 @@ func handleMiddleware(ws *websocket.Conn) {
                             createNewBot:           false,
                             botInfo:                bi,
                             statistics:             Statistics{},
+                            messageChannel:         messageChannel,
+                            alive:                  isAlive,
                             ws:                     nil,
                           }
 
@@ -2017,6 +2095,8 @@ func handleMiddleware(ws *websocket.Conn) {
                                 createNewBot:       false,
                                 botInfo:            bi,
                                 statistics:         Statistics{},
+                                messageChannel:     messageChannel,
+                                alive:              isAlive,
                                 ws:                 nil,
                               }
 
@@ -2046,6 +2126,8 @@ func handleMiddleware(ws *websocket.Conn) {
                     return
                 }
 
+                go sendMiddlewareMessages(ws, messageChannel, isAlive)
+
                 var cmd BotCommand
                 app.mwInfo <- MwInfo{
                                 botId:              botId,
@@ -2054,6 +2136,8 @@ func handleMiddleware(ws *websocket.Conn) {
                                 createNewBot:       true,
                                 botInfo:            *message.BotInfo,
                                 statistics:         statisticsOverall,
+                                messageChannel:     messageChannel,
+                                alive:              isAlive,
                                 ws:                 ws,
                               }
 
