@@ -2,19 +2,6 @@
 
 list=$(ssh pwb-agario@cagine.fh-wedel.de "cat Programmierwettbewerb/server.log | grep -E \"The player\" | grep -v \"dummy\"" | uniq -f 15 -c)
 
-for l in "$list"
-do
-    break
-    #echo -e "\e[31m$l\e[0m"
-    #echo "player: $(sed -e 's/(\(.*\))$l/\1/')"
-    successfullName=$(echo "$l" | awk -v FS="(player |can be)" '{print $2}')
-
-    echo -e "TEST \e[31m$successfullName\e[0m"
-
-    echo "$l"
-
-done
-
 while read -r line; do
     successfullName=$(echo "$line" | awk -v FS="(player | can be)" '{print $2}' | grep -v "not allowed" | grep -v "not be associated")
     svn=$(echo "$line" | awk -v FS="(svn-repos |. At)" '{print $2}')
