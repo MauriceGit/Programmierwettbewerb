@@ -178,6 +178,8 @@ type Bot struct {
 type GuiConnection struct {
     Connection          *websocket.Conn
     IsNewConnection     bool
+    MessageChannel      chan ServerGuiUpdateMessage
+    Alive               chan bool
 }
 
 type MwInfo struct {
@@ -461,16 +463,16 @@ func newBotPos() (Vec2, bool) {
                 }
             }
             if !allGood {
-				break
-			}
+                break
+            }
         }
         if allGood {
             return pos, true
         }
     }
-    
+
     Logf(LtDebug, "Bot position could NOT be determined. Bot is started at a random position!\n")
-    
+
     pos := app.botDistribution[rand.Intn(length)]
     return pos, true
 }
@@ -815,8 +817,8 @@ func sendDataToGui( guiMessageCounter int, guiStatisticsMessageCounter int, dead
     // Send the data to the clients
     //
     for guiId, guiConnection := range app.guiConnections {
-        var connection = app.guiConnections[guiId].Connection
-
+        //var connection = app.guiConnections[guiId].Connection
+        channel := app.guiConnections[guiId].MessageChannel
         message := newServerGuiUpdateMessage()
 
         //Logf(LtDebug, "Botcount: %v\n", app.bots)
@@ -872,11 +874,12 @@ func sendDataToGui( guiMessageCounter int, guiStatisticsMessageCounter int, dead
 
         message.DeletedToxins = eatenToxins
 
-        err := websocket.JSON.Send(connection, message)
-        if err != nil {
-            Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
-            //return
-        }
+        channel <- message
+        //err := websocket.JSON.Send(connection, message)
+        //if err != nil {
+        //    Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
+        //    //return
+        //}
     }
     finished <- true
 
@@ -1694,7 +1697,7 @@ func (app* Application) startUpdateLoop() {
             go sendDataToMiddleware(mWMessageCounter, sendDataMWFinished)
 
             // Copy everything and send those to the gui! So it is completely asynchrone!
-            var guiConnectionsCpy = make(map[GuiId]GuiConnection)
+            /*var guiConnectionsCpy = make(map[GuiId]GuiConnection)
             var botsCpy = make(map[BotId]Bot)
             var toxinsCpy = make(map[ToxinId]Toxin)
             var foodsCpy = make(map[FoodId]Food)
@@ -1709,8 +1712,8 @@ func (app* Application) startUpdateLoop() {
             }
             for k,v := range app.foods {
                 foodsCpy[k] = v
-            }
-            go sendDataToGui(guiMessageCounter, guiStatisticsMessageCounter, deadBots, eatenFoods, eatenToxins, guiConnectionsCpy, botsCpy, toxinsCpy, foodsCpy, sendDataGuiFinished)
+            }*/
+            go sendDataToGui(guiMessageCounter, guiStatisticsMessageCounter, deadBots, eatenFoods, eatenToxins, app.guiConnections, app.bots, app.toxins, app.foods, sendDataGuiFinished)
 
             <- sendDataMWFinished
             <- sendDataGuiFinished
@@ -1770,6 +1773,66 @@ func (app* Application) startUpdateLoop() {
     }
 }
 
+func sendGuiMessages(ws *websocket.Conn, channel chan ServerGuiUpdateMessage, alive chan bool) {
+
+    Logf(LtDebug, "===> SendGuiMessage go routine started.\n")
+    sendingFastEnough := true
+
+    for {
+
+        // Alive Test!
+        select {
+            case state, ok := <-alive:
+                if ok  && !state {
+                    Logf(LtDebug, "===> Alive failed - go routine shutting down!\n")
+                    return
+                }
+            default:
+        }
+
+
+        //var data []ServerGuiUpdateMessage
+            // Get Data from channel and send to websocket.
+            // Get all data and put it into a slice.
+            // Then go for the essential data in all, but the last message
+            // S'This shit possible ???
+            //
+            // First just send all of it...
+        select {
+            case message, ok := <-channel:
+                if ok {
+                    var err error
+                    if !sendingFastEnough {
+                        // Just send essential information!
+                        //Logf(LtDebug, "===> Not sending fast enough!\n")
+                        err = websocket.JSON.Send(ws, message)
+
+
+
+                    } else {
+                        // Send the full message here!
+                        err = websocket.JSON.Send(ws, message)
+                    }
+
+                    //err := websocket.JSON.Send(ws, message)
+                    if err != nil {
+                        Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
+                    }
+
+                    // At least one time after a sent, the default case must be triggered,
+                    // so we actually know, that the data was sent faster then we calculated it.
+                    sendingFastEnough = false
+                } else {
+                    Logf(LtDebug, "===> Output 1\n")
+                }
+
+            default:
+                sendingFastEnough = true
+        }
+    }
+
+}
+
 func handleGui(ws *websocket.Conn) {
     var guiId          = app.createGuiId()         // TODO(henk): When do we delete the blob?
 
@@ -1779,8 +1842,12 @@ func handleGui(ws *websocket.Conn) {
         app.standbyMode <- true
     }
 
+    var messageChannel = make(chan ServerGuiUpdateMessage, 1000)
+    var isAlive        = make(chan bool, 1)
 
-    app.guiConnections[guiId] = GuiConnection{ ws, true }
+    app.guiConnections[guiId] = GuiConnection{ ws, true, messageChannel, isAlive }
+
+    go sendGuiMessages(ws, messageChannel, isAlive)
 
     Logf(LtDebug, "Got connection for Gui %v\n", guiId)
 
@@ -1789,6 +1856,7 @@ func handleGui(ws *websocket.Conn) {
 
         if connectionIsTerminated(app.runningState) {
             Logf(LtDebug, "HandleGui is shutting down.\n")
+            isAlive <- false
             ws.Close()
             return
         }
@@ -1797,6 +1865,7 @@ func handleGui(ws *websocket.Conn) {
 
         if err = websocket.Message.Receive(ws, &reply); err != nil {
             Logf(LtDebug, "Can't receive (%v)\n", err)
+            isAlive <- false
             break
         }
     }
@@ -1804,7 +1873,7 @@ func handleGui(ws *websocket.Conn) {
 
 func createStartingBot(ws *websocket.Conn, botInfo BotInfo, statistics Statistics) Bot {
     if pos, ok := newBotPos(); ok {
-		
+
         blob := Blob {
             Position:       pos,  // TODO(henk): How do we decide this?
             Mass:           100.0,
@@ -1838,7 +1907,7 @@ func createStartingBot(ws *websocket.Conn, botInfo BotInfo, statistics Statistic
             ConnectionAlive:        true,
         }
     }
-    
+
     return Bot{}
 }
 
