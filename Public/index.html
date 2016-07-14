@@ -257,6 +257,9 @@
                     <p>
                         Ein Bot kann nie aus mehr als 18 Blobs bestehen.
                     </p>
+                    <p>
+                        Die Spielfeldgröße liegt aktuell bei 1000x1000. Bis zur Bekanntgabe der Wettbewerbsbedingungen behalten wir uns vor, diese zu ändern.
+                    </p>
                 </div>
                 <div class="col-sm-4">
                     <h3><b>Tipps</b></h3>
@@ -275,9 +278,6 @@
                     <p>
                         Wenn sich ein Gegner teilt, um einen zu fressen, kann man meistens überleben, indem man sich auch teilt, um zumindest die Hälfte
                         der eigenen Blobs zu retten.
-                    </p>
-                    <p>
-
                     </p>
                 </div>
             </div>
@@ -506,15 +506,15 @@ type Position   = (Float, Float)
                 <div class="col-sm-6">
                     <h4>Beispiel für Eingabe <small>(Zeilenumbrüche nicht berücksichtigen)</small></h4>
                     <pre>
-    ([(1,2,3,(4,5),6)],
-     [(7,8,9,(10,11),12)],
-     [((13,14),15)],
-     [((16,17),18)])</pre>
+    ([(1,2,3,(4.0,5.0),6)],
+     [(7,8,9,(10.0,11.0),12)],
+     [((13.0,14.0),15)],
+     [((16.0,17.0),18)])</pre>
                 </div>
                 <div class="col-sm-6">
                     <h4>Beispiel für Ausgabe</h4>
                     <pre>
-    (None,(1,2))</pre>
+    (None,(1.0,2.0))</pre>
                 </div>
             </div>
             <h1 class="offset">Parser</h1>
