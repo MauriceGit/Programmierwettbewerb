@@ -1,6 +1,6 @@
 #!/bin/bash
 
-list=$(ssh pwb-agario@cagine.fh-wedel.de "cat Programmierwettbewerb/server.log | grep -E \"The player\" | grep -v \"dummy\"" | uniq -f 15 -c)
+list=$(ssh pwb-agario@cagine.fh-wedel.de "cat Programmierwettbewerb/server.log | grep -E \"The player\" | grep -v \"dummy\"" | uniq -f 15 -c | tail -n 100)
 
 while read -r line; do
     successfullName=$(echo "$line" | awk -v FS="(player | can be)" '{print $2}' | grep -v "not allowed" | grep -v "not be associated")
