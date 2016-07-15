@@ -1878,7 +1878,7 @@ func sendGuiMessages(ws *websocket.Conn, channel chan ServerGuiUpdateMessage, al
                     if !sendingFastEnough {
                         // Just send essential information!
                         //Logf(LtDebug, "===> Not sending fast enough!\n")
-                        //err = websocket.JSON.Send(ws, message)
+                        err = websocket.JSON.Send(ws, message)
 
                     } else {
                         // Send the full message here!

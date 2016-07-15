@@ -7,6 +7,8 @@ while read -r line; do
     svn=$(echo "$line" | awk -v FS="(svn-repos |. At)" '{print $2}')
     time=$(echo "$line"| awk -v FS="(At: |CEST)" 'BEGIN{IGNORECASE = 1}{print $2}')
     failedName=$(echo "$line" | awk -v FS="(The player | is not)" '{print $2}' | grep -v "not be associated")
+    ip=$(echo "$line" | awk -v FS="(Request from: |, at)" '{print $2}')
+    count=$(echo "$line" | awk -v FS="(^| )" '{print $1}')
 
     RED='\033[0;31m'
     GREEN='\033[0;32m'
@@ -14,11 +16,11 @@ while read -r line; do
 
     if [ -n "$successfullName" ]
     then
-        echo -e "Player ${GREEN}$successfullName\t${NC} can be associated with ${GREEN}$svn${NC} at $time"
+        echo -e "Player: ${GREEN}$successfullName.${NC}\t SVN: ${GREEN}$svn${NC}. Count: $count. At: $time"
     else
         if [ -n "$failedName" ]
         then
-            echo -e "Player ${RED}$failedName\t${NC} failed at                        $time"
+            echo -e "Player: ${RED}$failedName\t${NC} failed. IP: $ip.\t Count: $count. At: $time"
         fi
     fi
 

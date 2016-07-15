@@ -1,0 +1,39 @@
+# Webseite
+    http://cagine.fh-wedel.de:8080/
+
+    Dort findet ihr alle Informationen, die ihr braucht.
+    Die Seite wird regelmäßig überarbeitet und mit neuen Informationen
+    ergänzt.
+
+    Es lohnt sich, hin- und wieder mal rauf zu schauen
+
+# Updates
+    Wir werden unter Umständen die Middleware in eurem SVN updaten, wenn wir
+    kritische Fehler beheben. Bitte macht hin- und wieder ein:
+
+    svn update
+
+    um auf dem aktuellsten Stand zu sein.
+
+# Erster Checkout
+    Es liegen beim ersten Checkout bereits 4 Dateien in eurem SVN-Repository.
+
+## Programmierwettbewerb-Middleware
+    Diese startet ihr, sobald ihr was programmiert habt.
+
+## bot.names
+    Hier MÜSSEN alle Namen drin stehen, die ihr für eure Bots nutzen wollt!
+    Schreibt alle Namen, mit denen ihr testen wollt hier rein.
+
+    Vergesst nicht, die Datei wieder zu committen! Unser Server wird euer
+    Repository updaten und die Namen mit dieser Datei vergleichen.
+
+    Eventuell kann es 2-3 Minuten dauern, bis der Server die Änderungen mitbekommt.
+
+## middleware.conf
+    Hier müssen die beiden Felder: 'name' und 'bot' ausgefüllt werden.
+    Beide Felder sind dort direkt erklärt.
+
+## getStarted.txt
+    Ihr lest sie gerade ;)
+
