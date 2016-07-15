@@ -1827,18 +1827,19 @@ func sendMiddlewareMessages(botId BotId, ws *websocket.Conn, channel chan Server
     }
 }
 
-func getOtherMessagesFromGuiChannel(channel chan ServerGuiUpdateMessage) []ServerGuiUpdateMessage {
+func getOtherMessagesFromGuiChannel(channel chan ServerGuiUpdateMessage) ([]ServerGuiUpdateMessage, int) {
     var messages = make([]ServerGuiUpdateMessage, 0)
-
+    var count = 0
     select {
         case message, ok := <-channel:
             if ok {
                 messages = append(messages, message)
+                count++
             }
         default:
-            return messages
+            return messages, count
     }
-    return messages
+    return messages, count
 }
 
 func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpdateMessage, alive chan bool) {
@@ -1852,6 +1853,8 @@ func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpda
             case state, ok := <-alive:
                 if ok  && !state {
                     Logf(LtDebug, "===> Alive failed - go routine shutting down!\n")
+                    ws.Close()
+
                     return
                 }
             default:
@@ -1868,7 +1871,13 @@ func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpda
             case message, ok := <-channel:
                 if ok {
                     var err error
-                    otherMessages := getOtherMessagesFromGuiChannel(channel)
+                    otherMessages, count := getOtherMessagesFromGuiChannel(channel)
+
+                    if count > 10 {
+                        Logf(LtDebug, "More than 10 messages are in the Queue for gui %v. So we just shut it down!\n", guiId)
+                        ws.Close()
+                        return
+                    }
 
                     if len(otherMessages) == 0 {
                         // Just now, we send the whole message!
@@ -1898,6 +1907,7 @@ func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpda
                 }
             case <-timeout:
                 Logf(LtDebug, "===> Timeout for Gui messages (GuiId: %v) - go routine shutting down!\n", guiId)
+                ws.Close()
                 return
         }
     }
