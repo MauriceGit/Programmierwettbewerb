@@ -760,7 +760,7 @@ func nobodyIsWatching() bool {
     return !someoneIsThere
 }
 
-func sendDataToMiddleware(mWMessageCounter int, finished chan bool) {
+func sendDataToMiddleware(mWMessageCounter int) {
 
     // TODO(Maurice/henk):
     // MAURICE: Could be VERY MUCH simplified, if we just convert All blobs to the right format once and then sort out later who gets what data!
@@ -810,13 +810,10 @@ func sendDataToMiddleware(mWMessageCounter int, finished chan bool) {
 
         }
     }
-
-    finished <- true
 }
 
 func sendDataToGui( guiMessageCounter int, guiStatisticsMessageCounter int, deadBots []BotId, eatenFoods []FoodId, eatenToxins []ToxinId,
-                    guiConnections map[GuiId]GuiConnection, bots map[BotId]Bot, toxins map[ToxinId]Toxin, foods map[FoodId]Food,
-                    finished chan bool) {
+                    guiConnections map[GuiId]GuiConnection, bots map[BotId]Bot, toxins map[ToxinId]Toxin, foods map[FoodId]Food) {
 
     // Pre-calculate the list for eaten Toxins
     //reallyDeadToxins := make([]ToxinId, 0)
@@ -891,7 +888,6 @@ func sendDataToGui( guiMessageCounter int, guiStatisticsMessageCounter int, dead
         //    //return
         //}
     }
-    finished <- true
 
 }
 
@@ -1706,32 +1702,8 @@ func (app* Application) startUpdateLoop() {
             // SEND UPDATED DATA TO MIDDLEWARE AND GUI
             ////////////////////////////////////////////////////////////////
 
-            sendDataMWFinished  := make(chan bool)
-            sendDataGuiFinished  := make(chan bool)
-
-            go sendDataToMiddleware(mWMessageCounter, sendDataMWFinished)
-
-            // Copy everything and send those to the gui! So it is completely asynchrone!
-            /*var guiConnectionsCpy = make(map[GuiId]GuiConnection)
-            var botsCpy = make(map[BotId]Bot)
-            var toxinsCpy = make(map[ToxinId]Toxin)
-            var foodsCpy = make(map[FoodId]Food)
-            for k,v := range app.guiConnections {
-                guiConnectionsCpy[k] = v
-            }
-            for k,v := range app.bots {
-                botsCpy[k] = v
-            }
-            for k,v := range app.toxins {
-                toxinsCpy[k] = v
-            }
-            for k,v := range app.foods {
-                foodsCpy[k] = v
-            }*/
-            go sendDataToGui(guiMessageCounter, guiStatisticsMessageCounter, deadBots, eatenFoods, eatenToxins, app.guiConnections, app.bots, app.toxins, app.foods, sendDataGuiFinished)
-
-            <- sendDataMWFinished
-            <- sendDataGuiFinished
+            sendDataToMiddleware(mWMessageCounter)
+            sendDataToGui(guiMessageCounter, guiStatisticsMessageCounter, deadBots, eatenFoods, eatenToxins, app.guiConnections, app.bots, app.toxins, app.foods)
 
             for toxinId, toxin := range app.toxins {
                 if toxin.IsNew {
@@ -1905,13 +1877,17 @@ func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpda
 
                         allMessages := append([]ServerGuiUpdateMessage{message}, otherMessages...)
 
-                        for _,m := range(allMessages) {
+                        for i,m := range(allMessages) {
                             // Delete all information we do not want to send!
-                            m.CreatedOrUpdatedBots = make(map[string]ServerGuiBot)
-                            m.StatisticsThisGame   = make(map[string]Statistics)
-                            m.StatisticsGlobal     = make(map[string]Statistics)
+                            if i != len(allMessages)-1 {
+                                m.CreatedOrUpdatedBots = make(map[string]ServerGuiBot)
+                                m.StatisticsThisGame   = make(map[string]Statistics)
+                                m.StatisticsGlobal     = make(map[string]Statistics)
+                            }
                             // Send just essential stuff!
                             err = websocket.JSON.Send(ws, m)
+
+                            Logf(LtDebug, "sent Message to Gui!\n")
                         }
                     }
 
@@ -1936,8 +1912,8 @@ func handleGui(ws *websocket.Conn) {
         app.standbyMode <- true
     }
 
-    var messageChannel = make(chan ServerGuiUpdateMessage, 1000)
-    var isAlive        = make(chan bool, 1)
+    var messageChannel = make(chan ServerGuiUpdateMessage, 10000)
+    var isAlive        = make(chan bool, 1000)
 
     app.guiConnections[guiId] = GuiConnection{ ws, true, messageChannel, isAlive }
 
@@ -2064,8 +2040,8 @@ func handleMiddleware(ws *websocket.Conn) {
         app.standbyMode <- true
     }
 
-    var messageChannel = make(chan ServerMiddlewareGameState, 1000)
-    var isAlive        = make(chan bool, 1)
+    var messageChannel = make(chan ServerMiddlewareGameState, 10000)
+    var isAlive        = make(chan bool, 10000)
 
     var err error
     for {
