@@ -767,8 +767,8 @@ func sendDataToMiddleware(mWMessageCounter int) {
     // HENK: First we would have to determine which blobs, toxins and foods are visible to the bots. We would have to profile that to check whats faster.
     if mWMessageCounter % mwMessageEvery == 0 {
         for botId, bot := range app.bots {
-            //var connection = app.bots[botId].Connection
-            channel := app.bots[botId].MessageChannel
+            var connection = app.bots[botId].Connection
+            //channel := app.bots[botId].MessageChannel
 
             // Collecting other blobs
             var otherBlobs []ServerMiddlewareBlob
@@ -805,8 +805,8 @@ func sendDataToMiddleware(mWMessageCounter int) {
                 Toxin:          toxins,
             }
 
-            //websocket.JSON.Send(connection, wrapper)
-            channel <- wrapper
+            websocket.JSON.Send(connection, wrapper)
+            //channel <- wrapper
 
         }
     }
