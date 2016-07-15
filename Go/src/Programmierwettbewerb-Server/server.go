@@ -767,8 +767,8 @@ func sendDataToMiddleware(mWMessageCounter int, finished chan bool) {
     // HENK: First we would have to determine which blobs, toxins and foods are visible to the bots. We would have to profile that to check whats faster.
     if mWMessageCounter % mwMessageEvery == 0 {
         for botId, bot := range app.bots {
-            var connection = app.bots[botId].Connection
-            //channel := app.bots[botId].MessageChannel
+            //var connection = app.bots[botId].Connection
+            channel := app.bots[botId].MessageChannel
 
             // Collecting other blobs
             var otherBlobs []ServerMiddlewareBlob
@@ -805,8 +805,8 @@ func sendDataToMiddleware(mWMessageCounter int, finished chan bool) {
                 Toxin:          toxins,
             }
 
-            websocket.JSON.Send(connection, wrapper)
-            //channel <- wrapper
+            //websocket.JSON.Send(connection, wrapper)
+            channel <- wrapper
 
         }
     }
@@ -1788,12 +1788,23 @@ func (app* Application) startUpdateLoop() {
     }
 }
 
-func sendMiddlewareMessages(ws *websocket.Conn, channel chan ServerMiddlewareGameState, alive chan bool) {
+func getOtherMessagesFromMWChannel(channel chan ServerMiddlewareGameState) []ServerMiddlewareGameState {
+    var messages = make([]ServerMiddlewareGameState, 0)
+
+    select {
+        case message, ok := <-channel:
+            if ok {
+                messages = append(messages, message)
+            }
+        default:
+            return messages
+    }
+    return messages
+}
+
+func sendMiddlewareMessages(botId BotId, ws *websocket.Conn, channel chan ServerMiddlewareGameState, alive chan bool) {
 
     Logf(LtDebug, "===> SendMiddlewareMessage go routine started.\n")
-    sendingFastEnough := true
-
-    return
 
     for {
 
@@ -1807,49 +1818,59 @@ func sendMiddlewareMessages(ws *websocket.Conn, channel chan ServerMiddlewareGam
             default:
         }
 
+        // After 5 seconds with no new Gui-message, it shuts down!
+        timeout := make(chan bool, 1)
+        go func() {
+            time.Sleep(5 * time.Second)
+            timeout <- true
+        }()
 
-        //var data []ServerGuiUpdateMessage
-            // Get Data from channel and send to websocket.
-            // Get all data and put it into a slice.
-            // Then go for the essential data in all, but the last message
-            // S'This shit possible ???
-            //
-            // First just send all of it...
         select {
             case message, ok := <-channel:
                 if ok {
                     var err error
-                    if !sendingFastEnough {
-                        // Just send essential information!
-                        //err = websocket.JSON.Send(ws, message)
+                    otherMessages := getOtherMessagesFromMWChannel(channel)
 
-                    } else {
-                        // Send the full message here!
+                    if len(otherMessages) == 0 {
+                        // Just now, we send the whole message!
                         err = websocket.JSON.Send(ws, message)
+                    } else {
+
+                        // Do nothing! The Middleware will NOT get any messages, until it is fast enough to get them!
+                        // It will get the next one though. But skipps all from this round.
+
                     }
 
-                    //err := websocket.JSON.Send(ws, message)
                     if err != nil {
                         Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
                     }
 
-                    // At least one time after a sent, the default case must be triggered,
-                    // so we actually know, that the data was sent faster then we calculated it.
-                    sendingFastEnough = false
-                } else {
-                    Logf(LtDebug, "===> Output 1\n")
                 }
-
-            default:
-                sendingFastEnough = true
+            case <-timeout:
+                Logf(LtDebug, "===> Timeout for MW messages (botId: %v) - go routine shutting down!\n", botId)
+                return
         }
+
     }
 }
 
-func sendGuiMessages(ws *websocket.Conn, channel chan ServerGuiUpdateMessage, alive chan bool) {
+func getOtherMessagesFromGuiChannel(channel chan ServerGuiUpdateMessage) []ServerGuiUpdateMessage {
+    var messages = make([]ServerGuiUpdateMessage, 0)
+
+    select {
+        case message, ok := <-channel:
+            if ok {
+                messages = append(messages, message)
+            }
+        default:
+            return messages
+    }
+    return messages
+}
+
+func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpdateMessage, alive chan bool) {
 
     Logf(LtDebug, "===> SendGuiMessage go routine started.\n")
-    sendingFastEnough := true
 
     for {
 
@@ -1863,42 +1884,44 @@ func sendGuiMessages(ws *websocket.Conn, channel chan ServerGuiUpdateMessage, al
             default:
         }
 
+        // After 5 seconds with no new Gui-message, it shuts down!
+        timeout := make(chan bool, 1)
+        go func() {
+            time.Sleep(5 * time.Second)
+            timeout <- true
+        }()
 
-        //var data []ServerGuiUpdateMessage
-            // Get Data from channel and send to websocket.
-            // Get all data and put it into a slice.
-            // Then go for the essential data in all, but the last message
-            // S'This shit possible ???
-            //
-            // First just send all of it...
         select {
             case message, ok := <-channel:
                 if ok {
                     var err error
-                    if !sendingFastEnough {
-                        // Just send essential information!
-                        //Logf(LtDebug, "===> Not sending fast enough!\n")
-                        err = websocket.JSON.Send(ws, message)
+                    otherMessages := getOtherMessagesFromGuiChannel(channel)
 
-                    } else {
-                        // Send the full message here!
+                    if len(otherMessages) == 0 {
+                        // Just now, we send the whole message!
                         err = websocket.JSON.Send(ws, message)
+                    } else {
+
+                        allMessages := append([]ServerGuiUpdateMessage{message}, otherMessages...)
+
+                        for _,m := range(allMessages) {
+                            // Delete all information we do not want to send!
+                            m.CreatedOrUpdatedBots = make(map[string]ServerGuiBot)
+                            m.StatisticsThisGame   = make(map[string]Statistics)
+                            m.StatisticsGlobal     = make(map[string]Statistics)
+                            // Send just essential stuff!
+                            err = websocket.JSON.Send(ws, m)
+                        }
                     }
 
-                    //err := websocket.JSON.Send(ws, message)
                     if err != nil {
                         Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
                     }
 
-                    // At least one time after a sent, the default case must be triggered,
-                    // so we actually know, that the data was sent faster then we calculated it.
-                    sendingFastEnough = false
-                } else {
-                    Logf(LtDebug, "===> Output 1\n")
                 }
-
-            default:
-                sendingFastEnough = true
+            case <-timeout:
+                Logf(LtDebug, "===> Timeout for Gui messages (GuiId: %v) - go routine shutting down!\n", guiId)
+                return
         }
     }
 }
@@ -1917,7 +1940,7 @@ func handleGui(ws *websocket.Conn) {
 
     app.guiConnections[guiId] = GuiConnection{ ws, true, messageChannel, isAlive }
 
-    go sendGuiMessages(ws, messageChannel, isAlive)
+    go sendGuiMessages(guiId, ws, messageChannel, isAlive)
 
     Logf(LtDebug, "Got connection for Gui %v\n", guiId)
 
@@ -2128,7 +2151,7 @@ func handleMiddleware(ws *websocket.Conn) {
                     return
                 }
 
-                go sendMiddlewareMessages(ws, messageChannel, isAlive)
+                go sendMiddlewareMessages(botId, ws, messageChannel, isAlive)
 
                 var cmd BotCommand
                 app.mwInfo <- MwInfo{
