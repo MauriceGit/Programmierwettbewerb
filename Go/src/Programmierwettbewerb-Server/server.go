@@ -824,8 +824,8 @@ func sendDataToGui( guiMessageCounter int, guiStatisticsMessageCounter int, dead
     // Send the data to the clients
     //
     for guiId, guiConnection := range app.guiConnections {
-        //var connection = app.guiConnections[guiId].Connection
-        channel := app.guiConnections[guiId].MessageChannel
+        var connection = app.guiConnections[guiId].Connection
+        //channel := app.guiConnections[guiId].MessageChannel
         message := newServerGuiUpdateMessage()
 
         //Logf(LtDebug, "Botcount: %v\n", app.bots)
@@ -881,8 +881,8 @@ func sendDataToGui( guiMessageCounter int, guiStatisticsMessageCounter int, dead
 
         message.DeletedToxins = eatenToxins
 
-        channel <- message
-        //err := websocket.JSON.Send(connection, message)
+        //channel <- message
+        websocket.JSON.Send(connection, message)
         //if err != nil {
         //    Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
         //    //return
