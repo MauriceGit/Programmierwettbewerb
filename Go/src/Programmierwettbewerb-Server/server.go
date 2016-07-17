@@ -824,8 +824,8 @@ func sendDataToGui( guiMessageCounter int, guiStatisticsMessageCounter int, dead
     // Send the data to the clients
     //
     for guiId, guiConnection := range app.guiConnections {
-        var connection = app.guiConnections[guiId].Connection
-        //channel := app.guiConnections[guiId].MessageChannel
+        //var connection = app.guiConnections[guiId].Connection
+        channel := app.guiConnections[guiId].MessageChannel
         message := newServerGuiUpdateMessage()
 
         //Logf(LtDebug, "Botcount: %v\n", app.bots)
@@ -881,8 +881,8 @@ func sendDataToGui( guiMessageCounter int, guiStatisticsMessageCounter int, dead
 
         message.DeletedToxins = eatenToxins
 
-        //channel <- message
-        websocket.JSON.Send(connection, message)
+        channel <- message
+        //websocket.JSON.Send(connection, message)
         //if err != nil {
         //    Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
         //    //return
@@ -929,7 +929,12 @@ func (app* Application) startUpdateLoop() {
 
     var lastMiddlewareStart = float32(0.0)
 
+    //Logf(LtDebug, "_____ 1\n")
+
     for t := range ticker.C {
+
+        //Logf(LtDebug, "_____ 1a\n")
+
         profile := NewProfile()
 
 
@@ -943,6 +948,7 @@ func (app* Application) startUpdateLoop() {
             Logf(LtDebug, "Thread is alive again - yay :)\n")
         }
 
+        //Logf(LtDebug, "_____ 2\n")
 
         var dt = float32(t.Sub(lastTime).Nanoseconds()) / 1e9
         lastTime = t
@@ -1060,6 +1066,8 @@ func (app* Application) startUpdateLoop() {
             endProfileEvent(&profile, &profileEventHandleEvents)
         }
 
+        //Logf(LtDebug, "_____ 3\n")
+
         ////////////////////////////////////////////////////////////////
         // READ FROM MIDDLEWARE
         ////////////////////////////////////////////////////////////////
@@ -1110,6 +1118,8 @@ func (app* Application) startUpdateLoop() {
             }
             endProfileEvent(&profile, &profileEventReadFromMiddleware)
         }
+
+        //Logf(LtDebug, "_____ 4\n")
 
         ////////////////////////////////////////////////////////////////
         // ADD SOME MIDDLEWARES/BOTS IF NEEDED
@@ -1180,6 +1190,8 @@ func (app* Application) startUpdateLoop() {
             endProfileEvent(&profile, &profileEventUpdateBotPosition)
         }
 
+        //Logf(LtDebug, "_____ 5\n")
+
         ////////////////////////////////////////////////////////////////
         // UPDATE VIEW WINDOWS AND MAX MASS
         ////////////////////////////////////////////////////////////////
@@ -1238,6 +1250,8 @@ func (app* Application) startUpdateLoop() {
             }
             endProfileEvent(&profile, &profileEventAddFoodOrToxin)
         }
+
+        //Logf(LtDebug, "_____ 6\n")
 
         ////////////////////////////////////////////////////////////////
         // UPDATE FOOD POSITION
@@ -1309,6 +1323,8 @@ func (app* Application) startUpdateLoop() {
             }
             endProfileEvent(&profile, &profileEventDeleteFood)
         }
+
+        //Logf(LtDebug, "_____ 7\n")
 
         ////////////////////////////////////////////////////////////////
         // BOT INTERACTION WITH EVERYTHING
@@ -1506,6 +1522,8 @@ func (app* Application) startUpdateLoop() {
             endProfileEvent(&profile, &profileEventCollisionWithToxin)
         }
 
+        //Logf(LtDebug, "_____ 8\n")
+
         //
         // Push Blobs apart
         //
@@ -1693,7 +1711,7 @@ func (app* Application) startUpdateLoop() {
         ////////////////////////////////////////////////////////////////
         checkAllValuesOnNaN("end")
 
-
+        //Logf(LtDebug, "_____ 9\n")
 
         {
             profileEventSendDataToMiddlewareAndGui := startProfileEvent(&profile, "Send Data to Middleware|Gui")
@@ -1703,6 +1721,7 @@ func (app* Application) startUpdateLoop() {
             ////////////////////////////////////////////////////////////////
 
             sendDataToMiddleware(mWMessageCounter)
+            //Logf(LtDebug, "_____ 10\n")
             sendDataToGui(guiMessageCounter, guiStatisticsMessageCounter, deadBots, eatenFoods, eatenToxins, app.guiConnections, app.bots, app.toxins, app.foods)
 
             for toxinId, toxin := range app.toxins {
@@ -1739,6 +1758,7 @@ func (app* Application) startUpdateLoop() {
             endProfileEvent(&profile, &profileEventSendDataToMiddlewareAndGui)
         }
 
+        //Logf(LtDebug, "_____ 11\n")
 
         if false && app.profiling && app.serverGuiIsConnected {
             type NanosecondProfileEvent struct {
@@ -1758,6 +1778,8 @@ func (app* Application) startUpdateLoop() {
             app.messagesToServerGui <- events
 
         }
+
+        //Logf(LtDebug, "_____ 12\n")
     }
 }
 
@@ -1842,6 +1864,7 @@ func getOtherMessagesFromGuiChannel(channel chan ServerGuiUpdateMessage) ([]Serv
     return messages, count
 }
 
+//func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpdateMessage) {
 func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpdateMessage, alive chan bool) {
 
     Logf(LtDebug, "===> SendGuiMessage go routine started.\n")
@@ -1853,8 +1876,6 @@ func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpda
             case state, ok := <-alive:
                 if ok  && !state {
                     Logf(LtDebug, "===> Alive failed - go routine shutting down!\n")
-                    ws.Close()
-
                     return
                 }
             default:
@@ -1872,6 +1893,9 @@ func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpda
                 if ok {
                     var err error
                     otherMessages, count := getOtherMessagesFromGuiChannel(channel)
+                    if count > 0 {
+                        Logf(LtDebug, "===> Message count: %v\n", count)
+                    }
 
                     if count > 10 {
                         Logf(LtDebug, "More than 10 messages are in the Queue for gui %v. So we just shut it down!\n", guiId)
@@ -1886,13 +1910,13 @@ func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpda
 
                         allMessages := append([]ServerGuiUpdateMessage{message}, otherMessages...)
 
-                        for i,m := range(allMessages) {
+                        for _,m := range(allMessages) {
                             // Delete all information we do not want to send!
-                            if i != len(allMessages)-1 {
+                            //if i != len(allMessages)-1 {
                                 m.CreatedOrUpdatedBots = make(map[string]ServerGuiBot)
                                 m.StatisticsThisGame   = make(map[string]Statistics)
                                 m.StatisticsGlobal     = make(map[string]Statistics)
-                            }
+                            //}
                             // Send just essential stuff!
                             err = websocket.JSON.Send(ws, m)
 
@@ -1937,6 +1961,7 @@ func handleGui(ws *websocket.Conn) {
         if connectionIsTerminated(app.runningState) {
             Logf(LtDebug, "HandleGui is shutting down.\n")
             isAlive <- false
+            delete(app.guiConnections, guiId)
             ws.Close()
             return
         }
@@ -1946,6 +1971,7 @@ func handleGui(ws *websocket.Conn) {
         if err = websocket.Message.Receive(ws, &reply); err != nil {
             Logf(LtDebug, "Can't receive (%v)\n", err)
             isAlive <- false
+            delete(app.guiConnections, guiId)
             break
         }
     }
