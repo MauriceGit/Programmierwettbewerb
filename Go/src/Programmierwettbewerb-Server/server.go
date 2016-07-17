@@ -1871,7 +1871,10 @@ func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpda
             case message, ok := <-channel:
                 if ok {
                     var err error
-                    otherMessages, count := getOtherMessagesFromGuiChannel(channel)
+                    if !sendingFastEnough {
+                        // Just send essential information!
+                        //Logf(LtDebug, "===> Not sending fast enough!\n")
+                        //err = websocket.JSON.Send(ws, message)
 
                     if count > 10 {
                         Logf(LtDebug, "More than 10 messages are in the Queue for gui %v. So we just shut it down!\n", guiId)
