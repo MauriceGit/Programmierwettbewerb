@@ -1961,7 +1961,7 @@ func handleGui(ws *websocket.Conn) {
         if connectionIsTerminated(app.runningState) {
             Logf(LtDebug, "HandleGui is shutting down.\n")
             isAlive <- false
-            delete(app.guiConnections, guiId)
+            //delete(app.guiConnections, guiId)
             ws.Close()
             return
         }
@@ -1971,7 +1971,7 @@ func handleGui(ws *websocket.Conn) {
         if err = websocket.Message.Receive(ws, &reply); err != nil {
             Logf(LtDebug, "Can't receive (%v)\n", err)
             isAlive <- false
-            delete(app.guiConnections, guiId)
+            //delete(app.guiConnections, guiId)
             break
         }
     }
