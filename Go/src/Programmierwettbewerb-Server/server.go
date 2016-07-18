@@ -19,10 +19,7 @@ import (
     "encoding/json"
     "io/ioutil"
     "golang.org/x/image/bmp"
-    //"image/color"
-    //"image"
     "reflect"
-    //"strings"
     "html/template"
     "os/exec"
     "sync"
@@ -31,9 +28,11 @@ import (
     "runtime"
 )
 
-// -------------------------------------------------------------------------------------------------
-// Global
-// -------------------------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////
+//
+// Constants
+//
+////////////////////////////////////////////////////////////////////////
 
 const (
     foodMassMin = 1
@@ -63,9 +62,11 @@ const (
     serverGuiPasswordFile = "../server_gui_password"
 )
 
-// -------------------------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////
+//
 // Profiling
-// -------------------------------------------------------------------------------------------------
+//
+////////////////////////////////////////////////////////////////////////
 
 type ProfileEvent struct {
     Name            string
@@ -128,10 +129,11 @@ func printProfile(profile Profile) {
     }
 }
 
-
-// -------------------------------------------------------------------------------------------------
-// Application
-// -------------------------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////
+//
+// Blob
+//
+////////////////////////////////////////////////////////////////////////
 
 type Blob struct {
     Position     Vec2       `json:"pos"`
@@ -150,6 +152,12 @@ func (blob Blob) Radius() float32 {
     return Radius(blob.Mass)
 }
 
+////////////////////////////////////////////////////////////////////////
+//
+// ViewWindow
+//
+////////////////////////////////////////////////////////////////////////
+
 type ViewWindow struct {
     Position    Vec2        `json:"pos"`
     Size        Vec2        `json:"size"`
@@ -161,6 +169,12 @@ func isInViewWindow(viewWindow ViewWindow, position Vec2, radius float32) bool {
            position.X < viewWindow.Position.X + viewWindow.Size.X &&
            position.Y < viewWindow.Position.Y + viewWindow.Size.Y;
 }
+
+////////////////////////////////////////////////////////////////////////
+//
+// Bot
+//
+////////////////////////////////////////////////////////////////////////
 
 type Bot struct {
     Info                BotInfo
@@ -178,12 +192,24 @@ type Bot struct {
     ConnectionAlive     bool                // TODO(henk): What shall we do when the connection is lost?
 }
 
+////////////////////////////////////////////////////////////////////////
+//
+// GuiConnection
+//
+////////////////////////////////////////////////////////////////////////
+
 type GuiConnection struct {
     Connection          *websocket.Conn
     IsNewConnection     bool
     MessageChannel      chan ServerGuiUpdateMessage
     Alive               chan bool
 }
+
+////////////////////////////////////////////////////////////////////////
+//
+// WmInfo
+//
+////////////////////////////////////////////////////////////////////////
 
 type MwInfo struct {
     botId                   BotId
@@ -225,7 +251,7 @@ type ServerSettings struct {
 }
 
 func (settings *ServerSettings) initialize() {
-    settings.MinNumberOfBots    = 10
+    settings.MinNumberOfBots    = 20
     settings.MaxNumberOfBots    = 100
     settings.MaxNumberOfFoods   = 1000
     settings.MaxNumberOfToxins  = 50
@@ -374,7 +400,6 @@ type Application struct {
 }
 
 var app Application
-var mutex = &sync.Mutex{}
 
 func (app* Application) initialize() {
     app.fieldSize                   = Vec2{ 1000, 1000 }
@@ -807,7 +832,6 @@ func startBashScript(path string) {
 
 // This locks the mutex so this is just evaluated once at a time!
 func nobodyIsWatching() bool {
-    mutex.Lock()
     someoneIsThere := false
 
     if len(app.gameState.bots) > app.settings.MinNumberOfBots {
@@ -822,8 +846,6 @@ func nobodyIsWatching() bool {
         }
         someoneIsThere = someoneIsThere || len(app.guiConnections) > 0
     }
-
-    mutex.Unlock()
 
     return !someoneIsThere
 }
