@@ -1822,8 +1822,10 @@ func sendMiddlewareMessages(botId BotId, ws *websocket.Conn, channel chan Server
 
                 }
             case <-timeout:
-                Logf(LtDebug, "===> Timeout for MW messages (botId: %v) - go routine shutting down!\n", botId)
-                return
+                if !nobodyIsWatching() {
+                    Logf(LtDebug, "===> Timeout for MW messages (botId: %v) - go routine shutting down!\n", botId)
+                    return
+                }
         }
 
     }
@@ -1912,6 +1914,7 @@ func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpda
                 delete(app.guiConnections, guiId)
                 ws.Close()
                 return
+
         }
     }
 }
