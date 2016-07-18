@@ -767,8 +767,8 @@ func sendDataToMiddleware(mWMessageCounter int) {
     // HENK: First we would have to determine which blobs, toxins and foods are visible to the bots. We would have to profile that to check whats faster.
     if mWMessageCounter % mwMessageEvery == 0 {
         for botId, bot := range app.bots {
-            //var connection = app.bots[botId].Connection
-            channel := app.bots[botId].MessageChannel
+            var connection = app.bots[botId].Connection
+            //channel := app.bots[botId].MessageChannel
 
             // Collecting other blobs
             var otherBlobs []ServerMiddlewareBlob
@@ -805,8 +805,8 @@ func sendDataToMiddleware(mWMessageCounter int) {
                 Toxin:          toxins,
             }
 
-            //websocket.JSON.Send(connection, wrapper)
-            channel <- wrapper
+            websocket.JSON.Send(connection, wrapper)
+            //channel <- wrapper
 
         }
     }
@@ -824,8 +824,8 @@ func sendDataToGui( guiMessageCounter int, guiStatisticsMessageCounter int, dead
     // Send the data to the clients
     //
     for guiId, guiConnection := range app.guiConnections {
-        //var connection = app.guiConnections[guiId].Connection
-        channel := app.guiConnections[guiId].MessageChannel
+        var connection = app.guiConnections[guiId].Connection
+        //channel := app.guiConnections[guiId].MessageChannel
         message := newServerGuiUpdateMessage()
 
         //Logf(LtDebug, "Botcount: %v\n", app.bots)
@@ -881,8 +881,8 @@ func sendDataToGui( guiMessageCounter int, guiStatisticsMessageCounter int, dead
 
         message.DeletedToxins = eatenToxins
 
-        channel <- message
-        //websocket.JSON.Send(connection, message)
+        //channel <- message
+        websocket.JSON.Send(connection, message)
         //if err != nil {
         //    Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
         //    //return
@@ -939,7 +939,7 @@ func (app* Application) startUpdateLoop() {
         if nobodyIsWatching() {
             Logf(LtDebug, "________________ Thread is going to sleep ...\n")
             // This should block until a new connection (any) is established!
-            //<- app.standbyMode
+            <- app.standbyMode
             Logf(LtDebug, "________________ Thread is alive again - yay :)\n")
         }
 
@@ -1930,8 +1930,8 @@ func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpda
                 }
             case <-timeout:
                 Logf(LtDebug, "===> Timeout for Gui messages (GuiId: %v) - go routine shutting down!\n", guiId)
-                delete(app.guiConnections, guiId)
-                ws.Close()
+                //delete(app.guiConnections, guiId)
+                //ws.Close()
                 return
 
         }
