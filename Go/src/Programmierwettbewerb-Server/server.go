@@ -767,8 +767,8 @@ func sendDataToMiddleware(mWMessageCounter int) {
     // HENK: First we would have to determine which blobs, toxins and foods are visible to the bots. We would have to profile that to check whats faster.
     if mWMessageCounter % mwMessageEvery == 0 {
         for botId, bot := range app.bots {
-            var connection = app.bots[botId].Connection
-            //channel := app.bots[botId].MessageChannel
+            //var connection = app.bots[botId].Connection
+            channel := app.bots[botId].MessageChannel
 
             // Collecting other blobs
             var otherBlobs []ServerMiddlewareBlob
@@ -805,8 +805,8 @@ func sendDataToMiddleware(mWMessageCounter int) {
                 Toxin:          toxins,
             }
 
-            websocket.JSON.Send(connection, wrapper)
-            //channel <- wrapper
+            //websocket.JSON.Send(connection, wrapper)
+            channel <- wrapper
 
         }
     }
@@ -824,8 +824,8 @@ func sendDataToGui( guiMessageCounter int, guiStatisticsMessageCounter int, dead
     // Send the data to the clients
     //
     for guiId, guiConnection := range app.guiConnections {
-        var connection = app.guiConnections[guiId].Connection
-        //channel := app.guiConnections[guiId].MessageChannel
+        //var connection = app.guiConnections[guiId].Connection
+        channel := app.guiConnections[guiId].MessageChannel
         message := newServerGuiUpdateMessage()
 
         //Logf(LtDebug, "Botcount: %v\n", app.bots)
@@ -881,8 +881,8 @@ func sendDataToGui( guiMessageCounter int, guiStatisticsMessageCounter int, dead
 
         message.DeletedToxins = eatenToxins
 
-        //channel <- message
-        websocket.JSON.Send(connection, message)
+        channel <- message
+        //websocket.JSON.Send(connection, message)
         //if err != nil {
         //    Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
         //    //return
@@ -1698,6 +1698,14 @@ func (app* Application) startUpdateLoop() {
         {
             profileEventSendDataToMiddlewareAndGui := startProfileEvent(&profile, "Send Data to Middleware|Gui")
 
+            for guiConnectionId, guiConnection := range app.guiConnections {
+                err := websocket.Message.Send(guiConnection.Connection, "alive_test")
+                if err != nil {
+                    Logf(LtDebug, "Gui %v is deleted because of network failure. Alive test failed.\n", guiConnectionId)
+                    delete(app.guiConnections, guiConnectionId)
+                }
+            }
+
             ////////////////////////////////////////////////////////////////
             // SEND UPDATED DATA TO MIDDLEWARE AND GUI
             ////////////////////////////////////////////////////////////////
@@ -1725,12 +1733,6 @@ func (app* Application) startUpdateLoop() {
             for guiConnectionId, guiConnection := range app.guiConnections {
                 guiConnection.IsNewConnection = false
                 app.guiConnections[guiConnectionId] = guiConnection
-
-                err := websocket.Message.Send(guiConnection.Connection, "alive_test")
-                if err != nil {
-                    Logf(LtDebug, "Gui %v is deleted because of network failure. Alive test failed.\n", guiConnectionId)
-                    delete(app.guiConnections, guiConnectionId)
-                }
             }
             guiMessageCounter += 1
             mWMessageCounter += 1
@@ -1811,7 +1813,7 @@ func sendMiddlewareMessages(botId BotId, ws *websocket.Conn, channel chan Server
 
                         // Do nothing! The Middleware will NOT get any messages, until it is fast enough to get them!
                         // It will get the next one though. But skipps all from this round.
-
+                        Logf(LtDebug, "Middleware %v skips one message, as it is not fast enough receiving the ones before...\n", botId)
                     }
 
                     if err != nil {
@@ -1853,8 +1855,6 @@ func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpda
             case state, ok := <-alive:
                 if ok  && !state {
                     Logf(LtDebug, "===> Alive failed - go routine shutting down!\n")
-                    ws.Close()
-
                     return
                 }
             default:
@@ -1871,13 +1871,12 @@ func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpda
             case message, ok := <-channel:
                 if ok {
                     var err error
-                    if !sendingFastEnough {
-                        // Just send essential information!
-                        //Logf(LtDebug, "===> Not sending fast enough!\n")
-                        //err = websocket.JSON.Send(ws, message)
+
+                    otherMessages, count := getOtherMessagesFromGuiChannel(channel)
 
                     if count > 10 {
                         Logf(LtDebug, "More than 10 messages are in the Queue for gui %v. So we just shut it down!\n", guiId)
+                        delete(app.guiConnections, guiId)
                         ws.Close()
                         return
                     }
@@ -1889,13 +1888,13 @@ func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpda
 
                         allMessages := append([]ServerGuiUpdateMessage{message}, otherMessages...)
 
-                        for i,m := range(allMessages) {
+                        for _,m := range(allMessages) {
                             // Delete all information we do not want to send!
-                            if i != len(allMessages)-1 {
+                            //if i != len(allMessages)-1 {
                                 m.CreatedOrUpdatedBots = make(map[string]ServerGuiBot)
                                 m.StatisticsThisGame   = make(map[string]Statistics)
                                 m.StatisticsGlobal     = make(map[string]Statistics)
-                            }
+                            //}
                             // Send just essential stuff!
                             err = websocket.JSON.Send(ws, m)
 
@@ -1910,6 +1909,7 @@ func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpda
                 }
             case <-timeout:
                 Logf(LtDebug, "===> Timeout for Gui messages (GuiId: %v) - go routine shutting down!\n", guiId)
+                delete(app.guiConnections, guiId)
                 ws.Close()
                 return
         }
@@ -1939,6 +1939,7 @@ func handleGui(ws *websocket.Conn) {
 
         if connectionIsTerminated(app.runningState) {
             Logf(LtDebug, "HandleGui is shutting down.\n")
+            delete(app.guiConnections, guiId)
             isAlive <- false
             ws.Close()
             return
@@ -1948,6 +1949,7 @@ func handleGui(ws *websocket.Conn) {
 
         if err = websocket.Message.Receive(ws, &reply); err != nil {
             Logf(LtDebug, "Can't receive (%v)\n", err)
+            delete(app.guiConnections, guiId)
             isAlive <- false
             break
         }
