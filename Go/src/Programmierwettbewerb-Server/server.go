@@ -1815,8 +1815,10 @@ func sendMiddlewareMessages(botId BotId, ws *websocket.Conn, channel chan Server
         // After 5 seconds with no new Gui-message, it shuts down!
         timeout := make(chan bool, 1)
         go func() {
-            time.Sleep(5 * time.Second)
+            time.Sleep(3 * time.Second)
             timeout <- true
+            time.Sleep(1 * time.Second)
+            <- timeout
         }()
 
         select {
@@ -1884,8 +1886,10 @@ func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpda
         // After 5 seconds with no new Gui-message, it shuts down!
         timeout := make(chan bool, 1)
         go func() {
-            time.Sleep(5 * time.Second)
+            time.Sleep(3 * time.Second)
             timeout <- true
+            time.Sleep(1 * time.Second)
+            <- timeout
         }()
 
         select {
