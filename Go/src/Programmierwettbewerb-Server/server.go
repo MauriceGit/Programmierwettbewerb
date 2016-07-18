@@ -208,6 +208,29 @@ type ServerSettings struct {
     MaxNumberOfBots     int
     MaxNumberOfFoods    int
     MaxNumberOfToxins   int
+
+    foodDistributionName        string
+    toxinDistributionName       string
+    botDistributionName         string
+
+    foodDistribution            []Vec2
+    toxinDistribution           []Vec2
+    botDistribution             []Vec2
+}
+
+func (settings *ServerSettings) initialize() {
+    settings.MinNumberOfBots    = 10
+    settings.MaxNumberOfBots    = 100
+    settings.MaxNumberOfFoods   = 1000
+    settings.MaxNumberOfToxins  = 50
+    
+    settings.foodDistributionName        = "black.bmp"
+    settings.toxinDistributionName       = "black.bmp"
+    settings.botDistributionName         = "black.bmp"
+
+    settings.foodDistribution            = loadSpawnImage(settings.foodDistributionName, 10)
+    settings.toxinDistribution           = loadSpawnImage(settings.toxinDistributionName, 10)
+    settings.botDistribution             = loadSpawnImage(settings.botDistributionName, 10)
 }
 
 type GameState struct {
@@ -236,8 +259,6 @@ func (gameState* GameState) initialize(serverSettings ServerSettings) {
 }
 
 type Application struct {
-    settings                    ServerSettings
-
     fieldSize                   Vec2
     nextGuiId                   GuiId
     nextBotId                   BotId
@@ -256,26 +277,14 @@ type Application struct {
 
     profiling                   bool
     
+    settings                    ServerSettings
     gameState                   GameState
-
-    foodDistributionName        string
-    toxinDistributionName       string
-    botDistributionName         string
-
-    foodDistribution            []Vec2
-    toxinDistribution           []Vec2
-    botDistribution             []Vec2
 }
 
 var app Application
 var mutex = &sync.Mutex{}
 
 func (app* Application) initialize() {
-    app.settings.MinNumberOfBots    = 10
-    app.settings.MaxNumberOfBots    = 100
-    app.settings.MaxNumberOfFoods   = 1000
-    app.settings.MaxNumberOfToxins  = 50
-
     app.fieldSize                   = Vec2{ 1000, 1000 }
     app.nextGuiId                   = 0
     app.nextBotId                   = 1
@@ -293,14 +302,7 @@ func (app* Application) initialize() {
 
     app.profiling                   = false
 
-    app.foodDistributionName        = "black.bmp"
-    app.toxinDistributionName       = "black.bmp"
-    app.botDistributionName         = "black.bmp"
-
-    app.foodDistribution            = loadSpawnImage(app.foodDistributionName, 10)
-    app.toxinDistribution           = loadSpawnImage(app.toxinDistributionName, 10)
-    app.botDistribution             = loadSpawnImage(app.botDistributionName, 10)
-
+    app.settings.initialize()
     app.gameState.initialize(app.settings)
 }
 
@@ -445,30 +447,30 @@ func makeURLSpawnName(name string) string {
 // -------------------------------------------------------------------------------------------------
 
 func newFoodPos() (Vec2, bool) {
-    length := len(app.foodDistribution)
+    length := len(app.settings.foodDistribution)
     if length == 0 {
         return Vec2{}, false
     }
-    return app.foodDistribution[rand.Intn(length)], true
+    return app.settings.foodDistribution[rand.Intn(length)], true
 }
 
 func newToxinPos() (Vec2, bool) {
-    length := len(app.toxinDistribution)
+    length := len(app.settings.toxinDistribution)
     if length == 0 {
         return Vec2{}, false
     }
-    return app.toxinDistribution[rand.Intn(length)], true
+    return app.settings.toxinDistribution[rand.Intn(length)], true
 }
 
 // TODO(henk): Inline
 func newBotPos() (Vec2, bool) {
-    length := len(app.botDistribution)
+    length := len(app.settings.botDistribution)
     if length == 0 {
         return Vec2{}, false
     }
     // Check, that the player doesn't spawn inside another blob!
     for i := 1; i < 10; i++{
-        pos := app.botDistribution[rand.Intn(length)]
+        pos := app.settings.botDistribution[rand.Intn(length)]
         if len(app.gameState.bots) == 0 {
             return pos, true
         }
@@ -494,7 +496,7 @@ func newBotPos() (Vec2, bool) {
 
     Logf(LtDebug, "Bot position could NOT be determined. Bot is started at a random position!\n")
 
-    pos := app.botDistribution[rand.Intn(length)]
+    pos := app.settings.botDistribution[rand.Intn(length)]
     return pos, true
 }
 
@@ -936,7 +938,7 @@ type MessageCounters struct {
     guiStatisticsMessageCounter int
 }
 
-func (app* Application) update(gameState *GameState, profile *Profile, dt float32) ([]BotId, []FoodId, []ToxinId) {
+func update(gameState *GameState, settings *ServerSettings, profile *Profile, dt float32) ([]BotId, []FoodId, []ToxinId) {
     deadBots    := make([]BotId,   0)
     eatenFoods  := make([]FoodId,  0)
     eatenToxins := make([]ToxinId, 0)
@@ -1032,13 +1034,13 @@ func (app* Application) update(gameState *GameState, profile *Profile, dt float3
     ////////////////////////////////////////////////////////////////
     {
         profileEventAddFoodOrToxin := startProfileEvent(profile, "Add Food Or Toxin")
-        if rand.Intn(100) <= 5 && len(gameState.toxins) < app.settings.MaxNumberOfToxins {
+        if rand.Intn(100) <= 5 && len(gameState.toxins) < settings.MaxNumberOfToxins {
             if pos, ok := newToxinPos(); ok {
                 newToxinId := app.createToxinId()
                 gameState.toxins[newToxinId] = Toxin{true, false, pos, false, 0, toxinMassMin, RandomVec2()}
             }
         }
-        if rand.Intn(100) <= 5 && len(gameState.foods) < app.settings.MaxNumberOfFoods {
+        if rand.Intn(100) <= 5 && len(gameState.foods) < settings.MaxNumberOfFoods {
             mass := foodMassMin + rand.Float32() * (foodMassMax - foodMassMin)
             if pos, ok := newFoodPos(); ok {
                 newFoodId := app.createFoodId()
@@ -1093,7 +1095,7 @@ func (app* Application) update(gameState *GameState, profile *Profile, dt float3
     {
         profileEventDeleteToxins := startProfileEvent(profile, "Delete Toxins")
         for toxinId,_ := range gameState.toxins {
-            if len(gameState.toxins) <= app.settings.MaxNumberOfToxins {
+            if len(gameState.toxins) <= settings.MaxNumberOfToxins {
                 break;
             }
             eatenToxins = append(eatenToxins, toxinId)
@@ -1108,7 +1110,7 @@ func (app* Application) update(gameState *GameState, profile *Profile, dt float3
     {
         profileEventDeleteFood := startProfileEvent(profile, "Delete Foods")
         for foodId,_ := range gameState.foods {
-            if len(gameState.foods) <= app.settings.MaxNumberOfFoods {
+            if len(gameState.foods) <= settings.MaxNumberOfFoods {
                 break;
             }
             eatenFoods = append(eatenFoods, foodId)
@@ -1231,7 +1233,7 @@ func (app* Application) update(gameState *GameState, profile *Profile, dt float3
 
                         // If a bot already has > 10 blobs (i.e.), don't explode, eat it!!
                         if len(bot.Blobs) > maxBlobCountToExplode && !toxin.IsSplit {
-                            if toxin.IsSplit || len(gameState.toxins) >= app.settings.MaxNumberOfToxins {
+                            if toxin.IsSplit || len(gameState.toxins) >= settings.MaxNumberOfToxins {
                                 eatenToxins = append(eatenToxins, tId)
                                 delete(gameState.toxins, tId)
                                 toxinIsEaten = true
@@ -1618,14 +1620,14 @@ func (app* Application) startUpdateLoop() {
                             }
                             Logf(LtDebug, "Killed bots above mass threshold\n")
                         case "FoodSpawnImage":
-                            app.foodDistribution  = loadSpawnImage(command.Image, 10)
-                            app.foodDistributionName = command.Image
+                            app.settings.foodDistribution  = loadSpawnImage(command.Image, 10)
+                            app.settings.foodDistributionName = command.Image
                         case "ToxinSpawnImage":
-                            app.toxinDistribution = loadSpawnImage(command.Image, 10)
-                            app.toxinDistributionName = command.Image
+                            app.settings.toxinDistribution = loadSpawnImage(command.Image, 10)
+                            app.settings.toxinDistributionName = command.Image
                         case "BotSpawnImage":
-                            app.botDistribution   = loadSpawnImage(command.Image, 10)
-                            app.botDistributionName = command.Image
+                            app.settings.botDistribution   = loadSpawnImage(command.Image, 10)
+                            app.settings.botDistributionName = command.Image
                         }
                     } else {
                         if err != nil {
@@ -1651,9 +1653,7 @@ func (app* Application) startUpdateLoop() {
                     if ok {
                         if _, ok := app.gameState.bots[mwInfo.botId]; ok {
                             bot := app.gameState.bots[mwInfo.botId]
-
                             bot.ConnectionAlive = mwInfo.connectionAlive
-
                             // There is actually a command
                             if (BotCommand{}) != mwInfo.command {
                                 bot.Command = mwInfo.command
@@ -1662,19 +1662,13 @@ func (app* Application) startUpdateLoop() {
                             app.gameState.bots[mwInfo.botId] = bot
                         }
                         if mwInfo.createNewBot && len(app.gameState.bots) < app.settings.MaxNumberOfBots {
-
                             bot := createStartingBot(mwInfo.ws, mwInfo.botInfo, mwInfo.statistics, mwInfo.messageChannel, mwInfo.alive)
-
-
-
-
                             if !reflect.DeepEqual(bot,Bot{}) {
                                 app.gameState.bots[mwInfo.botId] = bot
                             } else {
                                 Logf(LtDebug, "Due to a spawn image with a 0 spawn rate, there is no possible spawn position for this bot.\n")
                             }
                         }
-
                     } else {
                         // Channel closed. Something is SERIOUSLY wrong.
                         Logf(LtDebug, "Something is SERIOUSLY wrong\n")
@@ -1708,7 +1702,7 @@ func (app* Application) startUpdateLoop() {
         ////////////////////////////////////////////////////////////////
         // UPDATE THE GAME STATE
         ////////////////////////////////////////////////////////////////
-        deadBots, eatenFoods, eatenToxins := app.update(&app.gameState, &profile, dt)        
+        deadBots, eatenFoods, eatenToxins := update(&app.gameState, &app.settings, &profile, dt)        
         deadBots = append(deadBots, botsKilledByServerGui...)
 
         ////////////////////////////////////////////////////////////////
@@ -2307,9 +2301,9 @@ func handleServerControlFinal(w http.ResponseWriter, r *http.Request) {
         }{
             Address:            "ws://" + getServerAddress() + "/servercommand/",
             ImageNames:         imageNames,
-            FoodSpawnImage:     makeURLSpawnName(app.foodDistributionName),
-            ToxinSpawnImage:    makeURLSpawnName(app.toxinDistributionName),
-            BotSpawnImage:      makeURLSpawnName(app.botDistributionName),
+            FoodSpawnImage:     makeURLSpawnName(app.settings.foodDistributionName),
+            ToxinSpawnImage:    makeURLSpawnName(app.settings.toxinDistributionName),
+            BotSpawnImage:      makeURLSpawnName(app.settings.botDistributionName),
         }
 
         t := template.New("Server Control")
