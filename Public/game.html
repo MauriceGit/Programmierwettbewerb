@@ -361,7 +361,7 @@
                     var food = foods[key];
 
                     context.beginPath();
-                    context.arc(food.pos.X, food.pos.Y, FOOD_SIZE, 0, 2 * Math.PI, false);
+                    context.arc(food.pos.X, food.pos.Y, radius(food.mass)*2.0, 0, 2 * Math.PI, false);
                     context.fill();
                 }
 

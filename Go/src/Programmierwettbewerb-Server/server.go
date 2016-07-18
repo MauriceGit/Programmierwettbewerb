@@ -36,8 +36,8 @@ import (
 // -------------------------------------------------------------------------------------------------
 
 const (
-    foodMassMin = 8
-    foodMassMax = 12
+    foodMassMin = 4
+    foodMassMax = 6
     thrownFoodMass = 10
     massToBeAllowedToThrow = 100
     botMinMass = 10
@@ -46,8 +46,8 @@ const (
     blobSplitMass   = 100.0
     blobSplitVelocity = 1.5
     blobMinSpeedFactor = 0.225
-    toxinMassMin = 100
-    toxinMassMax = 119
+    toxinMassMin = 50
+    toxinMassMax = 69
     windowMin = 100
     windowMax = 400
     massLossFactor = 10.0
@@ -244,8 +244,8 @@ var mutex = &sync.Mutex{}
 func (app* Application) initialize() {
     app.settings.MinNumberOfBots    = 10
     app.settings.MaxNumberOfBots    = 100
-    app.settings.MaxNumberOfFoods   = 400
-    app.settings.MaxNumberOfToxins  = 200
+    app.settings.MaxNumberOfFoods   = 1000
+    app.settings.MaxNumberOfToxins  = 50
 
     app.fieldSize                   = Vec2{ 1000, 1000 }
     app.nextGuiId                   = 0
@@ -1921,7 +1921,6 @@ func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpda
 
 func handleGui(ws *websocket.Conn) {
     var guiId          = app.createGuiId()         // TODO(henk): When do we delete the blob?
-
 
     if nobodyIsWatching() {
         // This unblocks the main thread!
