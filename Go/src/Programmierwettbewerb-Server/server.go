@@ -937,10 +937,10 @@ func (app* Application) startUpdateLoop() {
         // something relevant to happen :)
         // Schroedinger or something ;)
         if nobodyIsWatching() {
-            Logf(LtDebug, "Thread is going to sleep ...\n")
+            Logf(LtDebug, "________________ Thread is going to sleep ...\n")
             // This should block until a new connection (any) is established!
             <- app.standbyMode
-            Logf(LtDebug, "Thread is alive again - yay :)\n")
+            Logf(LtDebug, "________________ Thread is alive again - yay :)\n")
         }
 
         // Just empty the channel unblocking, so that new guis and stuff can connect...
