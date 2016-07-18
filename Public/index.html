@@ -30,7 +30,10 @@
             .indent {
                 margin-left: 20px ;
             }
-        </style>
+            .img-center {
+                margin:0 auto;
+            }
+        </style>        
         <script>
             var currentView = "";
 
@@ -485,7 +488,7 @@ type TeamId     = Int
 type Index      = Int
 type Position   = (Float, Float)
 type Mass       = Int
-type Blob       = (BotId, TeamId, Index, Position, Mass)
+type Blob       = (BotId, TeamId, BlobId, Position, Mass)
 type Food       = (Position, Mass)
 type Toxin      = (Position, Mass)
 type OwnBlobs   = [Blob]
@@ -502,19 +505,25 @@ type Position   = (Float, Float)
 <b>type Output     = (BlobAction, Position)</b></pre>
                 </div>
             </div>
+            <h3>Beispiel</h3>
+            <div class="row">
+                <hr>
+                <img class="img-responsive img-center" src="Images/DataFormatField.jpg" />
+                <hr>
+            </div>
             <div class="row">
                 <div class="col-sm-6">
-                    <h4>Beispiel für Eingabe <small>(Zeilenumbrüche nicht berücksichtigen)</small></h4>
+                    <h4>Eingabe im Beispiel <small>(Zeilenumbrüche nicht berücksichtigen)</small></h4>
                     <pre>
-    ([(1,2,3,(4.0,5.0),6)],
-     [(7,8,9,(10.0,11.0),12)],
-     [((13.0,14.0),15)],
-     [((16.0,17.0),18)])</pre>
+    ([(3,0,1,(8.0,7.0),100)],
+     [(13,1,4,(4.0,3.0),100)],
+     [((6.5,1.5),10)],
+     [((2.0,6.0),10)])</pre>
                 </div>
                 <div class="col-sm-6">
-                    <h4>Beispiel für Ausgabe</h4>
+                    <h4>Ausgabe im Beispiel</h4>
                     <pre>
-    (None,(1.0,2.0))</pre>
+    (None,(9.0,2.5))</pre>
                 </div>
             </div>
             <h1 class="offset">Parser</h1>
