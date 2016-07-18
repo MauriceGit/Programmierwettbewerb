@@ -915,27 +915,596 @@ func (buffer *FoodBuffer) Append(value interface{}) {
     }
 }
 
+type MessageCounters struct {
+    guiMessageCounter           int
+    mWMessageCounter            int
+    guiStatisticsMessageCounter int
+}
+
+func (app* Application) update(profile *Profile, dt float32) ([]BotId, []FoodId, []ToxinId) {
+    deadBots    := make([]BotId,   0)
+    eatenFoods  := make([]FoodId,  0)
+    eatenToxins := make([]ToxinId, 0)
+    
+    ////////////////////////////////////////////////////////////////
+    // UPDATE BOT POSITION
+    ////////////////////////////////////////////////////////////////
+    {
+        profileEventUpdateBotPosition := startProfileEvent(profile, "Update Bot Position")
+        for botId, bot := range app.bots {
+            botDied := false
+            for blobId, blob := range bot.Blobs {
+                if blob.Mass < minBlobMass {
+                    delete(bot.Blobs, blobId)
+                    if len(bot.Blobs) == 0 {
+                        botDied = true
+                        deadBots = append(deadBots, botId)
+                    }
+                    break
+                }
+
+                oldPosition := blob.Position
+                velocity    := calcBlobVelocity(&blob, bot.Command.Target)
+                time        := dt * 50
+                newVelocity := Muls(velocity, time)
+                newPosition := Add (oldPosition, newVelocity)
+                newPosition =  Add (newPosition, blob.IndividualTargetVec)
+
+                blob.Position = newPosition
+
+                //singleBlob.Position = Add(singleBlob.Position, Muls(calcBlobVelocity(&singleBlob, blob.IndividualTargetVec), dt * 100))
+                blob.Mass = calcBlobbMassLoss(blob.Mass, dt)
+                blob.VelocityFac = blob.VelocityFac * velocityDecreaseFactor
+
+                // So this is not added all the time but just for a short moment!
+                blob.IndividualTargetVec = Muls(blob.IndividualTargetVec, velocityDecreaseFactor)
+
+                if blob.ReunionTime > 0.0 {
+                    blob.ReunionTime -= dt
+                }
+
+                limitPosition(&blob.Position)
+
+                app.bots[botId].Blobs[blobId] = blob
+            }
+            if !botDied {
+                app.bots[botId] = bot
+            }
+        }
+        endProfileEvent(profile, &profileEventUpdateBotPosition)
+    }
+
+    ////////////////////////////////////////////////////////////////
+    // UPDATE VIEW WINDOWS AND MAX MASS
+    ////////////////////////////////////////////////////////////////
+    {
+        profileEventViewWindowsAndMaxMass := startProfileEvent(profile, "View Windows and max Mass")
+        for botId, bot := range app.bots {
+            //var diameter float32
+            var center Vec2
+            var completeMass float32 = 0
+            for _, blob1 := range bot.Blobs {
+                center = Add(center, blob1.Position)
+                completeMass += blob1.Mass
+            }
+
+            if completeMass > botMaxMass {
+
+                // Percentage to cut off
+                var dividor float32 = completeMass / botMaxMass
+
+                for blobId, blob := range bot.Blobs {
+                    blob.Mass /= dividor
+                    bot.Blobs[blobId] = blob
+                }
+
+            }
+
+            center = Muls(center, 1.0 / float32(len(bot.Blobs)))
+            var windowDiameter float32 = 30.0 * float32(math.Log(float64(completeMass))) - 20.0
+
+            bot.ViewWindow = ViewWindow{
+                Position:   Sub(center, Vec2{ windowDiameter / 2.0, windowDiameter / 2.0 }),
+                Size: Vec2{ windowDiameter, windowDiameter },
+            }
+            app.bots[botId] = bot
+        }
+        endProfileEvent(profile, &profileEventViewWindowsAndMaxMass)
+    }
+
+    ////////////////////////////////////////////////////////////////
+    // POSSIBLY ADD A FOOD OR TOXIN
+    ////////////////////////////////////////////////////////////////
+    {
+        profileEventAddFoodOrToxin := startProfileEvent(profile, "Add Food Or Toxin")
+        if rand.Intn(100) <= 5 && len(app.toxins) < app.settings.MaxNumberOfToxins {
+            if pos, ok := newToxinPos(); ok {
+                newToxinId := app.createToxinId()
+                app.toxins[newToxinId] = Toxin{true, false, pos, false, 0, toxinMassMin, RandomVec2()}
+            }
+        }
+        if rand.Intn(100) <= 5 && len(app.foods) < app.settings.MaxNumberOfFoods {
+            mass := foodMassMin + rand.Float32() * (foodMassMax - foodMassMin)
+            if pos, ok := newFoodPos(); ok {
+                newFoodId := app.createFoodId()
+                app.foods[newFoodId] = Food{ true, false, false, 0, mass, pos, RandomVec2() }
+            }
+        }
+        endProfileEvent(profile, &profileEventAddFoodOrToxin)
+    }
+
+    ////////////////////////////////////////////////////////////////
+    // UPDATE FOOD POSITION
+    ////////////////////////////////////////////////////////////////
+    {
+        profileEventFoodPosition := startProfileEvent(profile, "Food Position")
+        for foodId, food := range app.foods {
+            if food.IsMoving {
+                food.Position = Add(food.Position, Muls(food.Velocity, dt))
+                limitPosition(&food.Position)
+                food.Velocity = Muls(food.Velocity, velocityDecreaseFactor)
+                app.foods[foodId] = food
+                if Length(food.Velocity) <= 0.001 {
+                    food.IsMoving = false
+                }
+            }
+        }
+        endProfileEvent(profile, &profileEventFoodPosition)
+    }
+
+    ////////////////////////////////////////////////////////////////
+    // UPDATE TOXIN POSITION
+    ////////////////////////////////////////////////////////////////
+    {
+        profileEventToxinPosition := startProfileEvent(profile, "Toxin Position")
+        for toxinId, toxin := range app.toxins {
+            if toxin.IsMoving {
+                toxin.Position = Add(toxin.Position, Muls(toxin.Velocity, dt))
+                limitPosition(&toxin.Position)
+                toxin.Velocity = Muls(toxin.Velocity, velocityDecreaseFactor)
+                app.toxins[toxinId] = toxin
+                if Length(toxin.Velocity) <= 0.001 {
+                    toxin.IsMoving = false
+                }
+            }
+            app.toxins[toxinId] = toxin
+        }
+        endProfileEvent(profile, &profileEventToxinPosition)
+    }
+    
+    ////////////////////////////////////////////////////////////////
+    // DELETE RANDOM TOXIN IF THERE ARE TOO MANY
+    ////////////////////////////////////////////////////////////////
+    {
+        profileEventDeleteToxins := startProfileEvent(profile, "Delete Toxins")
+        for toxinId,_ := range app.toxins {
+            if len(app.toxins) <= app.settings.MaxNumberOfToxins {
+                break;
+            }
+            eatenToxins = append(eatenToxins, toxinId)
+            delete(app.toxins, toxinId)
+        }
+        endProfileEvent(profile, &profileEventDeleteToxins)
+    }
+
+    ////////////////////////////////////////////////////////////////
+    // DELETE RANDOM FOOD IF THERE ARE TOO MANY
+    ////////////////////////////////////////////////////////////////
+    {
+        profileEventDeleteFood := startProfileEvent(profile, "Delete Foods")
+        for foodId,_ := range app.foods {
+            if len(app.foods) <= app.settings.MaxNumberOfFoods {
+                break;
+            }
+            eatenFoods = append(eatenFoods, foodId)
+            delete(app.foods, foodId)
+        }
+        endProfileEvent(profile, &profileEventDeleteFood)
+    }
+
+    ////////////////////////////////////////////////////////////////
+    // BOT INTERACTION WITH EVERYTHING
+    ////////////////////////////////////////////////////////////////
+
+    killedBlobs := NewIdsContainer()
+
+    // Split command received - Creating new Blob with same ID.
+    {
+        profileEventSplitBot := startProfileEvent(profile, "Split Bot")
+        for botId, bot := range app.bots {
+            if bot.Command.Action == BatSplit && len(bot.Blobs) <= 10 {
+
+                var bot = app.bots[botId]
+                bot.StatisticsThisGame.SplitCount += 1
+                var botRef = &bot
+                splitAllBlobsOfBot(botRef)
+                app.bots[botId] = *botRef
+
+            } else if bot.Command.Action == BatThrow {
+                bot := app.bots[botId]
+                throwAllBlobsOfBot(&bot, botId)
+                app.bots[botId] = bot
+            }
+        }
+        endProfileEvent(profile, &profileEventSplitBot)
+    }
+
+    // Splitting the Toxin!
+    {
+        profileEventSplitToxin := startProfileEvent(profile, "Split Toxin")
+        for toxinId, toxin := range app.toxins {
+
+            if toxin.Mass > toxinMassMax {
+
+                // Create new Toxin (moving!)
+                newId := app.createToxinId()
+                newToxin := Toxin {
+                    IsNew: true,
+                    IsMoving: true,
+                    Position: toxin.Position,
+                    IsSplit: true,
+                    IsSplitBy: toxin.IsSplitBy,
+                    Mass: toxinMassMin,
+                    Velocity: toxin.Velocity,
+                }
+                app.toxins[newId] = newToxin
+
+                possibleBot, foundIt := app.bots[toxin.IsSplitBy]
+                if foundIt {
+                    possibleBot.StatisticsThisGame.ToxinThrow += 1
+                    app.bots[toxin.IsSplitBy] = possibleBot
+                }
+
+                // Reset Mass
+                toxin.Mass = toxinMassMin
+                toxin.IsSplit = false
+                toxin.IsNew = false
+                toxin.IsSplitBy = BotId(0)
+                toxin.Velocity = RandomVec2()
+
+            }
+            app.toxins[toxinId] = toxin
+        }
+        endProfileEvent(profile, &profileEventSplitToxin)
+    }
+
+    // Reunion of Subblobs
+    {
+        profileEventSubblobReunion := startProfileEvent(profile, "Subblob reunion")
+        for botId, _ := range app.bots {
+            var bot = app.bots[botId]
+            var botRef = &bot
+            // Reunion of Subblobs
+            calcSubblobReunion(&killedBlobs, botId, botRef)
+            app.bots[botId] = *botRef
+        }
+        endProfileEvent(profile, &profileEventSubblobReunion)
+    }
+
+    // Blob Collision with Toxin
+    {
+        // QuadTree Building
+        /*
+        profileEventQuadTreeBuilding := startProfileEvent(&profile, "QuadTree Building (Toxins)")
+        quadTree := NewQuadTree(NewQuad(Vec2{0, 0}, 1000))
+        {
+            for toxinId, toxin := range app.toxins {
+                quadTree.Insert(toxin.Position, toxinId)
+            }
+        }
+        endProfileEvent(&profile, &profileEventQuadTreeBuilding)
+        */
+
+        profileEventCollisionWithToxin := startProfileEvent(profile, "Collision with Toxin")
+        for tId,toxin := range app.toxins {
+            var toxinIsEaten = false
+            var toxinIsRepositioned = false
+
+            for botId, _ := range app.bots {
+                bot := app.bots[botId]
+
+                mapOfAllNewSingleBlobs := make(map[BlobId]Blob)
+                var blobsToDelete []BlobId
+                var exploded = false
+
+                // This loop should not alter ANY real data at all right now!
+                // Just writing to tmp maps without alterning real data.
+                for blobId,_ := range bot.Blobs {
+                    var singleBlob = bot.Blobs[blobId]
+
+                    if Dist(singleBlob.Position, toxin.Position) < singleBlob.Radius() && singleBlob.Mass >= minBlobMassToExplode {
+
+                        // If a bot already has > 10 blobs (i.e.), don't explode, eat it!!
+                        if len(bot.Blobs) > maxBlobCountToExplode && !toxin.IsSplit {
+                            if toxin.IsSplit || len(app.toxins) >= app.settings.MaxNumberOfToxins {
+                                eatenToxins = append(eatenToxins, tId)
+                                delete(app.toxins, tId)
+                                toxinIsEaten = true
+                            } else {
+                                if pos, ok := newToxinPos(); ok {
+                                    toxin.Position = pos
+                                    toxin.IsSplitBy = BotId(0)
+                                    toxin.IsSplit = false
+                                    toxin.IsNew = true
+                                    toxin.Mass = toxinMassMin
+                                    toxinIsRepositioned = true
+                                } else {
+                                    eatenToxins = append(eatenToxins, tId)
+                                    delete(app.toxins, tId)
+                                    toxinIsEaten = true
+                                }
+                            }
+                            break
+                        }
+
+                        subMap := make(map[BlobId]Blob)
+
+                        if toxin.IsSplit {
+                            possibleBot, foundIt := app.bots[toxin.IsSplitBy]
+                            if foundIt {
+                                possibleBot.StatisticsThisGame.SuccessfulToxin += 1
+                                app.bots[toxin.IsSplitBy] = possibleBot
+                            }
+                        }
+
+                        explodeBlob(botId, blobId, &subMap)
+                        exploded = true
+
+                        // Add all the new explosions:
+                        for i,b := range subMap {
+                            mapOfAllNewSingleBlobs[i] = b
+                        }
+
+                        blobsToDelete = append(blobsToDelete, blobId)
+
+                        if pos, ok := newToxinPos(); ok {
+                            toxin.Position = pos
+                            toxin.IsSplitBy = BotId(0)
+                            toxin.IsSplit = false
+                            toxin.IsNew = true
+                            toxin.Mass = toxinMassMin
+                        } else {
+                            eatenToxins = append(eatenToxins, tId)
+                            delete(app.toxins, tId)
+                            toxinIsEaten = true
+                        }
+                    }
+                }
+
+                if toxinIsEaten || toxinIsRepositioned {
+                    break
+                }
+
+                if exploded {
+                    // Delete the origin of the exploded Blobs.
+                    for _,blobKey := range blobsToDelete {
+                        killedBlobs.insert(botId, blobKey)
+                        delete(bot.Blobs, blobKey)
+                    }
+
+                    // Add all new exploded Blobs.
+                    for i,b := range mapOfAllNewSingleBlobs {
+                        bot.Blobs[i] = b
+                    }
+                }
+
+                app.bots[botId] = bot
+            }
+
+            if !toxinIsEaten {
+                app.toxins[tId] = toxin
+            }
+        }
+        endProfileEvent(profile, &profileEventCollisionWithToxin)
+    }
+
+    //
+    // Push Blobs apart
+    //
+    {
+        profileEventPushBlobsApart := startProfileEvent(profile, "Push Blobs Apart")
+        for botId, _ := range app.bots {
+
+            var blob = app.bots[botId]
+
+            var tmpA = app.bots[botId].Blobs
+            pushBlobsApart(&tmpA)
+            blob.Blobs = tmpA
+
+            app.bots[botId] = blob
+        }
+        endProfileEvent(profile, &profileEventPushBlobsApart)
+    }
+
+    //
+    // Eating Foods
+    //
+    {
+        quadTree := NewQuadTree(NewQuad(Vec2{0,0}, 1000))
+        profileEventQuadTreeBuilding := startProfileEvent(profile, "QuadTree Building (Foods)")
+        {
+            for foodId, food := range app.foods {
+                quadTree.Insert(food.Position, foodId)
+            }
+        }
+        endProfileEvent(profile, &profileEventQuadTreeBuilding);
+
+
+        //
+        // Blobs eating Foods
+        //
+        profileEventQuadTreeSearching := startProfileEvent(profile, "QuadTree Seaching (Blobs eating Foods)")
+        {
+            var buffer FoodBuffer
+
+            for botId, bot := range app.bots {
+                for blobId, blob := range bot.Blobs {
+                    radius := Radius(blob.Mass)
+                    blobQuad := NewQuad(Vec2{ blob.Position.X - radius, blob.Position.Y - radius }, 2*radius)
+
+                    quadTree.FindValuesInQuad(blobQuad, &buffer)
+
+                    // Plow through the result of the query from the tree.
+                    for i := 0; i < buffer.count; i = i + 1 {
+                        id, _ := buffer.values[i].(FoodId)
+
+                        foodId := id
+                        food := app.foods[foodId]
+
+                        if Length(Sub(food.Position, blob.Position)) < blob.Radius() {
+                            blob.Mass = blob.Mass + food.Mass
+                            if food.IsThrown {
+                                delete(app.foods, foodId)
+                                eatenFoods = append(eatenFoods, foodId)
+                            } else {
+                                if pos, ok := newFoodPos(); ok {
+                                    food.Position = pos
+                                    food.IsNew = true
+                                    app.foods[foodId] = food
+                                } else {
+                                    delete(app.foods, foodId)
+                                    eatenFoods = append(eatenFoods, foodId)
+                                }
+                            }
+                        }
+                    }
+                    bot.Blobs[blobId] = blob
+
+                    buffer.count = 0
+                }
+                app.bots[botId] = bot
+            }
+        }
+        endProfileEvent(profile, &profileEventQuadTreeSearching)
+
+        //
+        // Toxins eating Foods
+        //
+        profileEventEatingFood := startProfileEvent(profile, "QuadTree Searching (Toxins eating Foods)")
+        {
+            var buffer FoodBuffer
+
+            for tId, toxin := range app.toxins {
+                radius := Radius(toxin.Mass)
+                toxinQuad := NewQuad(Vec2{ toxin.Position.X - radius, toxin.Position.Y - radius }, 2*radius)
+
+                quadTree.FindValuesInQuad(toxinQuad, &buffer)
+
+                for i := 0; i < buffer.count; i = i + 1 {
+                    foodId, _ := buffer.values[i].(FoodId)
+                    food := app.foods[foodId]
+
+                    if food.IsThrown {
+                        if Length(Sub(food.Position, toxin.Position)) < Radius(toxin.Mass) {
+                            toxin.Mass = toxin.Mass + food.Mass
+                            // Always get the velocity of the last eaten food so the toxin (when split)
+                            // gets the right velocity of the last input.
+                            if Length(food.Velocity) <= 0.01 {
+                                food.Velocity = RandomVec2()
+                            }
+                            toxin.IsSplitBy = food.IsThrownBy
+                            //Logf(LtDebug, "Food is thrown by %v\n", toxin.IsSplitBy)
+                            toxin.Velocity = Muls(NormalizeOrZero(food.Velocity), 100)
+
+                            delete(app.foods, foodId)
+                            eatenFoods = append(eatenFoods, foodId)
+
+                        }
+                    }
+                }
+                app.toxins[tId] = toxin
+
+                buffer.count = 0
+            }
+        }
+        endProfileEvent(profile, &profileEventEatingFood)
+
+        profileEventEatingBlobs := startProfileEvent(profile, "Eating Blobs")
+        for botId1, bot1 := range app.bots {
+
+            var bot1Mass float32
+            for blobId1, blob1 := range app.bots[botId1].Blobs {
+                //blob1 := bot1.Blobs[blobId1]
+                bot1Mass += blob1.Mass
+
+                for botId2, bot2 := range app.bots {
+                    if botId1 != botId2 {
+                        //bot2 := app.bots[botId2]
+                        for blobId2, blob2 := range app.bots[botId2].Blobs {
+                            //blob2 := bot2.Blobs[blobId2]
+
+                            inRadius := DistFast(blob2.Position, blob1.Position) < blob1.Radius()*blob1.Radius()
+                            smaller := blob2.Mass < 0.9*blob1.Mass
+
+                            if smaller && inRadius {
+                                blob1.Mass = blob1.Mass + blob2.Mass
+
+                                bot1.StatisticsThisGame.BlobKillCount += 1
+
+                                if blob1.IsSplit {
+                                    bot1.StatisticsThisGame.SuccessfulSplit += 1
+                                }
+
+                                killedBlobs.insert(botId2, blobId2)
+
+                                delete(app.bots[botId2].Blobs, blobId2)
+
+                                // Completely delete this bot.
+                                if len(app.bots[botId2].Blobs) <= 0 {
+                                    deadBots = append(deadBots, botId2)
+
+                                    bot1.StatisticsThisGame.BotKillCount += 1
+
+                                    go WriteStatisticToFile(bot2.Info.Name, bot2.StatisticsThisGame)
+
+                                    bot2.Connection.Close()
+                                    delete(app.bots, botId2)
+                                    break
+                                }
+
+                            }
+                        }
+                    }
+                }
+
+                app.bots[botId1].Blobs[blobId1] = blob1
+            }
+
+            stats := bot1.StatisticsThisGame
+            stats.MaxSize = float32(math.Max(float64(stats.MaxSize), float64(bot1Mass)))
+            stats.MaxSurvivalTime += dt
+
+            bot1.StatisticsThisGame = stats
+            app.bots[botId1] = bot1
+        }
+        endProfileEvent(profile, &profileEventEatingBlobs)
+    }
+
+    return deadBots, eatenFoods, eatenToxins
+}
+
 func (app* Application) startUpdateLoop() {
     ticker := time.NewTicker(time.Millisecond * 30)
     var lastTime = time.Now()
 
-    var fpsAdd float32
-    fpsAdd = 0
+    messageCounters := MessageCounters{ 0, 0, 0 }
+    
     var fpsCnt = 0
-
-    var guiMessageCounter = 0
-    var mWMessageCounter = 0
-    var guiStatisticsMessageCounter = 0
-
+    
     var lastMiddlewareStart = float32(0.0)
 
     for t := range ticker.C {
         profile := NewProfile()
 
+        var dt = float32(t.Sub(lastTime).Nanoseconds()) / 1e9
+        lastTime = t
+
+        if dt >= 0.03 { dt = 0.03 }
 
         // If there are only dummy-Bots on the field - Stop and wait for
         // something relevant to happen :)
         // Schroedinger or something ;)
+        /*
         if nobodyIsWatching() {
             Logf(LtDebug, "________________ Thread is going to sleep ...\n")
             // This should block until a new connection (any) is established!
@@ -951,35 +1520,21 @@ func (app* Application) startUpdateLoop() {
                 }
             default:
         }
-
-
-        var dt = float32(t.Sub(lastTime).Nanoseconds()) / 1e9
-        lastTime = t
-
-        if dt >= 0.03 {
-            dt = 0.03
-        }
+        */
 
         // Once every 10 seconds
         if fpsCnt == 300 {
-            //Logf(LtDebug, "fps: %v\n", fpsAdd / float32(fpsCnt+1))
-
             for _,bot := range app.bots {
                 go WriteStatisticToFile(bot.Info.Name, bot.StatisticsThisGame)
             }
-
-            fpsAdd = 0
             fpsCnt = 0
         }
         fpsCnt += 1
-        fpsAdd += 1.0 / dt
-
-        // Eating blobs
-        deadBots := make([]BotId, 0)
-
+        
         ////////////////////////////////////////////////////////////////
         // HANDLE EVENTS
         ////////////////////////////////////////////////////////////////
+        botsKilledByServerGui := make([]BotId, 0)
         {
             profileEventHandleEvents := startProfileEvent(&profile, "Handle Events")
             if len(app.serverCommands) > 0 {
@@ -1024,14 +1579,14 @@ func (app* Application) startUpdateLoop() {
                         case "KillAllBots":
                             for botId, _ := range app.bots {
                                 delete(app.bots, botId)
-                                deadBots = append(deadBots, botId)
+                                botsKilledByServerGui = append(botsKilledByServerGui, botId)
                             }
                             Logf(LtDebug, "Killed all bots\n")
                         case "KillBotsWithoutConnection":
                             for botId, bot := range app.bots {
                                 if !bot.ConnectionAlive {
                                     delete(app.bots, botId)
-                                    deadBots = append(deadBots, botId)
+                                    botsKilledByServerGui = append(botsKilledByServerGui, botId)
                                 }
                             }
                             Logf(LtDebug, "Killed bots without connection\n")
@@ -1043,7 +1598,7 @@ func (app* Application) startUpdateLoop() {
                                 }
                                 if mass > float32(command.Value) {
                                     delete(app.bots, botId)
-                                    deadBots = append(deadBots, botId)
+                                    botsKilledByServerGui = append(botsKilledByServerGui, botId)
                                 }
                             }
                             Logf(LtDebug, "Killed bots above mass threshold\n")
@@ -1134,568 +1689,12 @@ func (app* Application) startUpdateLoop() {
             lastMiddlewareStart += dt
             endProfileEvent(&profile, &profileEventAddDummyBots)
         }
-
+        
         ////////////////////////////////////////////////////////////////
-        // UPDATE BOT POSITION
+        // UPDATE THE GAME STATE
         ////////////////////////////////////////////////////////////////
-        {
-            profileEventUpdateBotPosition := startProfileEvent(&profile, "Update Bot Position")
-            for botId, bot := range app.bots {
-                botDied := false
-                for blobId, blob := range bot.Blobs {
-
-                    if blob.Mass < minBlobMass {
-                        //killedBlobs.insert(botId2, blobId2)
-                        delete(bot.Blobs, blobId)
-
-                        if len(bot.Blobs) == 0 {
-                            botDied = true
-                            deadBots = append(deadBots, botId)
-                        }
-
-                        break
-                    }
-
-                    oldPosition := blob.Position
-                    velocity    := calcBlobVelocity(&blob, bot.Command.Target)
-                    time        := dt * 50
-                    newVelocity := Muls(velocity, time)
-                    newPosition := Add (oldPosition, newVelocity)
-                    newPosition =  Add (newPosition, blob.IndividualTargetVec)
-
-                    //Logf(LtDebug, "old: %v; new: %v, velocity: %v, time: %v\n", oldPosition, newPosition, velocity, time)
-
-                    blob.Position = newPosition
-
-                    //singleBlob.Position = Add(singleBlob.Position, Muls(calcBlobVelocity(&singleBlob, blob.IndividualTargetVec), dt * 100))
-                    blob.Mass = calcBlobbMassLoss(blob.Mass, dt)
-                    blob.VelocityFac = blob.VelocityFac * velocityDecreaseFactor
-
-                    // So this is not added all the time but just for a short moment!
-                    blob.IndividualTargetVec = Muls(blob.IndividualTargetVec, velocityDecreaseFactor)
-
-                    if blob.ReunionTime > 0.0 {
-                        blob.ReunionTime -= dt
-                    }
-
-                    limitPosition(&blob.Position)
-
-                    app.bots[botId].Blobs[blobId] = blob
-                }
-                if !botDied {
-                    app.bots[botId] = bot
-                }
-            }
-            endProfileEvent(&profile, &profileEventUpdateBotPosition)
-        }
-
-        ////////////////////////////////////////////////////////////////
-        // UPDATE VIEW WINDOWS AND MAX MASS
-        ////////////////////////////////////////////////////////////////
-        {
-            profileEventViewWindowsAndMaxMass := startProfileEvent(&profile, "View Windows and max Mass")
-            for botId, bot := range app.bots {
-                //var diameter float32
-                var center Vec2
-                var completeMass float32 = 0
-                for _, blob1 := range bot.Blobs {
-                    center = Add(center, blob1.Position)
-                    completeMass += blob1.Mass
-                }
-
-                if completeMass > botMaxMass {
-
-                    // Percentage to cut off
-                    var dividor float32 = completeMass / botMaxMass
-
-                    for blobId, blob := range bot.Blobs {
-                        blob.Mass /= dividor
-                        bot.Blobs[blobId] = blob
-                    }
-
-                }
-
-                center = Muls(center, 1.0 / float32(len(bot.Blobs)))
-                var windowDiameter float32 = 30.0 * float32(math.Log(float64(completeMass))) - 20.0
-
-                bot.ViewWindow = ViewWindow{
-                    Position:   Sub(center, Vec2{ windowDiameter / 2.0, windowDiameter / 2.0 }),
-                    Size: Vec2{ windowDiameter, windowDiameter },
-                }
-                app.bots[botId] = bot
-            }
-            endProfileEvent(&profile, &profileEventViewWindowsAndMaxMass)
-        }
-
-        ////////////////////////////////////////////////////////////////
-        // POSSIBLY ADD A FOOD OR TOXIN
-        ////////////////////////////////////////////////////////////////
-        {
-            profileEventAddFoodOrToxin := startProfileEvent(&profile, "Add Food Or Toxin")
-            if rand.Intn(100) <= 5 && len(app.toxins) < app.settings.MaxNumberOfToxins {
-                if pos, ok := newToxinPos(); ok {
-                    newToxinId := app.createToxinId()
-                    app.toxins[newToxinId] = Toxin{true, false, pos, false, 0, toxinMassMin, RandomVec2()}
-                }
-            }
-            if rand.Intn(100) <= 5 && len(app.foods) < app.settings.MaxNumberOfFoods {
-                mass := foodMassMin + rand.Float32() * (foodMassMax - foodMassMin)
-                if pos, ok := newFoodPos(); ok {
-                    newFoodId := app.createFoodId()
-                    app.foods[newFoodId] = Food{ true, false, false, 0, mass, pos, RandomVec2() }
-                }
-            }
-            endProfileEvent(&profile, &profileEventAddFoodOrToxin)
-        }
-
-        ////////////////////////////////////////////////////////////////
-        // UPDATE FOOD POSITION
-        ////////////////////////////////////////////////////////////////
-        {
-            profileEventFoodPosition := startProfileEvent(&profile, "Food Position")
-            for foodId, food := range app.foods {
-                if food.IsMoving {
-                    food.Position = Add(food.Position, Muls(food.Velocity, dt))
-                    limitPosition(&food.Position)
-                    food.Velocity = Muls(food.Velocity, velocityDecreaseFactor)
-                    app.foods[foodId] = food
-                    if Length(food.Velocity) <= 0.001 {
-                        food.IsMoving = false
-                    }
-                }
-            }
-            endProfileEvent(&profile, &profileEventFoodPosition)
-        }
-
-        ////////////////////////////////////////////////////////////////
-        // UPDATE TOXIN POSITION
-        ////////////////////////////////////////////////////////////////
-        {
-            profileEventToxinPosition := startProfileEvent(&profile, "Toxin Position")
-            for toxinId, toxin := range app.toxins {
-                if toxin.IsMoving {
-                    toxin.Position = Add(toxin.Position, Muls(toxin.Velocity, dt))
-                    limitPosition(&toxin.Position)
-                    toxin.Velocity = Muls(toxin.Velocity, velocityDecreaseFactor)
-                    app.toxins[toxinId] = toxin
-                    if Length(toxin.Velocity) <= 0.001 {
-                        toxin.IsMoving = false
-                    }
-                }
-                app.toxins[toxinId] = toxin
-            }
-            endProfileEvent(&profile, &profileEventToxinPosition)
-        }
-
-        ////////////////////////////////////////////////////////////////
-        // DELETE RANDOM TOXIN IF THERE ARE TOO MANY
-        ////////////////////////////////////////////////////////////////
-        eatenToxins := make([]ToxinId, 0)
-        {
-            profileEventDeleteToxins := startProfileEvent(&profile, "Delete Toxins")
-            for toxinId,_ := range app.toxins {
-                if len(app.toxins) <= app.settings.MaxNumberOfToxins {
-                    break;
-                }
-                eatenToxins = append(eatenToxins, toxinId)
-                delete(app.toxins, toxinId)
-            }
-            endProfileEvent(&profile, &profileEventDeleteToxins)
-        }
-
-        ////////////////////////////////////////////////////////////////
-        // DELETE RANDOM FOOD IF THERE ARE TOO MANY
-        ////////////////////////////////////////////////////////////////
-        eatenFoods := make([]FoodId, 0)
-        {
-            profileEventDeleteFood := startProfileEvent(&profile, "Delete Foods")
-            for foodId,_ := range app.foods {
-                if len(app.foods) <= app.settings.MaxNumberOfFoods {
-                    break;
-                }
-                eatenFoods = append(eatenFoods, foodId)
-                delete(app.foods, foodId)
-            }
-            endProfileEvent(&profile, &profileEventDeleteFood)
-        }
-
-        ////////////////////////////////////////////////////////////////
-        // BOT INTERACTION WITH EVERYTHING
-        ////////////////////////////////////////////////////////////////
-
-        killedBlobs := NewIdsContainer()
-
-        // Split command received - Creating new Blob with same ID.
-        {
-            profileEventSplitBot := startProfileEvent(&profile, "Split Bot")
-            for botId, bot := range app.bots {
-                if bot.Command.Action == BatSplit && len(bot.Blobs) <= 10 {
-
-                    var bot = app.bots[botId]
-                    bot.StatisticsThisGame.SplitCount += 1
-                    var botRef = &bot
-                    splitAllBlobsOfBot(botRef)
-                    app.bots[botId] = *botRef
-
-                } else if bot.Command.Action == BatThrow {
-                    bot := app.bots[botId]
-                    throwAllBlobsOfBot(&bot, botId)
-                    app.bots[botId] = bot
-                }
-            }
-            endProfileEvent(&profile, &profileEventSplitBot)
-        }
-
-        // Splitting the Toxin!
-        {
-            profileEventSplitToxin := startProfileEvent(&profile, "Split Toxin")
-            for toxinId, toxin := range app.toxins {
-
-                if toxin.Mass > toxinMassMax {
-
-                    // Create new Toxin (moving!)
-                    newId := app.createToxinId()
-                    newToxin := Toxin {
-                        IsNew: true,
-                        IsMoving: true,
-                        Position: toxin.Position,
-                        IsSplit: true,
-                        IsSplitBy: toxin.IsSplitBy,
-                        Mass: toxinMassMin,
-                        Velocity: toxin.Velocity,
-                    }
-                    app.toxins[newId] = newToxin
-
-                    possibleBot, foundIt := app.bots[toxin.IsSplitBy]
-                    if foundIt {
-                        possibleBot.StatisticsThisGame.ToxinThrow += 1
-                        app.bots[toxin.IsSplitBy] = possibleBot
-                    }
-
-                    // Reset Mass
-                    toxin.Mass = toxinMassMin
-                    toxin.IsSplit = false
-                    toxin.IsNew = false
-                    toxin.IsSplitBy = BotId(0)
-                    toxin.Velocity = RandomVec2()
-
-                }
-                app.toxins[toxinId] = toxin
-            }
-            endProfileEvent(&profile, &profileEventSplitToxin)
-        }
-
-        // Reunion of Subblobs
-        {
-            profileEventSubblobReunion := startProfileEvent(&profile, "Subblob reunion")
-            for botId, _ := range app.bots {
-                var bot = app.bots[botId]
-                var botRef = &bot
-                // Reunion of Subblobs
-                calcSubblobReunion(&killedBlobs, botId, botRef)
-                app.bots[botId] = *botRef
-            }
-            endProfileEvent(&profile, &profileEventSubblobReunion)
-        }
-
-        // Blob Collision with Toxin
-        {
-            // QuadTree Building
-            /*
-            profileEventQuadTreeBuilding := startProfileEvent(&profile, "QuadTree Building (Toxins)")
-            quadTree := NewQuadTree(NewQuad(Vec2{0, 0}, 1000))
-            {
-                for toxinId, toxin := range app.toxins {
-                    quadTree.Insert(toxin.Position, toxinId)
-                }
-            }
-            endProfileEvent(&profile, &profileEventQuadTreeBuilding)
-            */
-
-            profileEventCollisionWithToxin := startProfileEvent(&profile, "Collision with Toxin")
-            for tId,toxin := range app.toxins {
-                var toxinIsEaten = false
-                var toxinIsRepositioned = false
-
-                for botId, _ := range app.bots {
-                    bot := app.bots[botId]
-
-                    mapOfAllNewSingleBlobs := make(map[BlobId]Blob)
-                    var blobsToDelete []BlobId
-                    var exploded = false
-
-                    // This loop should not alter ANY real data at all right now!
-                    // Just writing to tmp maps without alterning real data.
-                    for blobId,_ := range bot.Blobs {
-                        var singleBlob = bot.Blobs[blobId]
-
-                        if Dist(singleBlob.Position, toxin.Position) < singleBlob.Radius() && singleBlob.Mass >= minBlobMassToExplode {
-
-                            // If a bot already has > 10 blobs (i.e.), don't explode, eat it!!
-                            if len(bot.Blobs) > maxBlobCountToExplode && !toxin.IsSplit {
-                                if toxin.IsSplit || len(app.toxins) >= app.settings.MaxNumberOfToxins {
-                                    eatenToxins = append(eatenToxins, tId)
-                                    delete(app.toxins, tId)
-                                    toxinIsEaten = true
-                                } else {
-                                    if pos, ok := newToxinPos(); ok {
-                                        toxin.Position = pos
-                                        toxin.IsSplitBy = BotId(0)
-                                        toxin.IsSplit = false
-                                        toxin.IsNew = true
-                                        toxin.Mass = toxinMassMin
-                                        toxinIsRepositioned = true
-                                    } else {
-                                        eatenToxins = append(eatenToxins, tId)
-                                        delete(app.toxins, tId)
-                                        toxinIsEaten = true
-                                    }
-                                }
-                                break
-                            }
-
-                            subMap := make(map[BlobId]Blob)
-
-                            if toxin.IsSplit {
-                                possibleBot, foundIt := app.bots[toxin.IsSplitBy]
-                                if foundIt {
-                                    possibleBot.StatisticsThisGame.SuccessfulToxin += 1
-                                    app.bots[toxin.IsSplitBy] = possibleBot
-                                }
-                            }
-
-                            explodeBlob(botId, blobId, &subMap)
-                            exploded = true
-
-                            // Add all the new explosions:
-                            for i,b := range subMap {
-                                mapOfAllNewSingleBlobs[i] = b
-                            }
-
-                            blobsToDelete = append(blobsToDelete, blobId)
-
-                            if pos, ok := newToxinPos(); ok {
-                                toxin.Position = pos
-                                toxin.IsSplitBy = BotId(0)
-                                toxin.IsSplit = false
-                                toxin.IsNew = true
-                                toxin.Mass = toxinMassMin
-                            } else {
-                                eatenToxins = append(eatenToxins, tId)
-                                delete(app.toxins, tId)
-                                toxinIsEaten = true
-                            }
-                        }
-                    }
-
-                    if toxinIsEaten || toxinIsRepositioned {
-                        break
-                    }
-
-                    if exploded {
-                        // Delete the origin of the exploded Blobs.
-                        for _,blobKey := range blobsToDelete {
-                            killedBlobs.insert(botId, blobKey)
-                            delete(bot.Blobs, blobKey)
-                        }
-
-                        // Add all new exploded Blobs.
-                        for i,b := range mapOfAllNewSingleBlobs {
-                            bot.Blobs[i] = b
-                        }
-                    }
-
-                    app.bots[botId] = bot
-                }
-
-                if !toxinIsEaten {
-                    app.toxins[tId] = toxin
-                }
-            }
-            endProfileEvent(&profile, &profileEventCollisionWithToxin)
-        }
-
-        //
-        // Push Blobs apart
-        //
-        {
-            profileEventPushBlobsApart := startProfileEvent(&profile, "Push Blobs Apart")
-            for botId, _ := range app.bots {
-
-                var blob = app.bots[botId]
-
-                var tmpA = app.bots[botId].Blobs
-                pushBlobsApart(&tmpA)
-                blob.Blobs = tmpA
-
-                app.bots[botId] = blob
-            }
-            endProfileEvent(&profile, &profileEventPushBlobsApart)
-        }
-
-        //
-        // Eating Foods
-        //
-        {
-            quadTree := NewQuadTree(NewQuad(Vec2{0,0}, 1000))
-            profileEventQuadTreeBuilding := startProfileEvent(&profile, "QuadTree Building (Foods)")
-            {
-                for foodId, food := range app.foods {
-                    quadTree.Insert(food.Position, foodId)
-                }
-            }
-            endProfileEvent(&profile, &profileEventQuadTreeBuilding);
-
-
-            //
-            // Blobs eating Foods
-            //
-            profileEventQuadTreeSearching := startProfileEvent(&profile, "QuadTree Seaching (Blobs eating Foods)")
-            {
-                var buffer FoodBuffer
-
-                for botId, bot := range app.bots {
-                    for blobId, blob := range bot.Blobs {
-                        radius := Radius(blob.Mass)
-                        blobQuad := NewQuad(Vec2{ blob.Position.X - radius, blob.Position.Y - radius }, 2*radius)
-
-                        quadTree.FindValuesInQuad(blobQuad, &buffer)
-
-                        // Plow through the result of the query from the tree.
-                        for i := 0; i < buffer.count; i = i + 1 {
-                            id, _ := buffer.values[i].(FoodId)
-
-                            foodId := id
-                            food := app.foods[foodId]
-
-                            if Length(Sub(food.Position, blob.Position)) < blob.Radius() {
-                                blob.Mass = blob.Mass + food.Mass
-                                if food.IsThrown {
-                                    delete(app.foods, foodId)
-                                    eatenFoods = append(eatenFoods, foodId)
-                                } else {
-                                    if pos, ok := newFoodPos(); ok {
-                                        food.Position = pos
-                                        food.IsNew = true
-                                        app.foods[foodId] = food
-                                    } else {
-                                        delete(app.foods, foodId)
-                                        eatenFoods = append(eatenFoods, foodId)
-                                    }
-                                }
-                            }
-                        }
-                        bot.Blobs[blobId] = blob
-
-                        buffer.count = 0
-                    }
-                    app.bots[botId] = bot
-                }
-            }
-            endProfileEvent(&profile, &profileEventQuadTreeSearching)
-
-            //
-            // Toxins eating Foods
-            //
-            profileEventEatingFood := startProfileEvent(&profile, "QuadTree Searching (Toxins eating Foods)")
-            {
-                var buffer FoodBuffer
-
-                for tId, toxin := range app.toxins {
-                    radius := Radius(toxin.Mass)
-                    toxinQuad := NewQuad(Vec2{ toxin.Position.X - radius, toxin.Position.Y - radius }, 2*radius)
-
-                    quadTree.FindValuesInQuad(toxinQuad, &buffer)
-
-                    for i := 0; i < buffer.count; i = i + 1 {
-                        foodId, _ := buffer.values[i].(FoodId)
-                        food := app.foods[foodId]
-
-                        if food.IsThrown {
-                            if Length(Sub(food.Position, toxin.Position)) < Radius(toxin.Mass) {
-                                toxin.Mass = toxin.Mass + food.Mass
-                                // Always get the velocity of the last eaten food so the toxin (when split)
-                                // gets the right velocity of the last input.
-                                if Length(food.Velocity) <= 0.01 {
-                                    food.Velocity = RandomVec2()
-                                }
-                                toxin.IsSplitBy = food.IsThrownBy
-                                //Logf(LtDebug, "Food is thrown by %v\n", toxin.IsSplitBy)
-                                toxin.Velocity = Muls(NormalizeOrZero(food.Velocity), 100)
-
-                                delete(app.foods, foodId)
-                                eatenFoods = append(eatenFoods, foodId)
-
-                            }
-                        }
-                    }
-                    app.toxins[tId] = toxin
-
-                    buffer.count = 0
-                }
-            }
-            endProfileEvent(&profile, &profileEventEatingFood)
-
-            profileEventEatingBlobs := startProfileEvent(&profile, "Eating Blobs")
-            for botId1, bot1 := range app.bots {
-
-                var bot1Mass float32
-                for blobId1, blob1 := range app.bots[botId1].Blobs {
-                    //blob1 := bot1.Blobs[blobId1]
-                    bot1Mass += blob1.Mass
-
-                    for botId2, bot2 := range app.bots {
-                        if botId1 != botId2 {
-                            //bot2 := app.bots[botId2]
-                            for blobId2, blob2 := range app.bots[botId2].Blobs {
-                                //blob2 := bot2.Blobs[blobId2]
-
-                                inRadius := DistFast(blob2.Position, blob1.Position) < blob1.Radius()*blob1.Radius()
-                                smaller := blob2.Mass < 0.9*blob1.Mass
-
-                                if smaller && inRadius {
-                                    blob1.Mass = blob1.Mass + blob2.Mass
-
-                                    bot1.StatisticsThisGame.BlobKillCount += 1
-
-                                    if blob1.IsSplit {
-                                        bot1.StatisticsThisGame.SuccessfulSplit += 1
-                                    }
-
-                                    killedBlobs.insert(botId2, blobId2)
-
-                                    delete(app.bots[botId2].Blobs, blobId2)
-
-                                    // Completely delete this bot.
-                                    if len(app.bots[botId2].Blobs) <= 0 {
-                                        deadBots = append(deadBots, botId2)
-
-                                        bot1.StatisticsThisGame.BotKillCount += 1
-
-                                        go WriteStatisticToFile(bot2.Info.Name, bot2.StatisticsThisGame)
-
-                                        bot2.Connection.Close()
-                                        delete(app.bots, botId2)
-                                        break
-                                    }
-
-                                }
-                            }
-                        }
-                    }
-
-                    app.bots[botId1].Blobs[blobId1] = blob1
-                }
-
-                stats := bot1.StatisticsThisGame
-                stats.MaxSize = float32(math.Max(float64(stats.MaxSize), float64(bot1Mass)))
-                stats.MaxSurvivalTime += dt
-
-                bot1.StatisticsThisGame = stats
-                app.bots[botId1] = bot1
-            }
-            endProfileEvent(&profile, &profileEventEatingBlobs)
-        }
+        deadBots, eatenFoods, eatenToxins := app.update(&profile, dt)        
+        deadBots = append(deadBots, botsKilledByServerGui...)
 
         ////////////////////////////////////////////////////////////////
         // CHECK ANYTHING ON NaN VALUES
@@ -1729,8 +1728,16 @@ func (app* Application) startUpdateLoop() {
             // SEND UPDATED DATA TO MIDDLEWARE AND GUI
             ////////////////////////////////////////////////////////////////
 
-            sendDataToMiddleware(mWMessageCounter)
-            sendDataToGui(guiMessageCounter, guiStatisticsMessageCounter, deadBots, eatenFoods, eatenToxins, app.guiConnections, app.bots, app.toxins, app.foods)
+            sendDataToMiddleware(messageCounters.mWMessageCounter)
+            sendDataToGui(messageCounters.guiMessageCounter, 
+                          messageCounters.guiStatisticsMessageCounter, 
+                          deadBots, 
+                          eatenFoods, 
+                          eatenToxins, 
+                          app.guiConnections, 
+                          app.bots, 
+                          app.toxins, 
+                          app.foods)
 
             for toxinId, toxin := range app.toxins {
                 if toxin.IsNew {
@@ -1753,9 +1760,9 @@ func (app* Application) startUpdateLoop() {
                 guiConnection.IsNewConnection = false
                 app.guiConnections[guiConnectionId] = guiConnection
             }
-            guiMessageCounter += 1
-            mWMessageCounter += 1
-            guiStatisticsMessageCounter += 1
+            messageCounters.guiMessageCounter += 1
+            messageCounters.mWMessageCounter += 1
+            messageCounters.guiStatisticsMessageCounter += 1
 
             endProfileEvent(&profile, &profileEventSendDataToMiddlewareAndGui)
         }
@@ -1941,10 +1948,10 @@ func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpda
 func handleGui(ws *websocket.Conn) {
     var guiId          = app.createGuiId()         // TODO(henk): When do we delete the blob?
 
-    if nobodyIsWatching() {
-        // This unblocks the main thread!
-        app.standbyMode <- true
-    }
+    //if nobodyIsWatching() {
+    //    // This unblocks the main thread!
+    //    app.standbyMode <- true
+    //}
 
     var messageChannel = make(chan ServerGuiUpdateMessage, 10000)
     var isAlive        = make(chan bool, 1000)
@@ -2151,11 +2158,18 @@ func handleMiddleware(ws *websocket.Conn) {
 
                 sourceIP := strings.Split(ws.Request().RemoteAddr, ":")[0]
                 myIP := getIP()
+                
+                // TODO(henk): Remove this.
+                Logf(LtDebug, "SourceIP: %v\n", sourceIP)
+                Logf(LtDebug, "myIP: %v\n", myIP)
 
-                if message.BotInfo.Name == "dummy" && sourceIP != myIP && sourceIP != "localhost" && sourceIP != "127.0.0.1" {
-                    isAllowed = false
-                    //Logf(LtDebug, "sourceIP: %v, myIP: %v\n", sourceIP, myIP)
-                    Logf(LtDebug, "The player name 'dummy' is not allowed! Request from: %s, at: %s\n", sourceIP, time.Now().Format(time.RFC850))
+                // TODO(henk): Use this again. The adresses where not equal.
+                //if message.BotInfo.Name == "dummy" && sourceIP != myIP && sourceIP != "localhost" && sourceIP != "127.0.0.1" {
+                //    isAllowed = false
+                //    Logf(LtDebug, "The player name 'dummy' is not allowed! Request from: %s, at: %s\n", sourceIP, time.Now().Format(time.RFC850))
+                //}
+                if message.BotInfo.Name == "dummy" {
+                    isAllowed = true
                 }
 
                 if !isAllowed {
@@ -2339,7 +2353,6 @@ func getIP() string {
     for _, a := range addrs {
         if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
             if ipnet.IP.To4() != nil {
-                //os.Stdout.WriteString(ipnet.IP.String() + "\n")
                 return ipnet.IP.String()
             }
         }
