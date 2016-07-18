@@ -939,7 +939,7 @@ func (app* Application) startUpdateLoop() {
         if nobodyIsWatching() {
             Logf(LtDebug, "________________ Thread is going to sleep ...\n")
             // This should block until a new connection (any) is established!
-            <- app.standbyMode
+            //<- app.standbyMode
             Logf(LtDebug, "________________ Thread is alive again - yay :)\n")
         }
 
