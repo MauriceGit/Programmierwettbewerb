@@ -943,6 +943,15 @@ func (app* Application) startUpdateLoop() {
             Logf(LtDebug, "Thread is alive again - yay :)\n")
         }
 
+        // Just empty the channel unblocking, so that new guis and stuff can connect...
+        select {
+            case _, ok := <-app.standbyMode:
+                if ok {
+                    Logf(LtDebug, "Emptied the channel. Worked.\n")
+                }
+            default:
+        }
+
 
         var dt = float32(t.Sub(lastTime).Nanoseconds()) / 1e9
         lastTime = t
