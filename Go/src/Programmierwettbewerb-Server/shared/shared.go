@@ -74,13 +74,6 @@ type MessageMiddlewareServer struct {
     BotInfo             *BotInfo
 }
 
-type ServerSettings struct {
-    MinNumberOfBots     int
-    MaxNumberOfBots     int
-    MaxNumberOfFoods    int
-    MaxNumberOfToxins   int
-}
-
 type Food struct {
     IsNew       bool    `json:"new"`
     IsMoving    bool    `json:"moving"`
