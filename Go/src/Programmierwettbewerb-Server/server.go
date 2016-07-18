@@ -258,14 +258,63 @@ func (gameState* GameState) initialize(serverSettings ServerSettings) {
     }
 }
 
-type Application struct {
-    fieldSize                   Vec2
+type Ids struct {
+    // TODO(henk): Synchronize the stuff
     nextGuiId                   GuiId
     nextBotId                   BotId
     nextBlobId                  BlobId
     nextFoodId                  FoodId
     nextToxinId                 ToxinId
     nextServerCommandId         CommandId
+}
+
+func (ids *Ids) initialize(settings ServerSettings) {
+    ids.nextGuiId                   = 0
+    ids.nextBotId                   = 1
+    ids.nextBlobId                  = 1
+    ids.nextServerCommandId         = 0
+    ids.nextFoodId                  = FoodId(settings.MaxNumberOfFoods) + 1
+    ids.nextToxinId                 = ToxinId(settings.MaxNumberOfToxins) + 1
+}
+
+func (ids* Ids) createGuiId() GuiId {
+    var id = ids.nextGuiId
+    ids.nextGuiId = id + 1
+    return id
+}
+
+func (ids* Ids) createServerCommandId() CommandId {
+    var id = ids.nextServerCommandId
+    ids.nextServerCommandId = id + 1
+    return id
+}
+
+func (ids* Ids) createBotId() BotId {
+    var id = ids.nextBotId
+    ids.nextBotId = id + 1
+    return id
+}
+
+func (ids* Ids) createBlobId() BlobId {
+    var id = ids.nextBlobId
+    ids.nextBlobId = id + 1
+    return id
+}
+
+func (ids* Ids) createFoodId() FoodId {
+    var id = ids.nextFoodId
+    ids.nextFoodId = id + 1
+    return id
+}
+
+func (ids* Ids) createToxinId() ToxinId {
+    var id = ids.nextToxinId
+    ids.nextToxinId = id + 1
+    return id
+}
+
+type Application struct {
+    fieldSize                   Vec2    
     guiConnections              map[GuiId]GuiConnection
 
     standbyMode                 chan bool
@@ -278,6 +327,7 @@ type Application struct {
     profiling                   bool
     
     settings                    ServerSettings
+    ids                         Ids
     gameState                   GameState
 }
 
@@ -286,12 +336,6 @@ var mutex = &sync.Mutex{}
 
 func (app* Application) initialize() {
     app.fieldSize                   = Vec2{ 1000, 1000 }
-    app.nextGuiId                   = 0
-    app.nextBotId                   = 1
-    app.nextBlobId                  = 1
-    app.nextServerCommandId         = 0
-    app.nextFoodId                  = FoodId(app.settings.MaxNumberOfFoods) + 1
-    app.nextToxinId                 = ToxinId(app.settings.MaxNumberOfToxins) + 1
     app.guiConnections              = make(map[GuiId]GuiConnection)
     
     app.mwInfo                      = make(chan MwInfo, 1000)
@@ -303,43 +347,8 @@ func (app* Application) initialize() {
     app.profiling                   = false
 
     app.settings.initialize()
+    app.ids.initialize(app.settings)
     app.gameState.initialize(app.settings)
-}
-
-func (app* Application) createGuiId() GuiId {
-    var id = app.nextGuiId
-    app.nextGuiId = id + 1 // TODO(henk): Must be synchronized
-    return id
-}
-
-func (app* Application) createServerCommandId() CommandId {
-    var id = app.nextServerCommandId
-    app.nextServerCommandId = id + 1
-    return id
-}
-
-func (app* Application) createBotId() BotId {
-    var id = app.nextBotId
-    app.nextBotId = id + 1 // TODO(henk): Must be synchronized
-    return id
-}
-
-func (app* Application) createBlobId() BlobId {
-    var id = app.nextBlobId
-    app.nextBlobId = id + 1
-    return id
-}
-
-func (app *Application) createFoodId() FoodId {
-    var id = app.nextFoodId
-    app.nextFoodId = id + 1
-    return id
-}
-
-func (app* Application) createToxinId() ToxinId {
-    var id = app.nextToxinId
-    app.nextToxinId = id + 1
-    return id
 }
 
 
@@ -599,7 +608,7 @@ func calcSubblobReunion(killedBlobs *IdsContainer, botId BotId, bot *Bot) {
     }
 }
 
-func splitAllBlobsOfBot(bot *Bot) {
+func splitAllBlobsOfBot(bot *Bot, ids *Ids) {
     var newBlobMap = make(map[BlobId]Blob)
     for subBlobToSplit, subBlob := range (*bot).Blobs {
         // Just split if bigger than 100
@@ -612,7 +621,7 @@ func splitAllBlobsOfBot(bot *Bot) {
             tmp.ReunionTime = subBlob.ReunionTime + 1.0
             (*bot).Blobs[subBlobToSplit] = tmp
 
-            var newIndex = app.createBlobId()
+            var newIndex = ids.createBlobId()
             newBlobMap[newIndex] = Blob{ subBlob.Position, newMass, blobSplitVelocity, true, blobReunionTime, NullVec2()}
         }
     }
@@ -627,7 +636,7 @@ func throwAllBlobsOfBot(bot *Bot, botId BotId) bool {
     somebodyThrew := false
     for blobId, blob := range (*bot).Blobs {
         if blob.Mass > massToBeAllowedToThrow {
-            foodId := app.createFoodId()
+            foodId := app.ids.createFoodId()
             sub := Sub(bot.Command.Target, blob.Position)
             if Length(sub) <= 0.01 {
                 sub = RandomVec2()
@@ -661,7 +670,7 @@ func randomVecOnCircle(radius float32) Vec2 {
     return Vec2{x, y}
 }
 
-func explodeBlob(botId BotId, blobId BlobId, newMap *map[BlobId]Blob)  {
+func explodeBlob(botId BotId, blobId BlobId, newMap *map[BlobId]Blob, ids *Ids)  {
     blobCount := 12
     splitRadius := float32(3.0)
 
@@ -669,7 +678,7 @@ func explodeBlob(botId BotId, blobId BlobId, newMap *map[BlobId]Blob)  {
     // consisting of half the mass!
     blob := app.gameState.bots[botId].Blobs[blobId]
     for i := 0; i < blobCount; i++ {
-        newIndex  := app.createBlobId()
+        newIndex  := ids.createBlobId()
         (*newMap)[newIndex] = Blob{
             Add(RandomVec2(), blob.Position),
             blob.Mass/float32(blobCount),
@@ -938,7 +947,7 @@ type MessageCounters struct {
     guiStatisticsMessageCounter int
 }
 
-func update(gameState *GameState, settings *ServerSettings, profile *Profile, dt float32) ([]BotId, []FoodId, []ToxinId) {
+func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *Profile, dt float32) ([]BotId, []FoodId, []ToxinId) {
     deadBots    := make([]BotId,   0)
     eatenFoods  := make([]FoodId,  0)
     eatenToxins := make([]ToxinId, 0)
@@ -1036,14 +1045,14 @@ func update(gameState *GameState, settings *ServerSettings, profile *Profile, dt
         profileEventAddFoodOrToxin := startProfileEvent(profile, "Add Food Or Toxin")
         if rand.Intn(100) <= 5 && len(gameState.toxins) < settings.MaxNumberOfToxins {
             if pos, ok := newToxinPos(); ok {
-                newToxinId := app.createToxinId()
+                newToxinId := ids.createToxinId()
                 gameState.toxins[newToxinId] = Toxin{true, false, pos, false, 0, toxinMassMin, RandomVec2()}
             }
         }
         if rand.Intn(100) <= 5 && len(gameState.foods) < settings.MaxNumberOfFoods {
             mass := foodMassMin + rand.Float32() * (foodMassMax - foodMassMin)
             if pos, ok := newFoodPos(); ok {
-                newFoodId := app.createFoodId()
+                newFoodId := ids.createFoodId()
                 gameState.foods[newFoodId] = Food{ true, false, false, 0, mass, pos, RandomVec2() }
             }
         }
@@ -1134,7 +1143,7 @@ func update(gameState *GameState, settings *ServerSettings, profile *Profile, dt
                 var bot = gameState.bots[botId]
                 bot.StatisticsThisGame.SplitCount += 1
                 var botRef = &bot
-                splitAllBlobsOfBot(botRef)
+                splitAllBlobsOfBot(botRef, ids)
                 gameState.bots[botId] = *botRef
 
             } else if bot.Command.Action == BatThrow {
@@ -1154,7 +1163,7 @@ func update(gameState *GameState, settings *ServerSettings, profile *Profile, dt
             if toxin.Mass > toxinMassMax {
 
                 // Create new Toxin (moving!)
-                newId := app.createToxinId()
+                newId := ids.createToxinId()
                 newToxin := Toxin {
                     IsNew: true,
                     IsMoving: true,
@@ -1264,7 +1273,7 @@ func update(gameState *GameState, settings *ServerSettings, profile *Profile, dt
                             }
                         }
 
-                        explodeBlob(botId, blobId, &subMap)
+                        explodeBlob(botId, blobId, &subMap, ids)
                         exploded = true
 
                         // Add all the new explosions:
@@ -1702,7 +1711,7 @@ func (app* Application) startUpdateLoop() {
         ////////////////////////////////////////////////////////////////
         // UPDATE THE GAME STATE
         ////////////////////////////////////////////////////////////////
-        deadBots, eatenFoods, eatenToxins := update(&app.gameState, &app.settings, &profile, dt)        
+        deadBots, eatenFoods, eatenToxins := update(&app.gameState, &app.settings, &app.ids, &profile, dt)        
         deadBots = append(deadBots, botsKilledByServerGui...)
 
         ////////////////////////////////////////////////////////////////
@@ -1955,7 +1964,7 @@ func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpda
 }
 
 func handleGui(ws *websocket.Conn) {
-    var guiId          = app.createGuiId()         // TODO(henk): When do we delete the blob?
+    var guiId          = app.ids.createGuiId()         // TODO(henk): When do we delete the blob?
 
     //if nobodyIsWatching() {
     //    // This unblocks the main thread!
@@ -2037,7 +2046,7 @@ func createStartingBot(ws *websocket.Conn, botInfo BotInfo, statistics Statistic
 }
 
 func handleServerCommands(ws *websocket.Conn) {
-    commandId := app.createServerCommandId()
+    commandId := app.ids.createServerCommandId()
 
     app.serverGuiIsConnected = true
 
@@ -2083,7 +2092,7 @@ func handleServerCommands(ws *websocket.Conn) {
 }
 
 func handleMiddleware(ws *websocket.Conn) {
-    var botId = app.createBotId()
+    var botId = app.ids.createBotId()
 
     Logf(LtDebug, "Got connection from Middleware %v\n", botId)
 
