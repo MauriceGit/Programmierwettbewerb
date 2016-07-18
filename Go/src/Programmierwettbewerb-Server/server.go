@@ -36,8 +36,8 @@ import (
 // -------------------------------------------------------------------------------------------------
 
 const (
-    foodMassMin = 4
-    foodMassMax = 6
+    foodMassMin = 1
+    foodMassMax = 3
     thrownFoodMass = 10
     massToBeAllowedToThrow = 100
     botMinMass = 10
