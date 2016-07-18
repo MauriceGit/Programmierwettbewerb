@@ -203,6 +203,12 @@ type MwInfo struct {
     ws                      *websocket.Conn
 }
 
+////////////////////////////////////////////////////////////////////////
+//
+// ServerSettings
+//
+////////////////////////////////////////////////////////////////////////
+
 type ServerSettings struct {
     MinNumberOfBots     int
     MaxNumberOfBots     int
@@ -233,6 +239,12 @@ func (settings *ServerSettings) initialize() {
     settings.botDistribution             = loadSpawnImage(settings.botDistributionName, 10)
 }
 
+////////////////////////////////////////////////////////////////////////
+//
+// GameState
+//
+////////////////////////////////////////////////////////////////////////
+
 type GameState struct {
     foods                   map[FoodId]Food
     toxins                  map[ToxinId]Toxin
@@ -258,8 +270,14 @@ func (gameState* GameState) initialize(serverSettings ServerSettings) {
     }
 }
 
+////////////////////////////////////////////////////////////////////////
+//
+// Ids
+//
+////////////////////////////////////////////////////////////////////////
+
 type Ids struct {
-    // TODO(henk): Synchronize the stuff
+    mutex                       sync.Mutex
     nextGuiId                   GuiId
     nextBotId                   BotId
     nextBlobId                  BlobId
@@ -278,40 +296,64 @@ func (ids *Ids) initialize(settings ServerSettings) {
 }
 
 func (ids* Ids) createGuiId() GuiId {
+    ids.mutex.Lock()
+    defer ids.mutex.Unlock()
+
     var id = ids.nextGuiId
     ids.nextGuiId = id + 1
     return id
 }
 
 func (ids* Ids) createServerCommandId() CommandId {
+    ids.mutex.Lock()
+    defer ids.mutex.Unlock()
+    
     var id = ids.nextServerCommandId
     ids.nextServerCommandId = id + 1
     return id
 }
 
 func (ids* Ids) createBotId() BotId {
+    ids.mutex.Lock()
+    defer ids.mutex.Unlock()
+
     var id = ids.nextBotId
     ids.nextBotId = id + 1
     return id
 }
 
 func (ids* Ids) createBlobId() BlobId {
+    ids.mutex.Lock()
+    defer ids.mutex.Unlock()
+
     var id = ids.nextBlobId
     ids.nextBlobId = id + 1
     return id
 }
 
 func (ids* Ids) createFoodId() FoodId {
+    ids.mutex.Lock()
+    defer ids.mutex.Unlock()
+
     var id = ids.nextFoodId
     ids.nextFoodId = id + 1
     return id
 }
 
 func (ids* Ids) createToxinId() ToxinId {
+    ids.mutex.Lock()
+    defer ids.mutex.Unlock()
+
     var id = ids.nextToxinId
     ids.nextToxinId = id + 1
     return id
 }
+
+////////////////////////////////////////////////////////////////////////
+//
+// Application
+//
+////////////////////////////////////////////////////////////////////////
 
 type Application struct {
     fieldSize                   Vec2    
