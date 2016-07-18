@@ -1693,7 +1693,17 @@ func (app* Application) startUpdateLoop() {
         ////////////////////////////////////////////////////////////////
         checkAllValuesOnNaN("end")
 
+        ////////////////////////////////////////////////////////////////
+        // DELETE BOTS WITHOUT ACTIVE CONNECTION
+        ////////////////////////////////////////////////////////////////
 
+        for botId, bot := range app.bots {
+            if !bot.ConnectionAlive {
+                go WriteStatisticToFile(bot.Info.Name, bot.StatisticsThisGame)
+                delete(app.bots, botId)
+                deadBots = append(deadBots, botId)
+            }
+        }
 
         {
             profileEventSendDataToMiddlewareAndGui := startProfileEvent(&profile, "Send Data to Middleware|Gui")
