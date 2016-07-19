@@ -1852,15 +1852,17 @@ func sendMiddlewareMessages(botId BotId, ws *websocket.Conn, channel chan Server
 
         select {
             case message, ok := <-channel:
+                otherMessages := getOtherMessagesFromMWChannel(channel)
                 if ok {
                     var err error
-                    otherMessages := getOtherMessagesFromMWChannel(channel)
+
 
                     if len(otherMessages) == 0 {
                         // Just now, we send the whole message!
                         err = websocket.JSON.Send(ws, message)
                     } else {
-
+                        // still send something, otherwise a slightly slow middleware doesn't get any update any more...
+                        err = websocket.JSON.Send(ws, message)
                         // Do nothing! The Middleware will NOT get any messages, until it is fast enough to get them!
                         // It will get the next one though. But skipps all from this round.
                         Logf(LtDebug, "Middleware %v skips one message, as it is not fast enough receiving the ones before...\n", botId)
@@ -1870,6 +1872,8 @@ func sendMiddlewareMessages(botId BotId, ws *websocket.Conn, channel chan Server
                         Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
                     }
 
+                } else {
+                    Logf(LtDebug, "MW - NOT ok!")
                 }
             case <-timeout:
                 if !nobodyIsWatching() {
@@ -1923,10 +1927,9 @@ func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpda
 
         select {
             case message, ok := <-channel:
+                otherMessages, count := getOtherMessagesFromGuiChannel(channel)
                 if ok {
                     var err error
-
-                    otherMessages, count := getOtherMessagesFromGuiChannel(channel)
 
                     if count > 10 {
                         Logf(LtDebug, "More than 10 messages are in the Queue for gui %v. So we just shut it down!\n", guiId)
@@ -1938,21 +1941,19 @@ func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpda
                     if len(otherMessages) == 0 {
                         // Just now, we send the whole message!
                         err = websocket.JSON.Send(ws, message)
+                        Logf(LtDebug, "sent Message to Gui! 1 \n")
                     } else {
 
                         allMessages := append([]ServerGuiUpdateMessage{message}, otherMessages...)
 
                         for _,m := range(allMessages) {
-                            // Delete all information we do not want to send!
-                            //if i != len(allMessages)-1 {
-                                m.CreatedOrUpdatedBots = make(map[string]ServerGuiBot)
-                                m.StatisticsThisGame   = make(map[string]Statistics)
-                                m.StatisticsGlobal     = make(map[string]Statistics)
-                            //}
+                            m.CreatedOrUpdatedBots = make(map[string]ServerGuiBot)
+                            m.StatisticsThisGame   = make(map[string]Statistics)
+                            m.StatisticsGlobal     = make(map[string]Statistics)
                             // Send just essential stuff!
                             err = websocket.JSON.Send(ws, m)
 
-                            Logf(LtDebug, "sent Message to Gui!\n")
+                            Logf(LtDebug, "sent Message to Gui! 2 \n")
                         }
                     }
 
@@ -1960,6 +1961,8 @@ func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpda
                         Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
                     }
 
+                } else {
+                    Logf(LtDebug, "GUI - NOT ok!")
                 }
             case <-timeout:
                 Logf(LtDebug, "===> Timeout for Gui messages (GuiId: %v) - go routine shutting down!\n", guiId)
@@ -2393,7 +2396,7 @@ func createConfigFile() {
 
 func main() {
 
-    runtime.GOMAXPROCS(4)
+    runtime.GOMAXPROCS(8)
 
     // TODO(henk): Maybe we wanna toggle this at runtime.
     SetLoggingDebug(true)
