@@ -1723,8 +1723,6 @@ func (app* Application) startUpdateLoop() {
             }
         }
 
-        Logf(LtDebug, "7\n")
-
         {
             profileEventSendDataToMiddlewareAndGui := startProfileEvent(&profile, "Send Data to Middleware|Gui")
 
