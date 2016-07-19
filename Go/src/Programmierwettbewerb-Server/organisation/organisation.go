@@ -63,9 +63,10 @@ func pullSVN(pathToSvn string) {
     // This is just for debugging purposes!
     cmd := exec.Command("svn", "update")
     cmd.Dir = pathToSvn
-    output, err := cmd.CombinedOutput() // returnes: output, err := ...
-    printError(err, pathToSvn)
-    printOutput(output, pathToSvn)
+    //output, err := cmd.CombinedOutput() // returnes: output, err := ...
+    cmd.CombinedOutput() // returnes: output, err := ...
+    //printError(err, pathToSvn)
+    //printOutput(output, pathToSvn)
 }
 
 // readLines reads a whole file into memory

@@ -949,7 +949,7 @@ func (app* Application) startUpdateLoop() {
         profile := NewProfile()
 
 
-        Logf(LtDebug, "1\n")
+        Logf(LtDebug, "\n1\n\n")
 
         // If there are only dummy-Bots on the field - Stop and wait for
         // something relevant to happen :)
@@ -961,7 +961,7 @@ func (app* Application) startUpdateLoop() {
             Logf(LtDebug, "________________ Thread is alive again - yay :)\n")
         }
 
-        Logf(LtDebug, "2\n")
+        Logf(LtDebug, "\n2\n\n")
 
         // Just empty the channel unblocking, so that new guis and stuff can connect...
         select {
@@ -972,7 +972,7 @@ func (app* Application) startUpdateLoop() {
             default:
         }
 
-        Logf(LtDebug, "3\n")
+        Logf(LtDebug, "\n3\n\n")
 
 
         var dt = float32(t.Sub(lastTime).Nanoseconds()) / 1e9
@@ -1754,12 +1754,12 @@ func (app* Application) startUpdateLoop() {
             // SEND UPDATED DATA TO MIDDLEWARE AND GUI
             ////////////////////////////////////////////////////////////////
 
-            Logf(LtDebug, "8\n")
+            Logf(LtDebug, "\n8\n\n")
 
             sendDataToMiddleware(mWMessageCounter)
-            Logf(LtDebug, "9\n")
+            Logf(LtDebug, "\n9\n\n")
             sendDataToGui(guiMessageCounter, guiStatisticsMessageCounter, deadBots, eatenFoods, eatenToxins, app.guiConnections, app.bots, app.toxins, app.foods)
-            Logf(LtDebug, "10\n")
+            Logf(LtDebug, "\n10\n\n")
 
             for toxinId, toxin := range app.toxins {
                 if toxin.IsNew {
