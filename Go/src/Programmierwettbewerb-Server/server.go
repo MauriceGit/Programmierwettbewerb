@@ -186,8 +186,6 @@ type Bot struct {
     // This is updated once the bot dies and will be up to date for the next game
     StatisticsOverall   Statistics
     Command             BotCommand
-    
-    connection          MiddlewareConnection
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -203,6 +201,44 @@ type MiddlewareConnection struct {
     ConnectionAlive     bool                // TODO(henk): What shall we do when the connection is lost?
 }
 
+////////////////////////////////////////////////////////////////////////
+//
+// MiddlewareConnections
+//
+////////////////////////////////////////////////////////////////////////
+
+type MiddlewareConnections struct {
+    sync.Mutex
+    connections         map[BotId]MiddlewareConnection
+}
+
+func (middlewareConnections *MiddlewareConnections) initialize() {
+    middlewareConnections.connections = make(map[BotId]MiddlewareConnection)
+}
+
+func (middlewareConnections *MiddlewareConnections) add(botId BotId, middlewareConnection MiddlewareConnection) {
+    middlewareConnections.Lock()
+    defer middlewareConnections.Unlock()
+    
+    middlewareConnections.connections[botId] = middlewareConnection
+}
+
+func (middlewareConnections *MiddlewareConnections) delete(botId BotId) {
+    middlewareConnections.Lock()
+    defer middlewareConnections.Unlock()
+
+    // TODO(henk): Is this necessary?
+    middlewareConnections.connections[botId].Connection.Close()
+    
+    delete(middlewareConnections.connections, botId)
+}
+
+func (middlewareConnections *MiddlewareConnections) isAlive(botId BotId) bool {
+    middlewareConnections.Lock()
+    defer middlewareConnections.Unlock()
+    
+    return middlewareConnections.connections[botId].ConnectionAlive
+}
 
 ////////////////////////////////////////////////////////////////////////
 //
@@ -451,6 +487,7 @@ type Application struct {
     profiling                   bool
     
     guiConnections              GuiConnections
+    middlewareConnections       MiddlewareConnections
     settings                    ServerSettings
     ids                         Ids
     gameState                   GameState
@@ -470,6 +507,7 @@ func (app* Application) initialize() {
     app.profiling                   = false
 
     app.guiConnections.initialize()
+    app.middlewareConnections.initialize()
     app.settings.initialize()
     app.ids.initialize(app.settings)
     app.gameState.initialize(app.settings)
@@ -929,8 +967,15 @@ func nobodyIsWatching() bool {
 
 func sendDataToMiddleware(mWMessageCounter int) {
     if mWMessageCounter % mwMessageEvery == 0 {
-        for botId, bot := range app.gameState.bots {
-            channel := app.gameState.bots[botId].connection.MessageChannel
+        app.middlewareConnections.Lock()
+        for botId, middlewareConnection := range app.middlewareConnections.connections {
+            channel := middlewareConnection.MessageChannel
+
+            bot, ok := app.gameState.bots[botId]
+            if (!ok) {
+                Logf(LtDebug, "While sending the data to all middlewares, we encountered a middleware connection, for which we did not find a bot.\n")
+                continue
+            }
 
             // Collecting other blobs
             var otherBlobs []ServerMiddlewareBlob
@@ -969,6 +1014,7 @@ func sendDataToMiddleware(mWMessageCounter int) {
 
             channel <- wrapper
         }
+        app.middlewareConnections.Unlock()
     }
 }
 
@@ -1599,7 +1645,7 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
 
                                     go WriteStatisticToFile(bot2.Info.Name, bot2.StatisticsThisGame)
 
-                                    bot2.connection.Connection.Close()
+                                    app.middlewareConnections.delete(botId2)
                                     delete(gameState.bots, botId2)
                                     break
                                 }
@@ -1725,13 +1771,7 @@ func (app* Application) startUpdateLoop() {
                             }
                             Logf(LtDebug, "Killed all bots\n")
                         case "KillBotsWithoutConnection":
-                            for botId, bot := range app.gameState.bots {
-                                if !bot.connection.ConnectionAlive {
-                                    delete(app.gameState.bots, botId)
-                                    botsKilledByServerGui = append(botsKilledByServerGui, botId)
-                                }
-                            }
-                            Logf(LtDebug, "Killed bots without connection\n")
+                            Logf(LtDebug, "The server does not support the command \"KillBotsWithoutConnection\" anylonger.\n")
                         case "KillBotsAboveMassThreshold":
                             for botId, bot := range app.gameState.bots {
                                 var mass float32 = 0
@@ -1778,7 +1818,10 @@ func (app* Application) startUpdateLoop() {
                     if ok {
                         if _, ok := app.gameState.bots[mwInfo.botId]; ok {
                             bot := app.gameState.bots[mwInfo.botId]
-                            bot.connection.ConnectionAlive = mwInfo.connectionAlive
+                            
+                            // TODO(henk): Is this really redundant now? Is the connection already removed?
+                            //bot.connection.ConnectionAlive = mwInfo.connectionAlive
+                            
                             // There is actually a command
                             if (BotCommand{}) != mwInfo.command {
                                 bot.Command = mwInfo.command
@@ -1839,13 +1882,21 @@ func (app* Application) startUpdateLoop() {
         // DELETE BOTS WITHOUT ACTIVE CONNECTION
         ////////////////////////////////////////////////////////////////
 
-        for botId, bot := range app.gameState.bots {
-            if !bot.connection.ConnectionAlive {
-                go WriteStatisticToFile(bot.Info.Name, bot.StatisticsThisGame)
-                delete(app.gameState.bots, botId)
-                deadBots = append(deadBots, botId)
+        // TODO(henk): This should not be necessary. 
+        // 1. We can remove the connections, when they are lost.
+        // 2. We can write the statistics, when the connection is lost.
+        // 3. We can append the appertaining bot to a list of bots, that is removed in the subsequent call of the update function.
+        app.middlewareConnections.Lock();
+        for botId, middlewareConnection := range app.middlewareConnections.connections {
+            if bot, ok := app.gameState.bots[botId]; ok {
+                if !middlewareConnection.ConnectionAlive {
+                    go WriteStatisticToFile(bot.Info.Name, bot.StatisticsThisGame)
+                    delete(app.gameState.bots, botId)
+                    deadBots = append(deadBots, botId)
+                }
             }
         }
+        app.middlewareConnections.Unlock()
 
         {
             profileEventSendDataToMiddlewareAndGui := startProfileEvent(&profile, "Send Data to Middleware|Gui")
@@ -2134,12 +2185,6 @@ func createStartingBot(ws *websocket.Conn, botInfo BotInfo, statistics Statistic
             StatisticsThisGame:     statisticNew,
             StatisticsOverall:      statistics,
             Command:                BotCommand{ BatNone, RandomVec2(), },
-            connection: MiddlewareConnection{
-                MessageChannel:         messageChannel,
-                Alive:                  alive,
-                Connection:             ws,
-                ConnectionAlive:        true,
-            },
         }
     }
 
@@ -2198,6 +2243,14 @@ func handleMiddleware(ws *websocket.Conn) {
 
     var messageChannel = make(chan ServerMiddlewareGameState, 10000)
     var isAlive        = make(chan bool, 10000)
+    
+    middlewareConnection := MiddlewareConnection{
+                                MessageChannel:         messageChannel,
+                                Alive:                  isAlive,
+                                Connection:             ws,
+                                ConnectionAlive:        true,
+                            }
+    app.middlewareConnections.add(botId, middlewareConnection)
 
     var err error
     for {
@@ -2218,6 +2271,8 @@ func handleMiddleware(ws *websocket.Conn) {
             // This shuts down the go-routine that is sending the data 
             // to the middleware.
             isAlive <- false
+            
+            // TODO(henk): Remove the connection? Its not alive anymore.
             
             ws.Close()
 
