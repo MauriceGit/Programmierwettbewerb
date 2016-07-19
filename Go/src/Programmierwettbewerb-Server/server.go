@@ -2046,79 +2046,6 @@ func getOtherMessagesFromGuiChannel(channel chan ServerGuiUpdateMessage) ([]Serv
     return messages, count
 }
 
-func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpdateMessage, alive chan bool) {
-
-    Logf(LtDebug, "===> SendGuiMessage go routine started.\n")
-
-    for {
-
-        // Alive Test!
-        select {
-            case state, ok := <-alive:
-                if ok  && !state {
-                    Logf(LtDebug, "===> Alive failed - go routine shutting down!\n")
-                    return
-                }
-            default:
-        }
-
-        // After 5 seconds with no new Gui-message, it shuts down!
-        timeout := make(chan bool, 1)
-        go func() {
-            time.Sleep(5 * time.Second)
-            timeout <- true
-        }()
-
-        select {
-            case message, ok := <-channel:
-                if ok {
-                    var err error
-
-                    otherMessages, count := getOtherMessagesFromGuiChannel(channel)
-
-                    if count > 10 {
-                        Logf(LtDebug, "More than 10 messages are in the Queue for gui %v. So we just shut it down!\n", guiId)
-                        app.guiConnections.delete(guiId)
-                        ws.Close()
-                        return
-                    }
-
-                    if len(otherMessages) == 0 {
-                        // Just now, we send the whole message!
-                        err = websocket.JSON.Send(ws, message)
-                    } else {
-
-                        allMessages := append([]ServerGuiUpdateMessage{message}, otherMessages...)
-
-                        for _,m := range(allMessages) {
-                            // Delete all information we do not want to send!
-                            //if i != len(allMessages)-1 {
-                                m.CreatedOrUpdatedBots = make(map[string]ServerGuiBot)
-                                m.StatisticsThisGame   = make(map[string]Statistics)
-                                m.StatisticsGlobal     = make(map[string]Statistics)
-                            //}
-                            // Send just essential stuff!
-                            err = websocket.JSON.Send(ws, m)
-
-                            Logf(LtDebug, "sent Message to Gui!\n")
-                        }
-                    }
-
-                    if err != nil {
-                        Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
-                    }
-
-                }
-            case <-timeout:
-                Logf(LtDebug, "===> Timeout for Gui messages (GuiId: %v) - go routine shutting down!\n", guiId)
-                //delete(app.guiConnections, guiId)
-                //ws.Close()
-                return
-
-        }
-    }
-}
-
 func handleGui(ws *websocket.Conn) {
     var guiId          = app.ids.createGuiId()
 
@@ -2127,9 +2054,63 @@ func handleGui(ws *websocket.Conn) {
     var messageChannel = make(chan ServerGuiUpdateMessage, 10000)
     var isAlive        = make(chan bool, 1000)
 
-    app.guiConnections.add(guiId, GuiConnection{ ws, true, messageChannel, isAlive })
+    guiConnection := GuiConnection{ ws, true, messageChannel, isAlive }
+    app.guiConnections.add(guiId, guiConnection)
+    
+    // This procedure sends the "ServerGuiUpdateMessages"
+    go func() {
+        for {
+            // Alive Test
+            select {
+                case state, ok := <-isAlive:
+                    if ok  && !state {
+                        Logf(LtDebug, "===> Alive failed - go routine shutting down!\n")
+                        return
+                    }
+                default:
+            }
 
-    go sendGuiMessages(guiId, ws, messageChannel, isAlive)
+            // After 5 seconds with no new Gui-message, it shuts down!
+            timeoutDuration := 5*time.Second
+            timeout := time.NewTimer(timeoutDuration)
+
+            select {
+                case message, ok := <-messageChannel:
+                    if ok {
+                        var err error
+                        otherMessages, count := getOtherMessagesFromGuiChannel(messageChannel)
+                        if count > 10 {
+                            Logf(LtDebug, "More than 10 messages are in the Queue for gui %v. So we just shut it down!\n", guiId)
+                            app.guiConnections.delete(guiId)
+                            ws.Close()
+                            return
+                        }
+
+                        if len(otherMessages) == 0 {
+                            // Just now, we send the whole message!
+                            err = websocket.JSON.Send(ws, message)
+                        } else {
+                            allMessages := append([]ServerGuiUpdateMessage{message}, otherMessages...)
+                            for _,m := range(allMessages) {
+                                m.CreatedOrUpdatedBots = make(map[string]ServerGuiBot)
+                                m.StatisticsThisGame   = make(map[string]Statistics)
+                                m.StatisticsGlobal     = make(map[string]Statistics)
+                                err = websocket.JSON.Send(ws, m)
+                            }
+                        }
+                        
+                        if err != nil {
+                            Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
+                        }
+                        
+                        timeout.Reset(timeoutDuration)
+                    }
+                case <-timeout.C:
+                    Logf(LtDebug, "===> Timeout for Gui messages (GuiId: %v) - go routine shutting down!\n", guiId)
+                    return
+            }
+        }
+    }()
 
     Logf(LtDebug, "Got connection for Gui %v\n", guiId)
 
