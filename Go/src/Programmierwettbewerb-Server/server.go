@@ -1144,6 +1144,8 @@ func (app* Application) startUpdateLoop() {
             endProfileEvent(&profile, &profileEventReadFromMiddleware)
         }
 
+        Logf(LtDebug, "\n4\n\n")
+
         ////////////////////////////////////////////////////////////////
         // ADD SOME MIDDLEWARES/BOTS IF NEEDED
         ////////////////////////////////////////////////////////////////
@@ -1738,6 +1740,8 @@ func (app* Application) startUpdateLoop() {
                 deadBots = append(deadBots, botId)
             }
         }
+
+        Logf(LtDebug, "\n5\n\n")
 
         {
             profileEventSendDataToMiddlewareAndGui := startProfileEvent(&profile, "Send Data to Middleware|Gui")
