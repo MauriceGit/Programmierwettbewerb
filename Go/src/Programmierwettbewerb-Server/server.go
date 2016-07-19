@@ -887,7 +887,17 @@ func sendDataToGui( guiMessageCounter int, guiStatisticsMessageCounter int, dead
 
         message.DeletedToxins = eatenToxins
 
-        channel <- message
+        //channel <- message
+
+        if channel != nil {
+            select {
+            case channel <- message:
+            default:
+                Logf(LtDebug, "==============> Dodged a bullet here! Not sending information to full Gui channel!\n")
+            }
+        }
+
+
         //websocket.JSON.Send(connection, message)
         //if err != nil {
         //    Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
