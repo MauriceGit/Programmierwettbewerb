@@ -186,24 +186,23 @@ type Bot struct {
     // This is updated once the bot dies and will be up to date for the next game
     StatisticsOverall   Statistics
     Command             BotCommand
+    
+    connection          MiddlewareConnection
+}
+
+////////////////////////////////////////////////////////////////////////
+//
+// MiddlewareConnection
+//
+////////////////////////////////////////////////////////////////////////
+
+type MiddlewareConnection struct {
     Connection          *websocket.Conn
     MessageChannel      chan ServerMiddlewareGameState
     Alive               chan bool
     ConnectionAlive     bool                // TODO(henk): What shall we do when the connection is lost?
 }
 
-////////////////////////////////////////////////////////////////////////
-//
-// GuiConnection
-//
-////////////////////////////////////////////////////////////////////////
-
-type GuiConnection struct {
-    Connection          *websocket.Conn
-    IsNewConnection     bool
-    MessageChannel      chan ServerGuiUpdateMessage
-    Alive               chan bool
-}
 
 ////////////////////////////////////////////////////////////////////////
 //
@@ -373,6 +372,19 @@ func (ids* Ids) createToxinId() ToxinId {
     var id = ids.nextToxinId
     ids.nextToxinId = id + 1
     return id
+}
+
+////////////////////////////////////////////////////////////////////////
+//
+// GuiConnection
+//
+////////////////////////////////////////////////////////////////////////
+
+type GuiConnection struct {
+    Connection          *websocket.Conn
+    IsNewConnection     bool
+    MessageChannel      chan ServerGuiUpdateMessage
+    Alive               chan bool
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -918,7 +930,7 @@ func nobodyIsWatching() bool {
 func sendDataToMiddleware(mWMessageCounter int) {
     if mWMessageCounter % mwMessageEvery == 0 {
         for botId, bot := range app.gameState.bots {
-            channel := app.gameState.bots[botId].MessageChannel
+            channel := app.gameState.bots[botId].connection.MessageChannel
 
             // Collecting other blobs
             var otherBlobs []ServerMiddlewareBlob
@@ -1587,7 +1599,7 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
 
                                     go WriteStatisticToFile(bot2.Info.Name, bot2.StatisticsThisGame)
 
-                                    bot2.Connection.Close()
+                                    bot2.connection.Connection.Close()
                                     delete(gameState.bots, botId2)
                                     break
                                 }
@@ -1714,7 +1726,7 @@ func (app* Application) startUpdateLoop() {
                             Logf(LtDebug, "Killed all bots\n")
                         case "KillBotsWithoutConnection":
                             for botId, bot := range app.gameState.bots {
-                                if !bot.ConnectionAlive {
+                                if !bot.connection.ConnectionAlive {
                                     delete(app.gameState.bots, botId)
                                     botsKilledByServerGui = append(botsKilledByServerGui, botId)
                                 }
@@ -1766,7 +1778,7 @@ func (app* Application) startUpdateLoop() {
                     if ok {
                         if _, ok := app.gameState.bots[mwInfo.botId]; ok {
                             bot := app.gameState.bots[mwInfo.botId]
-                            bot.ConnectionAlive = mwInfo.connectionAlive
+                            bot.connection.ConnectionAlive = mwInfo.connectionAlive
                             // There is actually a command
                             if (BotCommand{}) != mwInfo.command {
                                 bot.Command = mwInfo.command
@@ -1828,7 +1840,7 @@ func (app* Application) startUpdateLoop() {
         ////////////////////////////////////////////////////////////////
 
         for botId, bot := range app.gameState.bots {
-            if !bot.ConnectionAlive {
+            if !bot.connection.ConnectionAlive {
                 go WriteStatisticToFile(bot.Info.Name, bot.StatisticsThisGame)
                 delete(app.gameState.bots, botId)
                 deadBots = append(deadBots, botId)
@@ -2122,10 +2134,12 @@ func createStartingBot(ws *websocket.Conn, botInfo BotInfo, statistics Statistic
             StatisticsThisGame:     statisticNew,
             StatisticsOverall:      statistics,
             Command:                BotCommand{ BatNone, RandomVec2(), },
-            MessageChannel:         messageChannel,
-            Alive:                  alive,
-            Connection:             ws,
-            ConnectionAlive:        true,
+            connection: MiddlewareConnection{
+                MessageChannel:         messageChannel,
+                Alive:                  alive,
+                Connection:             ws,
+                ConnectionAlive:        true,
+            },
         }
     }
 
