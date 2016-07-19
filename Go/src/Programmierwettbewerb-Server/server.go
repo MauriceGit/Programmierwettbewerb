@@ -420,7 +420,7 @@ type GuiConnection struct {
     Connection          *websocket.Conn
     IsNewConnection     bool
     MessageChannel      chan ServerGuiUpdateMessage
-    Alive               chan bool
+    CloseEvent          chan bool
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -465,6 +465,8 @@ func (guiConnections *GuiConnections) delete(guiId GuiId) {
     guiConnections.Lock()
     defer guiConnections.Unlock()
     
+    // Send a signal to exit the go-routine for sending update-messages.
+    guiConnections.connections[guiId].CloseEvent <- true
     delete(guiConnections.connections, guiId)
 }
 
@@ -2031,67 +2033,55 @@ func sendMiddlewareMessages(botId BotId, ws *websocket.Conn, channel chan Server
     }
 }
 
-func getOtherMessagesFromGuiChannel(channel chan ServerGuiUpdateMessage) ([]ServerGuiUpdateMessage, int) {
-    var messages = make([]ServerGuiUpdateMessage, 0)
-    var count = 0
-    select {
-        case message, ok := <-channel:
-            if ok {
-                messages = append(messages, message)
-                count++
-            }
-        default:
-            return messages, count
-    }
-    return messages, count
-}
 
-func handleGui(ws *websocket.Conn) {
+func handleGui(ws *websocket.Conn) {   
     var guiId          = app.ids.createGuiId()
+
+    Logf(LtDebug, "Got connection for Gui %v\n", guiId)
 
     // TODO(henk): Wake up from standby.
     
     var messageChannel = make(chan ServerGuiUpdateMessage, 10000)
-    var isAlive        = make(chan bool, 1000)
+    var closeEvent     = make(chan bool)
 
-    guiConnection := GuiConnection{ ws, true, messageChannel, isAlive }
+    guiConnection := GuiConnection{ ws, true, messageChannel, closeEvent }
     app.guiConnections.add(guiId, guiConnection)
     
     // This procedure sends the "ServerGuiUpdateMessages"
     go func() {
+        // After 5 seconds with no new Gui-message, it shuts down!
+        timeoutDuration := 5*time.Second
+        timeout := time.NewTimer(timeoutDuration)
         for {
-            // Alive Test
-            select {
-                case state, ok := <-isAlive:
-                    if ok  && !state {
-                        Logf(LtDebug, "===> Alive failed - go routine shutting down!\n")
-                        return
-                    }
-                default:
-            }
-
-            // After 5 seconds with no new Gui-message, it shuts down!
-            timeoutDuration := 5*time.Second
-            timeout := time.NewTimer(timeoutDuration)
-
             select {
                 case message, ok := <-messageChannel:
                     if ok {
                         var err error
-                        otherMessages, count := getOtherMessagesFromGuiChannel(messageChannel)
-                        if count > 10 {
-                            Logf(LtDebug, "More than 10 messages are in the Queue for gui %v. So we just shut it down!\n", guiId)
-                            app.guiConnections.delete(guiId)
-                            ws.Close()
-                            return
+
+                        // Consume all the messages from the channel.
+                        otherMessages := make([]ServerGuiUpdateMessage, 0, 11)
+                        Consuming:
+                        for {
+                            select {
+                                case message := <-messageChannel:
+                                    otherMessages = append(otherMessages, message)
+                                default:
+                                    break Consuming
+                            }
+                            if len(otherMessages) > 10 {
+                                Logf(LtDebug, "More than 10 messages are in the Queue for gui %v. So we just shut it down!\n", guiId)
+                                app.guiConnections.delete(guiId)
+                                ws.Close()
+                                return
+                            }
                         }
 
+                        // Send the messages.
                         if len(otherMessages) == 0 {
-                            // Just now, we send the whole message!
                             err = websocket.JSON.Send(ws, message)
                         } else {
                             allMessages := append([]ServerGuiUpdateMessage{message}, otherMessages...)
-                            for _,m := range(allMessages) {
+                            for _, m := range(allMessages) {
                                 m.CreatedOrUpdatedBots = make(map[string]ServerGuiBot)
                                 m.StatisticsThisGame   = make(map[string]Statistics)
                                 m.StatisticsGlobal     = make(map[string]Statistics)
@@ -2105,30 +2095,30 @@ func handleGui(ws *websocket.Conn) {
                         
                         timeout.Reset(timeoutDuration)
                     }
+                case <-closeEvent:
+                        Logf(LtDebug, "===> Go-routine for sending update-messages to the gui is shutting down.\n")
+                        return                    
                 case <-timeout.C:
                     Logf(LtDebug, "===> Timeout for Gui messages (GuiId: %v) - go routine shutting down!\n", guiId)
                     return
             }
         }
     }()
-
-    Logf(LtDebug, "Got connection for Gui %v\n", guiId)
-
-    var err error
+   
     for {
         if connectionIsTerminated(app.runningState) {
             Logf(LtDebug, "HandleGui is shutting down.\n")
             app.guiConnections.delete(guiId)
-            isAlive <- false
+            closeEvent <- true
             ws.Close()
             return
         }
 
         var reply string
-        if err = websocket.Message.Receive(ws, &reply); err != nil {
+        if err := websocket.Message.Receive(ws, &reply); err != nil {
             Logf(LtDebug, "Can't receive (%v)\n", err)
             app.guiConnections.delete(guiId)
-            isAlive <- false
+            closeEvent <- true
             break
         }
     }
