@@ -770,6 +770,10 @@ func sendDataToMiddleware(mWMessageCounter int) {
             var connection = app.bots[botId].Connection
             channel := app.bots[botId].MessageChannel
 
+            if !app.bots[botId].ConnectionAlive {
+                continue
+            }
+
             // Collecting other blobs
             var otherBlobs []ServerMiddlewareBlob
             for otherBotId, otherBot := range app.bots {
