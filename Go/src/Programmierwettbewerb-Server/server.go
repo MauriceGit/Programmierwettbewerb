@@ -251,7 +251,7 @@ type ServerSettings struct {
 }
 
 func (settings *ServerSettings) initialize() {
-    settings.MinNumberOfBots    = 20
+    settings.MinNumberOfBots    = 14
     settings.MaxNumberOfBots    = 100
     settings.MaxNumberOfFoods   = 1000
     settings.MaxNumberOfToxins  = 50
@@ -377,13 +377,57 @@ func (ids* Ids) createToxinId() ToxinId {
 
 ////////////////////////////////////////////////////////////////////////
 //
+// Gui Connections
+//
+////////////////////////////////////////////////////////////////////////
+
+type GuiConnections struct {
+    sync.Mutex
+    connections     map[GuiId]GuiConnection
+}
+
+func (guiConnections *GuiConnections) initialize() {
+    guiConnections.connections = make(map[GuiId]GuiConnection)
+}
+
+func (guiConnections *GuiConnections) count() int {
+    guiConnections.Lock()
+    defer guiConnections.Unlock()
+    
+    return len(guiConnections.connections)
+}
+
+func (guiConnections *GuiConnections) makeAllOld() {
+    guiConnections.Lock()
+    for guiConnectionId, guiConnection := range guiConnections.connections {
+        guiConnection.IsNewConnection = false
+        guiConnections.connections[guiConnectionId] = guiConnection
+    }
+    guiConnections.Unlock()
+}
+
+func (guiConnections *GuiConnections) add(guiId GuiId, guiConnection GuiConnection) {
+    guiConnections.Lock()
+    defer guiConnections.Unlock()
+    
+    guiConnections.connections[guiId] = guiConnection
+}
+
+func (guiConnections *GuiConnections) delete(guiId GuiId) {
+    guiConnections.Lock()
+    defer guiConnections.Unlock()
+    
+    delete(guiConnections.connections, guiId)
+}
+
+////////////////////////////////////////////////////////////////////////
+//
 // Application
 //
 ////////////////////////////////////////////////////////////////////////
 
 type Application struct {
     fieldSize                   Vec2    
-    guiConnections              map[GuiId]GuiConnection
 
     standbyMode                 chan bool
     runningState                chan bool
@@ -394,6 +438,7 @@ type Application struct {
 
     profiling                   bool
     
+    guiConnections              GuiConnections
     settings                    ServerSettings
     ids                         Ids
     gameState                   GameState
@@ -403,7 +448,6 @@ var app Application
 
 func (app* Application) initialize() {
     app.fieldSize                   = Vec2{ 1000, 1000 }
-    app.guiConnections              = make(map[GuiId]GuiConnection)
     
     app.mwInfo                      = make(chan MwInfo, 1000)
     app.standbyMode                 = make(chan bool)
@@ -413,15 +457,18 @@ func (app* Application) initialize() {
 
     app.profiling                   = false
 
+    app.guiConnections.initialize()
     app.settings.initialize()
     app.ids.initialize(app.settings)
     app.gameState.initialize(app.settings)
 }
 
 
-// -------------------------------------------------------------------------------------------------
-// Communication with GUI
-// -------------------------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////
+//
+// Communication with Guis
+//
+////////////////////////////////////////////////////////////////////////
 
 type ServerGuiUpdateMessage struct {
     // "JSON objects only support strings as keys; to encode a Go map type it must be of the form map[string]T (where T is any Go type supported by the json package)."
@@ -494,7 +541,12 @@ func makeServerGuiToxin(toxin Toxin) ServerGuiToxin {
     return ServerGuiToxin{ toxin.Position, toxin.Mass }
 }
 
-// -------------------------------------------------------------------------------------------------
+
+////////////////////////////////////////////////////////////////////////
+//
+// IdsContainer
+//
+////////////////////////////////////////////////////////////////////////
 
 type IdPair struct {
     BotId   BotId
@@ -510,7 +562,11 @@ func (blobContainer *IdsContainer) insert(botId BotId, blobId BlobId) {
     (*blobContainer) = append((*blobContainer), IdPair{ botId, blobId })
 }
 
-// -------------------------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////
+//
+// Spawn Image Paths
+//
+////////////////////////////////////////////////////////////////////////
 
 func makeLocalSpawnName(name string) string {
     return fmt.Sprintf("../Public/spawns/%v", name)
@@ -520,7 +576,11 @@ func makeURLSpawnName(name string) string {
     return fmt.Sprintf("/spawns/%v", name)
 }
 
-// -------------------------------------------------------------------------------------------------
+////////////////////////////////////////////////////////////////////////
+//
+// Finding Positions
+//
+////////////////////////////////////////////////////////////////////////
 
 func newFoodPos() (Vec2, bool) {
     length := len(app.settings.foodDistribution)
@@ -538,7 +598,6 @@ func newToxinPos() (Vec2, bool) {
     return app.settings.toxinDistribution[rand.Intn(length)], true
 }
 
-// TODO(henk): Inline
 func newBotPos() (Vec2, bool) {
     length := len(app.settings.botDistribution)
     if length == 0 {
@@ -575,6 +634,12 @@ func newBotPos() (Vec2, bool) {
     pos := app.settings.botDistribution[rand.Intn(length)]
     return pos, true
 }
+
+////////////////////////////////////////////////////////////////////////
+//
+// Simulations
+//
+////////////////////////////////////////////////////////////////////////
 
 func calcBlobVelocityFromMass(vel Vec2, mass float32) Vec2 {
     // This is the maximum mass for now.
@@ -844,20 +909,15 @@ func nobodyIsWatching() bool {
                 break
             }
         }
-        someoneIsThere = someoneIsThere || len(app.guiConnections) > 0
+        someoneIsThere = someoneIsThere || app.guiConnections.count() > 0
     }
 
     return !someoneIsThere
 }
 
 func sendDataToMiddleware(mWMessageCounter int) {
-
-    // TODO(Maurice/henk):
-    // MAURICE: Could be VERY MUCH simplified, if we just convert All blobs to the right format once and then sort out later who gets what data!
-    // HENK: First we would have to determine which blobs, toxins and foods are visible to the bots. We would have to profile that to check whats faster.
     if mWMessageCounter % mwMessageEvery == 0 {
         for botId, bot := range app.gameState.bots {
-            //var connection = app.bots[botId].Connection
             channel := app.gameState.bots[botId].MessageChannel
 
             // Collecting other blobs
@@ -895,33 +955,26 @@ func sendDataToMiddleware(mWMessageCounter int) {
                 Toxin:          toxins,
             }
 
-            //websocket.JSON.Send(connection, wrapper)
             channel <- wrapper
-
         }
     }
 }
 
-func sendDataToGui( guiMessageCounter int, guiStatisticsMessageCounter int, deadBots []BotId, eatenFoods []FoodId, eatenToxins []ToxinId,
-                    guiConnections map[GuiId]GuiConnection, bots map[BotId]Bot, toxins map[ToxinId]Toxin, foods map[FoodId]Food) {
-
-    // Pre-calculate the list for eaten Toxins
-    //reallyDeadToxins := make([]ToxinId, 0)
-    //copied := copy(reallyDeadToxins, eatenToxins)
-    //Logf(LtDebug, "copied %v elements\n", copied)
-
-    //
-    // Send the data to the clients
-    //
-    for guiId, guiConnection := range app.guiConnections {
-        //var connection = app.guiConnections[guiId].Connection
-        channel := app.guiConnections[guiId].MessageChannel
+func sendDataToGui(guiMessageCounter            int,
+                   guiStatisticsMessageCounter  int,
+                   deadBots                     []BotId, 
+                   eatenFoods                   []FoodId, 
+                   eatenToxins                  []ToxinId,
+                   bots                         map[BotId]Bot, 
+                   toxins                       map[ToxinId]Toxin, 
+                   foods                        map[FoodId]Food) {
+                       
+    app.guiConnections.Lock()
+    for guiId, guiConnection := range app.guiConnections.connections {
+        channel := app.guiConnections.connections[guiId].MessageChannel
         message := newServerGuiUpdateMessage()
 
-        //Logf(LtDebug, "Botcount: %v\n", app.bots)
-
         for botId, bot := range app.gameState.bots {
-
             key := strconv.Itoa(int(botId))
             if bot.GuiNeedsInfoUpdate || guiConnection.IsNewConnection {
                 message.CreatedOrUpdatedBotInfos[key] = bot.Info
@@ -936,15 +989,10 @@ func sendDataToGui( guiMessageCounter int, guiStatisticsMessageCounter int, dead
                 // @Todo: The global one MUCH more rarely!
                 message.StatisticsGlobal[key] = bot.StatisticsOverall
             }
-
         }
 
         message.DeletedBotInfos = deadBots
         message.DeletedBots = deadBots
-        //for _, botId := range deadBots {
-        //    message.DeletedBots = append(message.DeletedBots, botId)
-        //    message.DeletedBotInfos = append(message.DeletedBotInfos, botId)
-        //}
 
         if guiMessageCounter % guiMessageEvery == 0 {
             for foodId, food := range app.gameState.foods {
@@ -956,9 +1004,6 @@ func sendDataToGui( guiMessageCounter int, guiStatisticsMessageCounter int, dead
         }
 
         message.DeletedFoods = eatenFoods
-        //for _, foodId := range eatenFoods {
-        //    message.DeletedFoods = append(message.DeletedFoods, foodId)
-        //}
 
         if guiMessageCounter % guiMessageEvery == 0 {
             for toxinId, toxin := range app.gameState.toxins {
@@ -972,13 +1017,8 @@ func sendDataToGui( guiMessageCounter int, guiStatisticsMessageCounter int, dead
         message.DeletedToxins = eatenToxins
 
         channel <- message
-        //websocket.JSON.Send(connection, message)
-        //if err != nil {
-        //    Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
-        //    //return
-        //}
     }
-
+    app.guiConnections.Unlock()
 }
 
 func checkPasswordAgainstFile(password string) bool {
@@ -1798,25 +1838,15 @@ func (app* Application) startUpdateLoop() {
         {
             profileEventSendDataToMiddlewareAndGui := startProfileEvent(&profile, "Send Data to Middleware|Gui")
 
-            for guiConnectionId, guiConnection := range app.guiConnections {
-                err := websocket.Message.Send(guiConnection.Connection, "alive_test")
-                if err != nil {
-                    Logf(LtDebug, "Gui %v is deleted because of network failure. Alive test failed.\n", guiConnectionId)
-                    delete(app.guiConnections, guiConnectionId)
-                }
-            }
-
             ////////////////////////////////////////////////////////////////
             // SEND UPDATED DATA TO MIDDLEWARE AND GUI
-            ////////////////////////////////////////////////////////////////
-
+            ////////////////////////////////////////////////////alive_test////////////
             sendDataToMiddleware(messageCounters.mWMessageCounter)
             sendDataToGui(messageCounters.guiMessageCounter, 
                           messageCounters.guiStatisticsMessageCounter, 
                           deadBots, 
                           eatenFoods, 
                           eatenToxins, 
-                          app.guiConnections, 
                           app.gameState.bots, 
                           app.gameState.toxins, 
                           app.gameState.foods)
@@ -1838,10 +1868,8 @@ func (app* Application) startUpdateLoop() {
                 app.gameState.bots[botId] = bot
             }
 
-            for guiConnectionId, guiConnection := range app.guiConnections {
-                guiConnection.IsNewConnection = false
-                app.guiConnections[guiConnectionId] = guiConnection
-            }
+            app.guiConnections.makeAllOld()
+
             messageCounters.guiMessageCounter += 1
             messageCounters.mWMessageCounter += 1
             messageCounters.guiStatisticsMessageCounter += 1
@@ -1902,11 +1930,12 @@ func sendMiddlewareMessages(botId BotId, ws *websocket.Conn, channel chan Server
         }
 
         // After 5 seconds with no new Gui-message, it shuts down!
-        timeout := make(chan bool, 1)
-        go func() {
-            time.Sleep(5 * time.Second)
-            timeout <- true
-        }()
+        // TODO(henk): Do this using an int.
+        //timeout := make(chan bool, 1)
+        //go func() {
+        //    time.Sleep(5 * time.Second)
+        //    timeout <- true
+        //}()
 
         select {
             case message, ok := <-channel:
@@ -1929,11 +1958,11 @@ func sendMiddlewareMessages(botId BotId, ws *websocket.Conn, channel chan Server
                     }
 
                 }
-            case <-timeout:
-                if !nobodyIsWatching() {
-                    Logf(LtDebug, "===> Timeout for MW messages (botId: %v) - go routine shutting down!\n", botId)
-                    return
-                }
+            //case <-timeout:
+            //    if !nobodyIsWatching() {
+            //        Logf(LtDebug, "===> Timeout for MW messages (botId: %v) - go routine shutting down!\n", botId)
+            //        return
+            //    }
         }
 
     }
@@ -1986,7 +2015,7 @@ func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpda
 
                     if count > 10 {
                         Logf(LtDebug, "More than 10 messages are in the Queue for gui %v. So we just shut it down!\n", guiId)
-                        delete(app.guiConnections, guiId)
+                        app.guiConnections.delete(guiId)
                         ws.Close()
                         return
                     }
@@ -2028,17 +2057,14 @@ func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpda
 }
 
 func handleGui(ws *websocket.Conn) {
-    var guiId          = app.ids.createGuiId()         // TODO(henk): When do we delete the blob?
+    var guiId          = app.ids.createGuiId()
 
-    //if nobodyIsWatching() {
-    //    // This unblocks the main thread!
-    //    app.standbyMode <- true
-    //}
-
+    // TODO(henk): Wake up from standby.
+    
     var messageChannel = make(chan ServerGuiUpdateMessage, 10000)
     var isAlive        = make(chan bool, 1000)
 
-    app.guiConnections[guiId] = GuiConnection{ ws, true, messageChannel, isAlive }
+    app.guiConnections.add(guiId, GuiConnection{ ws, true, messageChannel, isAlive })
 
     go sendGuiMessages(guiId, ws, messageChannel, isAlive)
 
@@ -2046,26 +2072,23 @@ func handleGui(ws *websocket.Conn) {
 
     var err error
     for {
-
         if connectionIsTerminated(app.runningState) {
             Logf(LtDebug, "HandleGui is shutting down.\n")
-            delete(app.guiConnections, guiId)
+            app.guiConnections.delete(guiId)
             isAlive <- false
             ws.Close()
             return
         }
 
         var reply string
-
         if err = websocket.Message.Receive(ws, &reply); err != nil {
             Logf(LtDebug, "Can't receive (%v)\n", err)
-            delete(app.guiConnections, guiId)
+            app.guiConnections.delete(guiId)
             isAlive <- false
             break
         }
     }
 }
-
 
 func createStartingBot(ws *websocket.Conn, botInfo BotInfo, statistics Statistics, messageChannel chan ServerMiddlewareGameState, alive chan bool) Bot {
     if pos, ok := newBotPos(); ok {
@@ -2150,27 +2173,20 @@ func handleServerCommands(ws *websocket.Conn) {
 
         app.serverCommands = append(app.serverCommands, message)
     }
-
-
-
 }
 
 func handleMiddleware(ws *websocket.Conn) {
     var botId = app.ids.createBotId()
-
+    
     Logf(LtDebug, "Got connection from Middleware %v\n", botId)
-
-    if nobodyIsWatching() {
-        // This unblocks the main thread!
-        app.standbyMode <- true
-    }
+    
+    // TODO(henk): Wake up from standby.
 
     var messageChannel = make(chan ServerMiddlewareGameState, 10000)
     var isAlive        = make(chan bool, 10000)
 
     var err error
     for {
-
         if connectionIsTerminated(app.runningState) {
             Logf(LtDebug, "handleMiddleware is shutting down.\n")
             isAlive <- false
@@ -2185,25 +2201,11 @@ func handleMiddleware(ws *websocket.Conn) {
         if err = websocket.JSON.Receive(ws, &message); err != nil {
             Logf(LtDebug, "Can't receive from bot %v. Error: %v\n", botId, err)
 
+            // This shuts down the go-routine that is sending the data 
+            // to the middleware.
             isAlive <- false
-
+            
             ws.Close()
-
-            // In case the bot did not send a BotInfo for registration before the connection was lost, it's not in the map.
-            var cmd BotCommand
-            var bi  BotInfo
-
-            app.mwInfo <- MwInfo {
-                            botId:                  botId,
-                            command:                cmd,
-                            connectionAlive:        false,
-                            createNewBot:           false,
-                            botInfo:                bi,
-                            statistics:             Statistics{},
-                            messageChannel:         messageChannel,
-                            alive:                  isAlive,
-                            ws:                     nil,
-                          }
 
             return
         }
@@ -2213,21 +2215,17 @@ func handleMiddleware(ws *websocket.Conn) {
         //
         if message.Type == MmstBotCommand {
             if message.BotCommand != nil {
-
-                var bi  BotInfo
                 app.mwInfo <- MwInfo{
                                 botId:              botId,
                                 command:            *message.BotCommand,
                                 connectionAlive:    true,
                                 createNewBot:       false,
-                                botInfo:            bi,
+                                botInfo:            BotInfo{},
                                 statistics:         Statistics{},
                                 messageChannel:     messageChannel,
                                 alive:              isAlive,
                                 ws:                 nil,
                               }
-
-
             } else {
                 Logf(LtDebug, "Got a dirty message from bot %v. BotCommand is nil.\n", botId)
             }
@@ -2262,10 +2260,9 @@ func handleMiddleware(ws *websocket.Conn) {
 
                 go sendMiddlewareMessages(botId, ws, messageChannel, isAlive)
 
-                var cmd BotCommand
                 app.mwInfo <- MwInfo{
                                 botId:              botId,
-                                command:            cmd,
+                                command:            BotCommand{},
                                 connectionAlive:    true,
                                 createNewBot:       true,
                                 botInfo:            *message.BotInfo,
@@ -2274,7 +2271,6 @@ func handleMiddleware(ws *websocket.Conn) {
                                 alive:              isAlive,
                                 ws:                 ws,
                               }
-
                 Logf(LtDebug, "Bot %v registered: %v. From: %s, at: %s\n", botId, *message.BotInfo, sourceIP, time.Now().Format(time.RFC850))
             } else {
                 Logf(LtDebug, "Got a dirty message from bot %v. BotInfo is nil.\n", botId)
@@ -2455,7 +2451,7 @@ func createConfigFile() {
 
 func main() {
 
-    runtime.GOMAXPROCS(4)
+    runtime.GOMAXPROCS(32)
 
     // TODO(henk): Maybe we wanna toggle this at runtime.
     SetLoggingDebug(true)
