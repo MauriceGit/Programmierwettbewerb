@@ -980,7 +980,6 @@ func (app* Application) startUpdateLoop() {
         fpsCnt += 1
         fpsAdd += 1.0 / dt
 
-        Logf(LtDebug, "3\n")
 
         // Eating blobs
         deadBots := make([]BotId, 0)
@@ -1077,7 +1076,6 @@ func (app* Application) startUpdateLoop() {
             endProfileEvent(&profile, &profileEventHandleEvents)
         }
 
-        Logf(LtDebug, "4\n")
 
         ////////////////////////////////////////////////////////////////
         // READ FROM MIDDLEWARE
@@ -1129,8 +1127,6 @@ func (app* Application) startUpdateLoop() {
             }
             endProfileEvent(&profile, &profileEventReadFromMiddleware)
         }
-
-        Logf(LtDebug, "5\n")
 
         ////////////////////////////////////////////////////////////////
         // ADD SOME MIDDLEWARES/BOTS IF NEEDED
@@ -1714,7 +1710,6 @@ func (app* Application) startUpdateLoop() {
         ////////////////////////////////////////////////////////////////
         //checkAllValuesOnNaN("end")
 
-        Logf(LtDebug, "6\n")
 
         ////////////////////////////////////////////////////////////////
         // DELETE BOTS WITHOUT ACTIVE CONNECTION
@@ -1780,8 +1775,6 @@ func (app* Application) startUpdateLoop() {
             endProfileEvent(&profile, &profileEventSendDataToMiddlewareAndGui)
         }
 
-        Logf(LtDebug, "11\n")
-
         if app.profiling && app.serverGuiIsConnected {
             type NanosecondProfileEvent struct {
                 Name            string
@@ -1801,7 +1794,6 @@ func (app* Application) startUpdateLoop() {
 
         }
 
-        Logf(LtDebug, "12\n")
     }
 }
 
