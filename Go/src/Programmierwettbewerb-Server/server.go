@@ -2387,7 +2387,7 @@ func createConfigFile() {
 
 func main() {
 
-    runtime.GOMAXPROCS(4)
+    runtime.GOMAXPROCS(64)
 
     // TODO(henk): Maybe we wanna toggle this at runtime.
     SetLoggingDebug(true)
