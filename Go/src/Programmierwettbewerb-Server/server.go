@@ -242,10 +242,10 @@ var app Application
 var mutex = &sync.Mutex{}
 
 func (app* Application) initialize() {
-    app.settings.MinNumberOfBots    = 10
-    app.settings.MaxNumberOfBots    = 100
-    app.settings.MaxNumberOfFoods   = 1000
-    app.settings.MaxNumberOfToxins  = 50
+    app.settings.MinNumberOfBots    = 5
+    app.settings.MaxNumberOfBots    = 30
+    app.settings.MaxNumberOfFoods   = 500
+    app.settings.MaxNumberOfToxins  = 10
 
     app.fieldSize                   = Vec2{ 1000, 1000 }
     app.nextGuiId                   = 0
