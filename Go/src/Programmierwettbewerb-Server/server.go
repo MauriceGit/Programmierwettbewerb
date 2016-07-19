@@ -933,6 +933,8 @@ func (app* Application) startUpdateLoop() {
         profile := NewProfile()
 
 
+        Logf(LtDebug, "1\n")
+
         // If there are only dummy-Bots on the field - Stop and wait for
         // something relevant to happen :)
         // Schroedinger or something ;)
@@ -943,6 +945,8 @@ func (app* Application) startUpdateLoop() {
             Logf(LtDebug, "________________ Thread is alive again - yay :)\n")
         }
 
+        Logf(LtDebug, "2\n")
+
         // Just empty the channel unblocking, so that new guis and stuff can connect...
         select {
             case _, ok := <-app.standbyMode:
@@ -951,6 +955,8 @@ func (app* Application) startUpdateLoop() {
                 }
             default:
         }
+
+        Logf(LtDebug, "3\n")
 
 
         var dt = float32(t.Sub(lastTime).Nanoseconds()) / 1e9
@@ -973,6 +979,8 @@ func (app* Application) startUpdateLoop() {
         }
         fpsCnt += 1
         fpsAdd += 1.0 / dt
+
+        Logf(LtDebug, "3\n")
 
         // Eating blobs
         deadBots := make([]BotId, 0)
@@ -1069,6 +1077,8 @@ func (app* Application) startUpdateLoop() {
             endProfileEvent(&profile, &profileEventHandleEvents)
         }
 
+        Logf(LtDebug, "4\n")
+
         ////////////////////////////////////////////////////////////////
         // READ FROM MIDDLEWARE
         ////////////////////////////////////////////////////////////////
@@ -1119,6 +1129,8 @@ func (app* Application) startUpdateLoop() {
             }
             endProfileEvent(&profile, &profileEventReadFromMiddleware)
         }
+
+        Logf(LtDebug, "5\n")
 
         ////////////////////////////////////////////////////////////////
         // ADD SOME MIDDLEWARES/BOTS IF NEEDED
@@ -1700,7 +1712,9 @@ func (app* Application) startUpdateLoop() {
         ////////////////////////////////////////////////////////////////
         // CHECK ANYTHING ON NaN VALUES
         ////////////////////////////////////////////////////////////////
-        checkAllValuesOnNaN("end")
+        //checkAllValuesOnNaN("end")
+
+        Logf(LtDebug, "6\n")
 
         ////////////////////////////////////////////////////////////////
         // DELETE BOTS WITHOUT ACTIVE CONNECTION
@@ -1713,6 +1727,8 @@ func (app* Application) startUpdateLoop() {
                 deadBots = append(deadBots, botId)
             }
         }
+
+        Logf(LtDebug, "7\n")
 
         {
             profileEventSendDataToMiddlewareAndGui := startProfileEvent(&profile, "Send Data to Middleware|Gui")
@@ -1729,8 +1745,12 @@ func (app* Application) startUpdateLoop() {
             // SEND UPDATED DATA TO MIDDLEWARE AND GUI
             ////////////////////////////////////////////////////////////////
 
+            Logf(LtDebug, "8\n")
+
             sendDataToMiddleware(mWMessageCounter)
+            Logf(LtDebug, "9\n")
             sendDataToGui(guiMessageCounter, guiStatisticsMessageCounter, deadBots, eatenFoods, eatenToxins, app.guiConnections, app.bots, app.toxins, app.foods)
+            Logf(LtDebug, "10\n")
 
             for toxinId, toxin := range app.toxins {
                 if toxin.IsNew {
@@ -1760,8 +1780,9 @@ func (app* Application) startUpdateLoop() {
             endProfileEvent(&profile, &profileEventSendDataToMiddlewareAndGui)
         }
 
+        Logf(LtDebug, "11\n")
 
-        if false && app.profiling && app.serverGuiIsConnected {
+        if app.profiling && app.serverGuiIsConnected {
             type NanosecondProfileEvent struct {
                 Name            string
                 Parent          int
@@ -1779,6 +1800,8 @@ func (app* Application) startUpdateLoop() {
             app.messagesToServerGui <- events
 
         }
+
+        Logf(LtDebug, "12\n")
     }
 }
 
