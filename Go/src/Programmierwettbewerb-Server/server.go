@@ -5,6 +5,7 @@ import (
     . "Programmierwettbewerb-Server/shared"
     . "Programmierwettbewerb-Server/organisation"
     . "Programmierwettbewerb-Server/data"
+    . "Programmierwettbewerb-Server/connections"
 
     "golang.org/x/net/websocket"
     "fmt"
@@ -126,117 +127,6 @@ func printProfile(profile Profile) {
         }
         fmt.Printf("\n")
     }
-}
-
-////////////////////////////////////////////////////////////////////////
-//
-// Blob
-//
-////////////////////////////////////////////////////////////////////////
-
-type Blob struct {
-    Position     Vec2       `json:"pos"`
-    Mass         float32    `json:"mass"`
-    VelocityFac  float32
-    IsSplit      bool
-    ReunionTime  float32
-    IndividualTargetVec    Vec2
-}
-
-func Radius(mass float32) float32 {
-    return float32(math.Sqrt(float64(mass / math.Pi)))
-}
-
-func (blob Blob) Radius() float32 {
-    return Radius(blob.Mass)
-}
-
-////////////////////////////////////////////////////////////////////////
-//
-// ViewWindow
-//
-////////////////////////////////////////////////////////////////////////
-
-type ViewWindow struct {
-    Position    Vec2        `json:"pos"`
-    Size        Vec2        `json:"size"`
-}
-
-func isInViewWindow(viewWindow ViewWindow, position Vec2, radius float32) bool {
-    return position.X > viewWindow.Position.X &&
-           position.Y > viewWindow.Position.Y &&
-           position.X < viewWindow.Position.X + viewWindow.Size.X &&
-           position.Y < viewWindow.Position.Y + viewWindow.Size.Y;
-}
-
-////////////////////////////////////////////////////////////////////////
-//
-// Bot
-//
-////////////////////////////////////////////////////////////////////////
-
-type Bot struct {
-    Info                BotInfo
-    GuiNeedsInfoUpdate  bool
-    ViewWindow          ViewWindow
-    Blobs               map[BlobId]Blob
-    // This is updated regulary during the game
-    StatisticsThisGame  Statistics
-    // This is updated once the bot dies and will be up to date for the next game
-    StatisticsOverall   Statistics
-    Command             BotCommand
-}
-
-////////////////////////////////////////////////////////////////////////
-//
-// MiddlewareConnection
-//
-////////////////////////////////////////////////////////////////////////
-
-type MiddlewareConnection struct {
-    Connection          *websocket.Conn
-    MessageChannel      chan ServerMiddlewareGameState
-    Alive               chan bool
-    ConnectionAlive     bool                // TODO(henk): What shall we do when the connection is lost?
-}
-
-////////////////////////////////////////////////////////////////////////
-//
-// MiddlewareConnections
-//
-////////////////////////////////////////////////////////////////////////
-
-type MiddlewareConnections struct {
-    sync.Mutex
-    connections         map[BotId]MiddlewareConnection
-}
-
-func (middlewareConnections *MiddlewareConnections) initialize() {
-    middlewareConnections.connections = make(map[BotId]MiddlewareConnection)
-}
-
-func (middlewareConnections *MiddlewareConnections) add(botId BotId, middlewareConnection MiddlewareConnection) {
-    middlewareConnections.Lock()
-    defer middlewareConnections.Unlock()
-    
-    middlewareConnections.connections[botId] = middlewareConnection
-}
-
-func (middlewareConnections *MiddlewareConnections) delete(botId BotId) {
-    middlewareConnections.Lock()
-    defer middlewareConnections.Unlock()
-
-    // TODO(henk): Is this necessary?
-    middlewareConnections.connections[botId].Connection.Close()
-    
-    delete(middlewareConnections.connections, botId)
-}
-
-func (middlewareConnections *MiddlewareConnections) isAlive(botId BotId) bool {
-    middlewareConnections.Lock()
-    defer middlewareConnections.Unlock()
-    
-    return middlewareConnections.connections[botId].ConnectionAlive
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -417,66 +307,6 @@ func (ids* Ids) createToxinId() ToxinId {
 
 ////////////////////////////////////////////////////////////////////////
 //
-// GuiConnection
-//
-////////////////////////////////////////////////////////////////////////
-
-type GuiConnection struct {
-    Connection          *websocket.Conn
-    IsNewConnection     bool
-    MessageChannel      chan ServerGuiUpdateMessage
-    CloseEvent          chan bool
-}
-
-////////////////////////////////////////////////////////////////////////
-//
-// Gui Connections
-//
-////////////////////////////////////////////////////////////////////////
-
-type GuiConnections struct {
-    sync.Mutex
-    connections     map[GuiId]GuiConnection
-}
-
-func (guiConnections *GuiConnections) initialize() {
-    guiConnections.connections = make(map[GuiId]GuiConnection)
-}
-
-func (guiConnections *GuiConnections) count() int {
-    guiConnections.Lock()
-    defer guiConnections.Unlock()
-    
-    return len(guiConnections.connections)
-}
-
-func (guiConnections *GuiConnections) makeAllOld() {
-    guiConnections.Lock()
-    for guiConnectionId, guiConnection := range guiConnections.connections {
-        guiConnection.IsNewConnection = false
-        guiConnections.connections[guiConnectionId] = guiConnection
-    }
-    guiConnections.Unlock()
-}
-
-func (guiConnections *GuiConnections) add(guiId GuiId, guiConnection GuiConnection) {
-    guiConnections.Lock()
-    defer guiConnections.Unlock()
-    
-    guiConnections.connections[guiId] = guiConnection
-}
-
-func (guiConnections *GuiConnections) delete(guiId GuiId) {
-    guiConnections.Lock()
-    defer guiConnections.Unlock()
-    
-    // Send a signal to exit the go-routine for sending update-messages.
-    guiConnections.connections[guiId].CloseEvent <- true
-    delete(guiConnections.connections, guiId)
-}
-
-////////////////////////////////////////////////////////////////////////
-//
 // Application
 //
 ////////////////////////////////////////////////////////////////////////
@@ -514,88 +344,10 @@ func (app* Application) initialize() {
 
     app.profiling                   = false
 
-    app.guiConnections.initialize()
-    app.middlewareConnections.initialize()
+    app.guiConnections              = NewGuiConnections()
+    app.middlewareConnections       = NewMiddlewareConnections()
     app.settings.initialize()
     app.ids.initialize(app.settings)
-}
-
-
-////////////////////////////////////////////////////////////////////////
-//
-// Communication with Guis
-//
-////////////////////////////////////////////////////////////////////////
-
-type ServerGuiUpdateMessage struct {
-    // "JSON objects only support strings as keys; to encode a Go map type it must be of the form map[string]T (where T is any Go type supported by the json package)."
-    // Source: http://blog.golang.org/json-and-go
-    CreatedOrUpdatedBotInfos    map[string]BotInfo              `json:"createdOrUpdatedBotInfos"`
-    DeletedBotInfos             []BotId                         `json:"deletedBotInfos"`
-    CreatedOrUpdatedBots        map[string]ServerGuiBot         `json:"createdOrUpdatedBots"`
-    DeletedBots                 []BotId                         `json:"deletedBots"`
-    CreatedOrUpdatedFoods       map[string]ServerGuiFood        `json:"createdOrUpdatedFoods"`
-    DeletedFoods                []FoodId                        `json:"deletedFoods"`
-    CreatedOrUpdatedToxins      map[string]ServerGuiToxin       `json:"createdOrUpdatedToxins"`
-    DeletedToxins               []ToxinId                       `json:"deletedToxins"`
-    StatisticsThisGame          map[string]Statistics           `json:"statisticsLocal"`
-    StatisticsGlobal            map[string]Statistics           `json:"statisticsGlobal"`
-}
-
-func newServerGuiUpdateMessage() ServerGuiUpdateMessage {
-    return ServerGuiUpdateMessage{
-        CreatedOrUpdatedBotInfos:   make(map[string]BotInfo),
-        DeletedBotInfos:            make([]BotId, 0),
-        CreatedOrUpdatedBots:       make(map[string]ServerGuiBot),
-        DeletedBots:                make([]BotId, 0),
-        CreatedOrUpdatedFoods:      make(map[string]ServerGuiFood),
-        DeletedFoods:               make([]FoodId, 0),
-        CreatedOrUpdatedToxins:     make(map[string]ServerGuiToxin),
-        DeletedToxins:              make([]ToxinId, 0),
-        StatisticsThisGame:         make(map[string]Statistics),
-        StatisticsGlobal:           make(map[string]Statistics),
-    }
-}
-
-type ServerGuiBot struct {
-    Blobs       map[string]ServerGuiBlob    `json:"blobs"`
-    ViewWindow  ViewWindow                  `json:"viewWindow"`
-}
-
-func makeServerGuiBot(bot Bot) ServerGuiBot {
-    blobs := make(map[string]ServerGuiBlob)
-    for blobId, blob := range bot.Blobs {
-        key := strconv.Itoa(int(blobId))
-        blobs[key] = makeServerGuiBlob(blob)
-    }
-    return ServerGuiBot{ blobs, bot.ViewWindow }
-}
-
-type ServerGuiBlob struct {
-    Position    Vec2        `json:"pos"`
-    Mass        float32     `json:"mass"`
-}
-
-func makeServerGuiBlob(blob Blob) ServerGuiBlob {
-    return ServerGuiBlob{ blob.Position, blob.Mass }
-}
-
-type ServerGuiFood struct {
-    Position    Vec2        `json:"pos"`
-    Mass        float32     `json:"mass"`
-}
-
-func makeServerGuiFood(food Food) ServerGuiFood {
-    return ServerGuiFood{ food.Position, food.Mass }
-}
-
-type ServerGuiToxin struct {
-    Position    Vec2        `json:"pos"`
-    Mass        float32     `json:"mass"`
-}
-
-func makeServerGuiToxin(toxin Toxin) ServerGuiToxin {
-    return ServerGuiToxin{ toxin.Position, toxin.Mass }
 }
 
 
@@ -954,54 +706,51 @@ func startBashScript(path string) {
 
 func sendDataToMiddleware(gameState *GameState, mWMessageCounter int) {
     if mWMessageCounter % mwMessageEvery == 0 {
-        app.middlewareConnections.Lock()
-        for botId, middlewareConnection := range app.middlewareConnections.connections {
+        app.middlewareConnections.Foreach(func(botId BotId, middlewareConnection MiddlewareConnection) {
             channel := middlewareConnection.MessageChannel
 
             bot, ok := gameState.bots[botId]
-            if (!ok) {
-                Logf(LtDebug, "While sending the data to all middlewares, we encountered a middleware connection, for which we did not find a bot.\n")
-                continue
-            }
-
-            // Collecting other blobs
-            var otherBlobs []ServerMiddlewareBlob
-            for otherBotId, otherBot := range gameState.bots {
-                if botId != otherBotId {
-                    for otherBlobId, otherBlob := range otherBot.Blobs {
-                        if isInViewWindow(bot.ViewWindow, otherBlob.Position, otherBlob.Radius()) {
-                            otherBlobs = append(otherBlobs, makeServerMiddlewareBlob(otherBotId, otherBlobId, otherBlob))
+            if (ok) {
+                // Collecting other blobs
+                var otherBlobs []ServerMiddlewareBlob
+                for otherBotId, otherBot := range gameState.bots {
+                    if botId != otherBotId {
+                        for otherBlobId, otherBlob := range otherBot.Blobs {
+                            if IsInViewWindow(bot.ViewWindow, otherBlob.Position, otherBlob.Radius()) {
+                                otherBlobs = append(otherBlobs, makeServerMiddlewareBlob(otherBotId, otherBlobId, otherBlob))
+                            }
                         }
                     }
                 }
-            }
 
-            // Collecting foods
-            var foods []Food
-            for _, food := range gameState.foods {
-                if isInViewWindow(bot.ViewWindow, food.Position, Radius(food.Mass)) {
-                    foods = append(foods, food)
+                // Collecting foods
+                var foods []Food
+                for _, food := range gameState.foods {
+                    if IsInViewWindow(bot.ViewWindow, food.Position, Radius(food.Mass)) {
+                        foods = append(foods, food)
+                    }
                 }
-            }
 
-            // Collecting toxins
-            var toxins []Toxin
-            for _, toxin := range gameState.toxins {
-                if isInViewWindow(bot.ViewWindow, toxin.Position, Radius(toxin.Mass)) {
-                    toxins = append(toxins, toxin)
+                // Collecting toxins
+                var toxins []Toxin
+                for _, toxin := range gameState.toxins {
+                    if IsInViewWindow(bot.ViewWindow, toxin.Position, Radius(toxin.Mass)) {
+                        toxins = append(toxins, toxin)
+                    }
                 }
-            }
 
-            var wrapper = ServerMiddlewareGameState{
-                MyBlob:         makeServerMiddlewareBlobs(gameState, botId),
-                OtherBlobs:     otherBlobs,
-                Food:           foods,
-                Toxin:          toxins,
-            }
+                var wrapper = ServerMiddlewareGameState{
+                    MyBlob:         makeServerMiddlewareBlobs(gameState, botId),
+                    OtherBlobs:     otherBlobs,
+                    Food:           foods,
+                    Toxin:          toxins,
+                }
 
-            channel <- wrapper
-        }
-        app.middlewareConnections.Unlock()
+                channel <- wrapper
+            } else {
+                Logf(LtDebug, "While sending the data to all middlewares, we encountered a middleware connection, for which we did not find a bot.\n")
+            }
+        })
     }
 }
 
@@ -1014,11 +763,10 @@ func sendDataToGui(gameState                    *GameState,
                    bots                         map[BotId]Bot, 
                    toxins                       map[ToxinId]Toxin, 
                    foods                        map[FoodId]Food) {
-                       
-    app.guiConnections.Lock()
-    for guiId, guiConnection := range app.guiConnections.connections {
-        channel := app.guiConnections.connections[guiId].MessageChannel
-        message := newServerGuiUpdateMessage()
+
+    app.guiConnections.Foreach(func(guiId GuiId, guiConnection GuiConnection) {
+        channel := guiConnection.MessageChannel
+        message := NewServerGuiUpdateMessage()
 
         for botId, bot := range gameState.bots {
             key := strconv.Itoa(int(botId))
@@ -1027,7 +775,7 @@ func sendDataToGui(gameState                    *GameState,
             }
 
             if guiMessageCounter % guiMessageEvery == 0 {
-                message.CreatedOrUpdatedBots[key] = makeServerGuiBot(bot)
+                message.CreatedOrUpdatedBots[key] = MakeServerGuiBot(bot)
             }
 
             if guiStatisticsMessageCounter % guiStatisticsMessageEvery == 0 {
@@ -1044,7 +792,7 @@ func sendDataToGui(gameState                    *GameState,
             for foodId, food := range gameState.foods {
                 if food.IsMoving || food.IsNew || guiConnection.IsNewConnection {
                     key := strconv.Itoa(int(foodId))
-                    message.CreatedOrUpdatedFoods[key] = makeServerGuiFood(food)
+                    message.CreatedOrUpdatedFoods[key] = MakeServerGuiFood(food)
                 }
             }
         }
@@ -1055,7 +803,7 @@ func sendDataToGui(gameState                    *GameState,
             for toxinId, toxin := range gameState.toxins {
                 if toxin.IsNew || toxin.IsMoving || guiConnection.IsNewConnection {
                     key := strconv.Itoa(int(toxinId))
-                    message.CreatedOrUpdatedToxins[key] = makeServerGuiToxin(toxin)
+                    message.CreatedOrUpdatedToxins[key] = MakeServerGuiToxin(toxin)
                 }
             }
         }
@@ -1063,8 +811,7 @@ func sendDataToGui(gameState                    *GameState,
         message.DeletedToxins = eatenToxins
 
         channel <- message
-    }
-    app.guiConnections.Unlock()
+    })
 }
 
 func checkPasswordAgainstFile(password string) bool {
@@ -1633,7 +1380,7 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
 
                                     go WriteStatisticToFile(bot2.Info.Name, bot2.StatisticsThisGame)
 
-                                    app.middlewareConnections.delete(botId2)
+                                    app.middlewareConnections.Delete(botId2)
                                     delete(gameState.bots, botId2)
                                     break
                                 }
@@ -1676,27 +1423,6 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         lastTime = t
 
         if dt >= 0.03 { dt = 0.03 }
-
-        // If there are only dummy-Bots on the field - Stop and wait for
-        // something relevant to happen :)
-        // Schroedinger or something ;)
-        /*
-        if nobodyIsWatching() {
-            Logf(LtDebug, "________________ Thread is going to sleep ...\n")
-            // This should block until a new connection (any) is established!
-            <- app.standbyMode
-            Logf(LtDebug, "________________ Thread is alive again - yay :)\n")
-        }
-
-        // Just empty the channel unblocking, so that new guis and stuff can connect...
-        select {
-            case _, ok := <-app.standbyMode:
-                if ok {
-                    Logf(LtDebug, "Emptied the channel. Worked.\n")
-                }
-            default:
-        }
-        */
 
         // Once every 10 seconds
         if fpsCnt == 300 {
@@ -1883,9 +1609,8 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         // TODO(henk): This should not be necessary. 
         // 1. We can remove the connections, when they are lost.
         // 2. We can write the statistics, when the connection is lost.
-        // 3. We can append the appertaining bot to a list of bots, that is removed in the subsequent call of the update function.
-        app.middlewareConnections.Lock();
-        for botId, middlewareConnection := range app.middlewareConnections.connections {
+        // 3. We can append the appertaining bot to a list of bots, that is removed in the subsequent call of the update function.        
+        app.middlewareConnections.Foreach(func(botId BotId, middlewareConnection MiddlewareConnection) {
             if bot, ok := gameState.bots[botId]; ok {
                 if !middlewareConnection.ConnectionAlive {
                     go WriteStatisticToFile(bot.Info.Name, bot.StatisticsThisGame)
@@ -1893,8 +1618,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                     deadBots = append(deadBots, botId)
                 }
             }
-        }
-        app.middlewareConnections.Unlock()
+        })
 
         {
             profileEventSendDataToMiddlewareAndGui := startProfileEvent(&profile, "Send Data to Middleware|Gui")
@@ -1930,7 +1654,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                 gameState.bots[botId] = bot
             }
 
-            app.guiConnections.makeAllOld()
+            app.guiConnections.MakeAllOld()
 
             messageCounters.guiMessageCounter += 1
             messageCounters.mWMessageCounter += 1
@@ -1986,7 +1710,7 @@ func handleGui(ws *websocket.Conn) {
     var closeEvent     = make(chan bool)
 
     guiConnection := GuiConnection{ ws, true, messageChannel, closeEvent }
-    app.guiConnections.add(guiId, guiConnection)
+    app.guiConnections.Add(guiId, guiConnection)
     
     // This procedure sends the "ServerGuiUpdateMessages"
     go func() {
@@ -2012,7 +1736,7 @@ func handleGui(ws *websocket.Conn) {
                             }
                             if len(otherMessages) > 10 {
                                 Logf(LtDebug, "More than 10 messages are in the Queue for gui %v. So we just shut it down!\n", guiId)
-                                app.guiConnections.delete(guiId)
+                                app.guiConnections.Delete(guiId)
                                 ws.Close()
                                 return
                             }
@@ -2050,7 +1774,7 @@ func handleGui(ws *websocket.Conn) {
     for {
         if connectionIsTerminated(app.runningState) {
             Logf(LtDebug, "HandleGui is shutting down.\n")
-            app.guiConnections.delete(guiId)
+            app.guiConnections.Delete(guiId)
             closeEvent <- true
             ws.Close()
             return
@@ -2059,7 +1783,7 @@ func handleGui(ws *websocket.Conn) {
         var reply string
         if err := websocket.Message.Receive(ws, &reply); err != nil {
             Logf(LtDebug, "Can't receive (%v)\n", err)
-            app.guiConnections.delete(guiId)
+            app.guiConnections.Delete(guiId)
             closeEvent <- true
             break
         }
@@ -2158,7 +1882,7 @@ func handleMiddleware(ws *websocket.Conn) {
     
     isRegistered := false
     
-    app.middlewareConnections.add(botId, MiddlewareConnection{
+    app.middlewareConnections.Add(botId, MiddlewareConnection{
                                 MessageChannel:         messageChannel,
                                 Alive:                  closeEvent,
                                 Connection:             ws,
