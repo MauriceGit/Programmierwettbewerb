@@ -19,7 +19,6 @@ import (
     "encoding/json"
     "io/ioutil"
     "golang.org/x/image/bmp"
-    "reflect"
     "html/template"
     "os/exec"
     "sync"
@@ -242,9 +241,15 @@ func (middlewareConnections *MiddlewareConnections) isAlive(botId BotId) bool {
 
 ////////////////////////////////////////////////////////////////////////
 //
-// WmInfo
+// MwInfo
 //
 ////////////////////////////////////////////////////////////////////////
+
+type MiddlewareRegistration struct {
+    botId                   BotId
+    botInfo                 BotInfo
+    statistics              Statistics
+}
 
 type MwInfo struct {
     botId                   BotId
@@ -482,6 +487,7 @@ type Application struct {
     standbyMode                 chan bool
     runningState                chan bool
     mwInfo                      chan MwInfo
+    middlewareRegistrations     chan MiddlewareRegistration
     serverCommands              []string
     messagesToServerGui         chan interface{}
     serverGuiIsConnected        bool
@@ -501,6 +507,7 @@ func (app* Application) initialize() {
     app.fieldSize                   = Vec2{ 1000, 1000 }
     
     app.mwInfo                      = make(chan MwInfo, 1000)
+    app.middlewareRegistrations     = make(chan MiddlewareRegistration)
     app.standbyMode                 = make(chan bool)
     app.runningState                = make(chan bool, 1)
     app.messagesToServerGui         = make(chan interface{}, 10)
@@ -1813,6 +1820,24 @@ func (app* Application) startUpdateLoop() {
         ////////////////////////////////////////////////////////////////
         {
             profileEventReadFromMiddleware := startProfileEvent(&profile, "Read from Middleware")
+            
+            ProcessNewRegistrations:
+            for {
+                select {
+                    case middlewareRegistration := <-app.middlewareRegistrations:
+                        if len(app.gameState.bots) < app.settings.MaxNumberOfBots {
+                            bot, ok := createStartingBot(middlewareRegistration.botInfo, middlewareRegistration.statistics)
+                            if ok {
+                                app.gameState.bots[middlewareRegistration.botId] = bot
+                            } else {
+                                Logf(LtDebug, "Due to a spawn image with a 0 spawn rate, there is no possible spawn position for this bot.\n")
+                            }
+                        }
+                    default:
+                        break ProcessNewRegistrations
+                }
+            }
+            
             for {
                 finished := false
                 select {
@@ -1830,14 +1855,6 @@ func (app* Application) startUpdateLoop() {
                             }
 
                             app.gameState.bots[mwInfo.botId] = bot
-                        }
-                        if mwInfo.createNewBot && len(app.gameState.bots) < app.settings.MaxNumberOfBots {
-                            bot := createStartingBot(mwInfo.ws, mwInfo.botInfo, mwInfo.statistics, mwInfo.messageChannel, mwInfo.alive)
-                            if !reflect.DeepEqual(bot,Bot{}) {
-                                app.gameState.bots[mwInfo.botId] = bot
-                            } else {
-                                Logf(LtDebug, "Due to a spawn image with a 0 spawn rate, there is no possible spawn position for this bot.\n")
-                            }
                         }
                     } else {
                         // Channel closed. Something is SERIOUSLY wrong.
@@ -2069,9 +2086,8 @@ func handleGui(ws *websocket.Conn) {
     }
 }
 
-func createStartingBot(ws *websocket.Conn, botInfo BotInfo, statistics Statistics, messageChannel chan ServerMiddlewareGameState, alive chan bool) Bot {
+func createStartingBot(botInfo BotInfo, statistics Statistics) (Bot, bool) {
     if pos, ok := newBotPos(); ok {
-
         blob := Blob {
             Position:       pos,  // TODO(henk): How do we decide this?
             Mass:           100.0,
@@ -2101,10 +2117,10 @@ func createStartingBot(ws *websocket.Conn, botInfo BotInfo, statistics Statistic
             StatisticsThisGame:     statisticNew,
             StatisticsOverall:      statistics,
             Command:                BotCommand{ BatNone, RandomVec2(), },
-        }
+        }, true
     }
 
-    return Bot{}
+    return Bot{}, false
 }
 
 func handleServerCommands(ws *websocket.Conn) {
@@ -2273,18 +2289,12 @@ func handleMiddleware(ws *websocket.Conn) {
                     }
                     
                     isRegistered = isAllowed
-
-                    app.mwInfo <- MwInfo{
-                                    botId:              botId,
-                                    command:            BotCommand{},
-                                    connectionAlive:    true,
-                                    createNewBot:       true,
-                                    botInfo:            *message.BotInfo,
-                                    statistics:         statisticsOverall,
-                                    messageChannel:     messageChannel,
-                                    alive:              closeEvent,
-                                    ws:                 ws,
-                                  }
+                    
+                    app.middlewareRegistrations <- MiddlewareRegistration{ 
+                                                       botId:       botId,
+                                                       botInfo:     *message.BotInfo,
+                                                       statistics:  statisticsOverall,
+                                                   }
                     Logf(LtDebug, "Bot %v registered: %v. From: %s, at: %s\n", botId, *message.BotInfo, sourceIP, time.Now().Format(time.RFC850))
                 } else {
                     Logf(LtDebug, "Got a dirty message from bot %v. BotInfo is nil.\n", botId)
