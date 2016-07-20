@@ -182,7 +182,6 @@ type GuiConnection struct {
     Connection          *websocket.Conn
     IsNewConnection     bool
     MessageChannel      chan ServerGuiUpdateMessage
-    Alive               chan bool
 }
 
 type MwInfo struct {
@@ -196,7 +195,6 @@ type MwInfo struct {
     botInfo                 BotInfo
 
     messageChannel          chan ServerMiddlewareGameState
-    alive                   chan bool
 
     statistics              Statistics
 
@@ -242,10 +240,10 @@ var app Application
 var mutex = &sync.Mutex{}
 
 func (app* Application) initialize() {
-    app.settings.MinNumberOfBots    = 5
-    app.settings.MaxNumberOfBots    = 30
-    app.settings.MaxNumberOfFoods   = 500
-    app.settings.MaxNumberOfToxins  = 10
+    app.settings.MinNumberOfBots    = 10
+    app.settings.MaxNumberOfBots    = 100
+    app.settings.MaxNumberOfFoods   = 2000
+    app.settings.MaxNumberOfToxins  = 50
 
     app.fieldSize                   = Vec2{ 1000, 1000 }
     app.nextGuiId                   = 0
@@ -762,83 +760,67 @@ func nobodyIsWatching() bool {
 
 func sendDataToMiddleware(mWMessageCounter int) {
 
-    // TODO(Maurice/henk):
-    // MAURICE: Could be VERY MUCH simplified, if we just convert All blobs to the right format once and then sort out later who gets what data!
-    // HENK: First we would have to determine which blobs, toxins and foods are visible to the bots. We would have to profile that to check whats faster.
-    if mWMessageCounter % mwMessageEvery == 0 {
-        for botId, bot := range app.bots {
-            var connection = app.bots[botId].Connection
-            channel := app.bots[botId].MessageChannel
+    for botId, bot := range app.bots {
+        channel := app.bots[botId].MessageChannel
 
-            if !app.bots[botId].ConnectionAlive {
-                continue
-            }
+        if !app.bots[botId].ConnectionAlive {
+            continue
+        }
 
-            // Collecting other blobs
-            var otherBlobs []ServerMiddlewareBlob
-            for otherBotId, otherBot := range app.bots {
-                if botId != otherBotId {
-                    for otherBlobId, otherBlob := range otherBot.Blobs {
-                        if isInViewWindow(bot.ViewWindow, otherBlob.Position, otherBlob.Radius()) {
-                            otherBlobs = append(otherBlobs, makeServerMiddlewareBlob(otherBotId, otherBlobId, otherBlob))
-                        }
+        // Collecting other blobs
+        var otherBlobs []ServerMiddlewareBlob
+        for otherBotId, otherBot := range app.bots {
+            if botId != otherBotId {
+                for otherBlobId, otherBlob := range otherBot.Blobs {
+                    if isInViewWindow(bot.ViewWindow, otherBlob.Position, otherBlob.Radius()) {
+                        otherBlobs = append(otherBlobs, makeServerMiddlewareBlob(otherBotId, otherBlobId, otherBlob))
                     }
                 }
             }
-
-            // Collecting foods
-            var foods []Food
-            for _, food := range app.foods {
-                if isInViewWindow(bot.ViewWindow, food.Position, Radius(food.Mass)) {
-                    foods = append(foods, food)
-                }
-            }
-
-            // Collecting toxins
-            var toxins []Toxin
-            for _, toxin := range app.toxins {
-                if isInViewWindow(bot.ViewWindow, toxin.Position, Radius(toxin.Mass)) {
-                    toxins = append(toxins, toxin)
-                }
-            }
-
-            var wrapper = ServerMiddlewareGameState{
-                MyBlob:         makeServerMiddlewareBlobs(botId),
-                OtherBlobs:     otherBlobs,
-                Food:           foods,
-                Toxin:          toxins,
-            }
-
-            websocket.JSON.Send(connection, wrapper)
-            if false && channel != nil {
-                select {
-                case channel <- wrapper:
-                default:
-                    Logf(LtDebug, "==============> Dodged a bullet here! Not sending information to full MW channel!\n")
-                }
-            }
-
         }
+
+        // Collecting foods
+        var foods []Food
+        for _, food := range app.foods {
+            if isInViewWindow(bot.ViewWindow, food.Position, Radius(food.Mass)) {
+                foods = append(foods, food)
+            }
+        }
+
+        // Collecting toxins
+        var toxins []Toxin
+        for _, toxin := range app.toxins {
+            if isInViewWindow(bot.ViewWindow, toxin.Position, Radius(toxin.Mass)) {
+                toxins = append(toxins, toxin)
+            }
+        }
+
+        var wrapper = ServerMiddlewareGameState{
+            MyBlob:         makeServerMiddlewareBlobs(botId),
+            OtherBlobs:     otherBlobs,
+            Food:           foods,
+            Toxin:          toxins,
+        }
+
+        select {
+        case channel <- wrapper:
+        default:
+            Logf(LtDebug, "==============> Dodged a bullet here! Not sending information to full MW channel!\n")
+        }
+
+
     }
+
 }
 
 func sendDataToGui( guiMessageCounter int, guiStatisticsMessageCounter int, deadBots []BotId, eatenFoods []FoodId, eatenToxins []ToxinId,
                     guiConnections map[GuiId]GuiConnection, bots map[BotId]Bot, toxins map[ToxinId]Toxin, foods map[FoodId]Food) {
 
-    // Pre-calculate the list for eaten Toxins
-    //reallyDeadToxins := make([]ToxinId, 0)
-    //copied := copy(reallyDeadToxins, eatenToxins)
-    //Logf(LtDebug, "copied %v elements\n", copied)
-
     //
     // Send the data to the clients
     //
     for guiId, guiConnection := range app.guiConnections {
-        //var connection = app.guiConnections[guiId].Connection
-        channel := app.guiConnections[guiId].MessageChannel
         message := newServerGuiUpdateMessage()
-
-        //Logf(LtDebug, "Botcount: %v\n", app.bots)
 
         for botId, bot := range app.bots {
 
@@ -861,10 +843,6 @@ func sendDataToGui( guiMessageCounter int, guiStatisticsMessageCounter int, dead
 
         message.DeletedBotInfos = deadBots
         message.DeletedBots = deadBots
-        //for _, botId := range deadBots {
-        //    message.DeletedBots = append(message.DeletedBots, botId)
-        //    message.DeletedBotInfos = append(message.DeletedBotInfos, botId)
-        //}
 
         if guiMessageCounter % guiMessageEvery == 0 {
             for foodId, food := range app.foods {
@@ -876,9 +854,6 @@ func sendDataToGui( guiMessageCounter int, guiStatisticsMessageCounter int, dead
         }
 
         message.DeletedFoods = eatenFoods
-        //for _, foodId := range eatenFoods {
-        //    message.DeletedFoods = append(message.DeletedFoods, foodId)
-        //}
 
         if guiMessageCounter % guiMessageEvery == 0 {
             for toxinId, toxin := range app.toxins {
@@ -891,9 +866,9 @@ func sendDataToGui( guiMessageCounter int, guiStatisticsMessageCounter int, dead
 
         message.DeletedToxins = eatenToxins
 
-        //channel <- message
+        if val, ok := app.guiConnections[guiId]; ok {
+            channel := val.MessageChannel
 
-        if channel != nil {
             select {
             case channel <- message:
             default:
@@ -901,12 +876,6 @@ func sendDataToGui( guiMessageCounter int, guiStatisticsMessageCounter int, dead
             }
         }
 
-
-        //websocket.JSON.Send(connection, message)
-        //if err != nil {
-        //    Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
-        //    //return
-        //}
     }
 
 }
@@ -953,7 +922,7 @@ func (app* Application) startUpdateLoop() {
         profile := NewProfile()
 
 
-        Logf(LtDebug, "\n1\n\n")
+        //Logf(LtDebug, "\n1\n\n")
 
         // If there are only dummy-Bots on the field - Stop and wait for
         // something relevant to happen :)
@@ -965,18 +934,7 @@ func (app* Application) startUpdateLoop() {
             Logf(LtDebug, "________________ Thread is alive again - yay :)\n")
         }
 
-        Logf(LtDebug, "\n2\n\n")
-
-        // Just empty the channel unblocking, so that new guis and stuff can connect...
-        select {
-            case _, ok := <-app.standbyMode:
-                if ok {
-                    Logf(LtDebug, "Emptied the channel. Worked.\n")
-                }
-            default:
-        }
-
-        Logf(LtDebug, "\n3\n\n")
+        //Logf(LtDebug, "\n3\n\n")
 
 
         var dt = float32(t.Sub(lastTime).Nanoseconds()) / 1e9
@@ -1107,7 +1065,7 @@ func (app* Application) startUpdateLoop() {
                 select {
                 case mwInfo, ok := <-app.mwInfo:
                     if ok {
-                        if _, ok := app.bots[mwInfo.botId]; ok {
+                        if _, ok2 := app.bots[mwInfo.botId]; ok2 {
                             bot := app.bots[mwInfo.botId]
 
                             bot.ConnectionAlive = mwInfo.connectionAlive
@@ -1121,10 +1079,7 @@ func (app* Application) startUpdateLoop() {
                         }
                         if mwInfo.createNewBot && len(app.bots) < app.settings.MaxNumberOfBots {
 
-                            bot := createStartingBot(mwInfo.ws, mwInfo.botInfo, mwInfo.statistics, mwInfo.messageChannel, mwInfo.alive)
-
-
-
+                            bot := createStartingBot(mwInfo.ws, mwInfo.botInfo, mwInfo.statistics, mwInfo.messageChannel)
 
                             if !reflect.DeepEqual(bot,Bot{}) {
                                 app.bots[mwInfo.botId] = bot
@@ -1148,7 +1103,7 @@ func (app* Application) startUpdateLoop() {
             endProfileEvent(&profile, &profileEventReadFromMiddleware)
         }
 
-        Logf(LtDebug, "\n4\n\n")
+        //Logf(LtDebug, "\n4\n\n")
 
         ////////////////////////////////////////////////////////////////
         // ADD SOME MIDDLEWARES/BOTS IF NEEDED
@@ -1745,29 +1700,29 @@ func (app* Application) startUpdateLoop() {
             }
         }
 
-        Logf(LtDebug, "\n5\n\n")
+        //Logf(LtDebug, "\n5\n\n")
 
         {
             profileEventSendDataToMiddlewareAndGui := startProfileEvent(&profile, "Send Data to Middleware|Gui")
 
-            for guiConnectionId, guiConnection := range app.guiConnections {
+            /*for guiConnectionId, guiConnection := range app.guiConnections {
                 err := websocket.Message.Send(guiConnection.Connection, "alive_test")
                 if err != nil {
                     Logf(LtDebug, "Gui %v is deleted because of network failure. Alive test failed.\n", guiConnectionId)
                     delete(app.guiConnections, guiConnectionId)
                 }
-            }
+            }*/
 
             ////////////////////////////////////////////////////////////////
             // SEND UPDATED DATA TO MIDDLEWARE AND GUI
             ////////////////////////////////////////////////////////////////
 
-            Logf(LtDebug, "\n8\n\n")
+            //Logf(LtDebug, "\n8\n\n")
 
             sendDataToMiddleware(mWMessageCounter)
-            Logf(LtDebug, "\n9\n\n")
+            //Logf(LtDebug, "\n9\n\n")
             sendDataToGui(guiMessageCounter, guiStatisticsMessageCounter, deadBots, eatenFoods, eatenToxins, app.guiConnections, app.bots, app.toxins, app.foods)
-            Logf(LtDebug, "\n10\n\n")
+            //Logf(LtDebug, "\n10\n\n")
 
             for toxinId, toxin := range app.toxins {
                 if toxin.IsNew {
@@ -1821,35 +1776,34 @@ func (app* Application) startUpdateLoop() {
 
 func getOtherMessagesFromMWChannel(channel chan ServerMiddlewareGameState) []ServerMiddlewareGameState {
     var messages = make([]ServerMiddlewareGameState, 0)
-
-    select {
-        case message, ok := <-channel:
-            if ok {
-                messages = append(messages, message)
-            }
-        default:
-            return messages
+    for {
+        select {
+            case message, ok := <-channel:
+                if ok {
+                    messages = append(messages, message)
+                }
+            default:
+                return messages
+        }
     }
     return messages
 }
 
-func sendMiddlewareMessages(botId BotId, ws *websocket.Conn, channel chan ServerMiddlewareGameState, alive chan bool) {
-
-    Logf(LtDebug, "===> SendMiddlewareMessage go routine started.\n")
+func sendMiddlewareMessages(botId BotId, ws *websocket.Conn, channel chan ServerMiddlewareGameState, isAlive chan bool) {
 
     for {
 
         // Alive Test!
         select {
-            case state, ok := <-alive:
+            case state, ok := <-isAlive:
                 if ok  && !state {
-                    Logf(LtDebug, "===> Alive failed - MW go routine shutting down!\n")
+                    Logf(LtDebug, "===> Alive failed - MW %v go routine shutting down!\n", botId)
                     return
                 }
             default:
         }
 
-        // After 5 seconds with no new Gui-message, it shuts down!
+        // After 3 seconds with no new MW-message, it shuts down!
         timeout := make(chan bool, 1)
         go func() {
             time.Sleep(3 * time.Second)
@@ -1861,70 +1815,56 @@ func sendMiddlewareMessages(botId BotId, ws *websocket.Conn, channel chan Server
         select {
             case message, ok := <-channel:
                 otherMessages := getOtherMessagesFromMWChannel(channel)
+                allMessages := append([]ServerMiddlewareGameState{message}, otherMessages...)
                 if ok {
-                    var err error
+                    lastMessage := allMessages[len(allMessages)-1]
 
-
-                    if len(otherMessages) == 0 {
-                        // Just now, we send the whole message!
-                        err = websocket.JSON.Send(ws, message)
-                    } else {
-                        // still send something, otherwise a slightly slow middleware doesn't get any update any more...
-                        err = websocket.JSON.Send(ws, message)
-                        // Do nothing! The Middleware will NOT get any messages, until it is fast enough to get them!
-                        // It will get the next one though. But skipps all from this round.
-                        Logf(LtDebug, "Middleware %v skips one message, as it is not fast enough receiving the ones before...\n", botId)
+                    if err := websocket.JSON.Send(ws, lastMessage); err != nil {
+                        Logf(LtDebug, "JSON could not be sent to %v because of: %v. Returned.\n", botId, err)
+                        isAlive <- false
+                        return
                     }
-
-                    if err != nil {
-                        Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
-                    }
-
-                } else {
-                    Logf(LtDebug, "MW - NOT ok!")
                 }
             case <-timeout:
                 if !nobodyIsWatching() {
                     Logf(LtDebug, "===> Timeout for MW messages (botId: %v) - go routine shutting down!\n", botId)
+                    isAlive <- false
                     return
                 }
         }
-
     }
 }
 
 func getOtherMessagesFromGuiChannel(channel chan ServerGuiUpdateMessage) ([]ServerGuiUpdateMessage, int) {
     var messages = make([]ServerGuiUpdateMessage, 0)
     var count = 0
-    select {
-        case message, ok := <-channel:
-            if ok {
-                messages = append(messages, message)
-                count++
-            }
-        default:
-            return messages, count
+    for {
+        select {
+            case message, ok := <-channel:
+                if ok {
+                    messages = append(messages, message)
+                    count++
+                }
+            default:
+                return messages, count
+        }
     }
     return messages, count
 }
 
-func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpdateMessage, alive chan bool) {
+func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpdateMessage) {
 
-    Logf(LtDebug, "===> SendGuiMessage go routine started.\n")
+    defer ws.Close()
+    defer delete(app.guiConnections, guiId)
 
     for {
 
-        // Alive Test!
-        select {
-            case state, ok := <-alive:
-                if ok  && !state {
-                    Logf(LtDebug, "===> Alive failed - go routine shutting down!\n")
-                    return
-                }
-            default:
+        if connectionIsTerminated(app.runningState) {
+            Logf(LtDebug, "HandleGui is shutting down.\n")
+            return
         }
 
-        // After 5 seconds with no new Gui-message, it shuts down!
+        // After 3 seconds with no new Gui-message, it shuts down!
         timeout := make(chan bool, 1)
         go func() {
             time.Sleep(3 * time.Second)
@@ -1935,49 +1875,28 @@ func sendGuiMessages(guiId GuiId, ws *websocket.Conn, channel chan ServerGuiUpda
 
         select {
             case message, ok := <-channel:
-                otherMessages, count := getOtherMessagesFromGuiChannel(channel)
+                otherMessages, _ := getOtherMessagesFromGuiChannel(channel)
+                allMessages := append([]ServerGuiUpdateMessage{message}, otherMessages...)
                 if ok {
-                    var err error
-
-                    if count > 10 {
-                        Logf(LtDebug, "More than 10 messages are in the Queue for gui %v. So we just shut it down!\n", guiId)
-                        delete(app.guiConnections, guiId)
-                        ws.Close()
-                        return
-                    }
-
-                    if len(otherMessages) == 0 {
-                        // Just now, we send the whole message!
-                        err = websocket.JSON.Send(ws, message)
-                        Logf(LtDebug, "sent Message to Gui! 1 \n")
-                    } else {
-
-                        allMessages := append([]ServerGuiUpdateMessage{message}, otherMessages...)
-
-                        for _,m := range(allMessages) {
+                    for i,m := range(allMessages) {
+                        // The last message is sent in full, so it keeps moving.
+                        if i != len(allMessages)-1 {
                             m.CreatedOrUpdatedBots = make(map[string]ServerGuiBot)
                             m.StatisticsThisGame   = make(map[string]Statistics)
                             m.StatisticsGlobal     = make(map[string]Statistics)
-                            // Send just essential stuff!
-                            err = websocket.JSON.Send(ws, m)
+                        }
 
-                            Logf(LtDebug, "sent Message to Gui! 2 \n")
+                        if err := websocket.JSON.Send(ws, m); err != nil {
+                            Logf(LtDebug, "There was an error, trying to send data to gui %v. Shutting Gui down!\n", guiId)
+                            return
                         }
                     }
-
-                    if err != nil {
-                        Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
-                    }
-
                 } else {
                     Logf(LtDebug, "GUI - NOT ok!")
                 }
             case <-timeout:
                 Logf(LtDebug, "===> Timeout for Gui messages (GuiId: %v) - go routine shutting down!\n", guiId)
-                //delete(app.guiConnections, guiId)
-                //ws.Close()
                 return
-
         }
     }
 }
@@ -1990,39 +1909,15 @@ func handleGui(ws *websocket.Conn) {
         app.standbyMode <- true
     }
 
-    var messageChannel = make(chan ServerGuiUpdateMessage, 10000)
-    var isAlive        = make(chan bool, 1000)
-
-    app.guiConnections[guiId] = GuiConnection{ ws, true, messageChannel, isAlive }
-
-    go sendGuiMessages(guiId, ws, messageChannel, isAlive)
-
     Logf(LtDebug, "Got connection for Gui %v\n", guiId)
 
-    var err error
-    for {
-
-        if connectionIsTerminated(app.runningState) {
-            Logf(LtDebug, "HandleGui is shutting down.\n")
-            delete(app.guiConnections, guiId)
-            isAlive <- false
-            ws.Close()
-            return
-        }
-
-        var reply string
-
-        if err = websocket.Message.Receive(ws, &reply); err != nil {
-            Logf(LtDebug, "Can't receive (%v)\n", err)
-            delete(app.guiConnections, guiId)
-            isAlive <- false
-            break
-        }
-    }
+    var messageChannel = make(chan ServerGuiUpdateMessage, 100)
+    app.guiConnections[guiId] = GuiConnection{ ws, true, messageChannel }
+    sendGuiMessages(guiId, ws, messageChannel)
 }
 
 
-func createStartingBot(ws *websocket.Conn, botInfo BotInfo, statistics Statistics, messageChannel chan ServerMiddlewareGameState, alive chan bool) Bot {
+func createStartingBot(ws *websocket.Conn, botInfo BotInfo, statistics Statistics, messageChannel chan ServerMiddlewareGameState) Bot {
     if pos, ok := newBotPos(); ok {
 
         blob := Blob {
@@ -2055,7 +1950,6 @@ func createStartingBot(ws *websocket.Conn, botInfo BotInfo, statistics Statistic
             StatisticsOverall:      statistics,
             Command:                BotCommand{ BatNone, RandomVec2(), },
             MessageChannel:         messageChannel,
-            Alive:                  alive,
             Connection:             ws,
             ConnectionAlive:        true,
         }
@@ -2120,8 +2014,12 @@ func handleMiddleware(ws *websocket.Conn) {
         app.standbyMode <- true
     }
 
-    var messageChannel = make(chan ServerMiddlewareGameState, 10000)
-    var isAlive        = make(chan bool, 10000)
+    var messageChannel = make(chan ServerMiddlewareGameState, 100)
+    var isAlive        = make(chan bool)
+
+    go sendMiddlewareMessages(botId, ws, messageChannel, isAlive)
+
+    defer ws.Close()
 
     var err error
     for {
@@ -2129,8 +2027,17 @@ func handleMiddleware(ws *websocket.Conn) {
         if connectionIsTerminated(app.runningState) {
             Logf(LtDebug, "handleMiddleware is shutting down.\n")
             isAlive <- false
-            ws.Close()
             return
+        }
+
+        // Alive Test!
+        select {
+            case state, ok := <-isAlive:
+                if ok  && !state {
+                    Logf(LtDebug, "===> Alive failed - MW %v go routine shutting down!\n", botId)
+                    return
+                }
+            default:
         }
 
         //
@@ -2140,93 +2047,81 @@ func handleMiddleware(ws *websocket.Conn) {
         if err = websocket.JSON.Receive(ws, &message); err != nil {
             Logf(LtDebug, "Can't receive from bot %v. Error: %v\n", botId, err)
 
-            isAlive <- false
-
-            ws.Close()
-
             // In case the bot did not send a BotInfo for registration before the connection was lost, it's not in the map.
-            var cmd BotCommand
-            var bi  BotInfo
-
-            app.mwInfo <- MwInfo {
+            // Connection Down!
+            mwMessage := MwInfo {
                             botId:                  botId,
-                            command:                cmd,
+                            command:                BotCommand{},
                             connectionAlive:        false,
                             createNewBot:           false,
-                            botInfo:                bi,
+                            botInfo:                BotInfo{},
                             statistics:             Statistics{},
                             messageChannel:         messageChannel,
-                            alive:                  isAlive,
                             ws:                     nil,
                           }
 
+            // Der darf blockieren, da er essentiell ist!
+            app.mwInfo <- mwMessage
+            isAlive <- false
             return
         }
 
-        //
-        // Evaluate the message
-        //
-        if message.Type == MmstBotCommand {
-            if message.BotCommand != nil {
+        switch message.Type {
+            // A command for an existing Bot
+            case MmstBotCommand:
+                if message.BotCommand != nil {
 
-                var bi  BotInfo
-                app.mwInfo <- MwInfo{
-                                botId:              botId,
-                                command:            *message.BotCommand,
-                                connectionAlive:    true,
-                                createNewBot:       false,
-                                botInfo:            bi,
-                                statistics:         Statistics{},
-                                messageChannel:     messageChannel,
-                                alive:              isAlive,
-                                ws:                 nil,
-                              }
+                    mwMessage := MwInfo{
+                                    botId:              botId,
+                                    command:            *message.BotCommand,
+                                    connectionAlive:    true,
+                                    createNewBot:       false,
+                                    botInfo:            BotInfo{},
+                                    statistics:         Statistics{},
+                                    messageChannel:     messageChannel,
+                                    ws:                 nil,
+                                  }
 
+                    select {
+                    case app.mwInfo <- mwMessage:
+                    default:
+                        Logf(LtDebug, "Channel for Middleware messages is full. One message skipped.\n")
+                    }
 
-            } else {
-                Logf(LtDebug, "Got a dirty message from bot %v. BotCommand is nil.\n", botId)
-            }
-        } else if message.Type == MmstBotInfo {
-            if message.BotInfo != nil {
-                // Check, if a player with this name is actually allowed to play
-                // So we take the time to sort out old statistics from files here and not
-                // in the main game loop (so adding, say, 100 bots, doesn't affect the other, normal computations!)
-                isAllowed, statisticsOverall := CheckPotentialPlayer(message.BotInfo.Name)
-
-                sourceIP := strings.Split(ws.Request().RemoteAddr, ":")[0]
-                myIP := getIP()
-
-                if message.BotInfo.Name == "dummy" && sourceIP != myIP && sourceIP != "localhost" && sourceIP != "127.0.0.1" {
-                    isAllowed = false
-                    //Logf(LtDebug, "sourceIP: %v, myIP: %v\n", sourceIP, myIP)
-                    Logf(LtDebug, "The player name 'dummy' is not allowed! Request from: %s, at: %s\n", sourceIP, time.Now().Format(time.RFC850))
+                } else {
+                    Logf(LtDebug, "Got a dirty message from bot %v. BotCommand is nil.\n", botId)
                 }
 
-                if !isAllowed {
-                    Logf(LtDebug, "The player %v is not allowed to play. Please add %v to your bot.names. Request from: %s, at: %s\n", message.BotInfo.Name, message.BotInfo.Name, sourceIP, time.Now().Format(time.RFC850))
-                    ws.Close()
-                    return
+            // A new Bot
+            case MmstBotInfo:
+                if message.BotInfo != nil {
+                    sourceIP := strings.Split(ws.Request().RemoteAddr, ":")[0]
+
+                    isAllowed, statisticsOverall := CheckPotentialPlayer(message.BotInfo.Name, getIP(), sourceIP)
+
+                    if !isAllowed {
+                        Logf(LtDebug, "The player %v is not allowed to play. Please add %v to your bot.names. Request from: %s, at: %s\n", message.BotInfo.Name, message.BotInfo.Name, sourceIP, time.Now().Format(time.RFC850))
+                        isAlive <- false
+                        return
+                    }
+
+                    app.mwInfo <- MwInfo{
+                                    botId:              botId,
+                                    command:            BotCommand{},
+                                    connectionAlive:    true,
+                                    createNewBot:       true,
+                                    botInfo:            *message.BotInfo,
+                                    statistics:         statisticsOverall,
+                                    messageChannel:     messageChannel,
+                                    ws:                 ws,
+                                  }
+
+                    Logf(LtDebug, "Bot %v registered: %v. From: %s, at: %s\n", botId, *message.BotInfo, sourceIP, time.Now().Format(time.RFC850))
+                } else {
+                    Logf(LtDebug, "Got a dirty message from bot %v. BotInfo is nil.\n", botId)
                 }
-
-                go sendMiddlewareMessages(botId, ws, messageChannel, isAlive)
-
-                var cmd BotCommand
-                app.mwInfo <- MwInfo{
-                                botId:              botId,
-                                command:            cmd,
-                                connectionAlive:    true,
-                                createNewBot:       true,
-                                botInfo:            *message.BotInfo,
-                                statistics:         statisticsOverall,
-                                messageChannel:     messageChannel,
-                                alive:              isAlive,
-                                ws:                 ws,
-                              }
-
-                Logf(LtDebug, "Bot %v registered: %v. From: %s, at: %s\n", botId, *message.BotInfo, sourceIP, time.Now().Format(time.RFC850))
-            } else {
-                Logf(LtDebug, "Got a dirty message from bot %v. BotInfo is nil.\n", botId)
-            }
+            default:
+                Logf(LtDebug, "Got a dirty message from bot %v. Type not recognised.\n", botId)
         }
     }
 }
