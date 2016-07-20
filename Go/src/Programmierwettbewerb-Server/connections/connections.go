@@ -144,11 +144,11 @@ type ServerGuiBot struct {
     ViewWindow  ViewWindow                  `json:"viewWindow"`
 }
 
-func MakeServerGuiBot(bot Bot) ServerGuiBot {
+func NewServerGuiBot(bot Bot) ServerGuiBot {
     blobs := make(map[string]ServerGuiBlob)
     for blobId, blob := range bot.Blobs {
         key := strconv.Itoa(int(blobId))
-        blobs[key] = MakeServerGuiBlob(blob)
+        blobs[key] = NewServerGuiBlob(blob)
     }
     return ServerGuiBot{ blobs, bot.ViewWindow }
 }
@@ -158,7 +158,7 @@ type ServerGuiBlob struct {
     Mass        float32     `json:"mass"`
 }
 
-func MakeServerGuiBlob(blob Blob) ServerGuiBlob {
+func NewServerGuiBlob(blob Blob) ServerGuiBlob {
     return ServerGuiBlob{ blob.Position, blob.Mass }
 }
 
@@ -167,7 +167,7 @@ type ServerGuiFood struct {
     Mass        float32     `json:"mass"`
 }
 
-func MakeServerGuiFood(food Food) ServerGuiFood {
+func NewServerGuiFood(food Food) ServerGuiFood {
     return ServerGuiFood{ food.Position, food.Mass }
 }
 
@@ -176,7 +176,7 @@ type ServerGuiToxin struct {
     Mass        float32     `json:"mass"`
 }
 
-func MakeServerGuiToxin(toxin Toxin) ServerGuiToxin {
+func NewServerGuiToxin(toxin Toxin) ServerGuiToxin {
     return ServerGuiToxin{ toxin.Position, toxin.Mass }
 }
 

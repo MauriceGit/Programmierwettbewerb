@@ -131,7 +131,7 @@ func printProfile(profile Profile) {
 
 ////////////////////////////////////////////////////////////////////////
 //
-// MwInfo
+// MiddlewareRegistration
 //
 ////////////////////////////////////////////////////////////////////////
 
@@ -141,22 +141,15 @@ type MiddlewareRegistration struct {
     statistics              Statistics
 }
 
-type MwInfo struct {
+////////////////////////////////////////////////////////////////////////
+//
+// MiddlewareCommand
+//
+////////////////////////////////////////////////////////////////////////
+
+type MiddlewareCommand struct {
     botId                   BotId
-
-    command                 BotCommand
-
-    connectionAlive         bool
-
-    createNewBot            bool
-    botInfo                 BotInfo
-
-    messageChannel          chan ServerMiddlewareGameState
-    alive                   chan bool
-
-    statistics              Statistics
-
-    ws                      *websocket.Conn
+    botCommand              BotCommand
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -316,7 +309,7 @@ type Application struct {
 
     standbyMode                 chan bool
     runningState                chan bool
-    mwInfo                      chan MwInfo
+    middlewareCommands          chan MiddlewareCommand
     middlewareRegistrations     chan MiddlewareRegistration
     serverCommands              []string
     messagesToServerGui         chan interface{}
@@ -335,8 +328,8 @@ var app Application
 func (app* Application) initialize() {
     app.fieldSize                   = Vec2{ 1000, 1000 }
     
-    app.mwInfo                      = make(chan MwInfo, 1000)
-    app.middlewareRegistrations     = make(chan MiddlewareRegistration)
+    app.middlewareCommands          = make(chan MiddlewareCommand, 100)
+    app.middlewareRegistrations     = make(chan MiddlewareRegistration, 100)
     app.standbyMode                 = make(chan bool)
     app.runningState                = make(chan bool, 1)
     app.messagesToServerGui         = make(chan interface{}, 10)
@@ -775,7 +768,7 @@ func sendDataToGui(gameState                    *GameState,
             }
 
             if guiMessageCounter % guiMessageEvery == 0 {
-                message.CreatedOrUpdatedBots[key] = MakeServerGuiBot(bot)
+                message.CreatedOrUpdatedBots[key] = NewServerGuiBot(bot)
             }
 
             if guiStatisticsMessageCounter % guiStatisticsMessageEvery == 0 {
@@ -792,7 +785,7 @@ func sendDataToGui(gameState                    *GameState,
             for foodId, food := range gameState.foods {
                 if food.IsMoving || food.IsNew || guiConnection.IsNewConnection {
                     key := strconv.Itoa(int(foodId))
-                    message.CreatedOrUpdatedFoods[key] = MakeServerGuiFood(food)
+                    message.CreatedOrUpdatedFoods[key] = NewServerGuiFood(food)
                 }
             }
         }
@@ -803,7 +796,7 @@ func sendDataToGui(gameState                    *GameState,
             for toxinId, toxin := range gameState.toxins {
                 if toxin.IsNew || toxin.IsMoving || guiConnection.IsNewConnection {
                     key := strconv.Itoa(int(toxinId))
-                    message.CreatedOrUpdatedToxins[key] = MakeServerGuiToxin(toxin)
+                    message.CreatedOrUpdatedToxins[key] = NewServerGuiToxin(toxin)
                 }
             }
         }
@@ -1542,35 +1535,20 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                         break ProcessNewRegistrations
                 }
             }
-            
-            for {
-                finished := false
-                select {
-                case mwInfo, ok := <-app.mwInfo:
-                    if ok {
-                        if _, ok := gameState.bots[mwInfo.botId]; ok {
-                            bot := gameState.bots[mwInfo.botId]
-                            
-                            // TODO(henk): Is this really redundant now? Is the connection already removed?
-                            //bot.connection.ConnectionAlive = mwInfo.connectionAlive
-                            
-                            // There is actually a command
-                            if (BotCommand{}) != mwInfo.command {
-                                bot.Command = mwInfo.command
-                            }
 
-                            gameState.bots[mwInfo.botId] = bot
-                        }
-                    } else {
-                        // Channel closed. Something is SERIOUSLY wrong.
-                        Logf(LtDebug, "Something is SERIOUSLY wrong\n")
+            ProcessingNewCommands:
+            for {
+                select {
+                case middlewareCommand := <-app.middlewareCommands:
+                    if bot, ok := gameState.bots[middlewareCommand.botId]; ok {                       
+                        // TODO(henk): Is this really redundant now? Is the connection already removed?
+                        //bot.connection.ConnectionAlive = mwInfo.connectionAlive
+                                                
+                        bot.Command = middlewareCommand.botCommand
+                        gameState.bots[middlewareCommand.botId] = bot
                     }
                 default:
-                    // No value to read
-                    finished = true
-                }
-                if finished {
-                    break
+                    break ProcessingNewCommands
                 }
             }
             endProfileEvent(&profile, &profileEventReadFromMiddleware)
@@ -1949,17 +1927,10 @@ func handleMiddleware(ws *websocket.Conn) {
         switch (message.Type) {
             case MmstBotCommand:
                 if message.BotCommand != nil {
-                    app.mwInfo <- MwInfo{
-                                    botId:              botId,
-                                    command:            *message.BotCommand,
-                                    connectionAlive:    true,
-                                    createNewBot:       false,
-                                    botInfo:            BotInfo{},
-                                    statistics:         Statistics{},
-                                    messageChannel:     messageChannel,
-                                    alive:              closeEvent,
-                                    ws:                 nil,
-                                  }
+                    app.middlewareCommands <- MiddlewareCommand{
+                                                  botId:   botId,
+                                                  botCommand: *message.BotCommand,
+                                              }
                 } else {
                     Logf(LtDebug, "Got a dirty message from bot %v. BotCommand is nil.\n", botId)
                 }
