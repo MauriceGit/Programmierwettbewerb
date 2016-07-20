@@ -498,7 +498,6 @@ type Application struct {
     middlewareConnections       MiddlewareConnections
     settings                    ServerSettings
     ids                         Ids
-    gameState                   GameState
 }
 
 var app Application
@@ -519,7 +518,6 @@ func (app* Application) initialize() {
     app.middlewareConnections.initialize()
     app.settings.initialize()
     app.ids.initialize(app.settings)
-    app.gameState.initialize(app.settings)
 }
 
 
@@ -657,19 +655,19 @@ func newToxinPos() (Vec2, bool) {
     return app.settings.toxinDistribution[rand.Intn(length)], true
 }
 
-func newBotPos() (Vec2, bool) {
-    length := len(app.settings.botDistribution)
+func newBotPos(gameState *GameState, settings *ServerSettings) (Vec2, bool) {
+    length := len(settings.botDistribution)
     if length == 0 {
         return Vec2{}, false
     }
     // Check, that the player doesn't spawn inside another blob!
     for i := 1; i < 10; i++{
-        pos := app.settings.botDistribution[rand.Intn(length)]
-        if len(app.gameState.bots) == 0 {
+        pos := settings.botDistribution[rand.Intn(length)]
+        if len(gameState.bots) == 0 {
             return pos, true
         }
         allGood := true
-        for _,bot := range(app.gameState.bots) {
+        for _,bot := range(gameState.bots) {
             for _,blob := range(bot.Blobs) {
                 var dist = Dist(pos, blob.Position)
                 var minDist  = blob.Radius() + 30
@@ -690,7 +688,7 @@ func newBotPos() (Vec2, bool) {
 
     Logf(LtDebug, "Bot position could NOT be determined. Bot is started at a random position!\n")
 
-    pos := app.settings.botDistribution[rand.Intn(length)]
+    pos := settings.botDistribution[rand.Intn(length)]
     return pos, true
 }
 
@@ -823,7 +821,7 @@ func splitAllBlobsOfBot(bot *Bot, ids *Ids) {
     }
 }
 
-func throwAllBlobsOfBot(bot *Bot, botId BotId) bool {
+func throwAllBlobsOfBot(gameState *GameState, bot *Bot, botId BotId) bool {
     somebodyThrew := false
     for blobId, blob := range (*bot).Blobs {
         if blob.Mass > massToBeAllowedToThrow {
@@ -842,7 +840,7 @@ func throwAllBlobsOfBot(bot *Bot, botId BotId) bool {
                 Position: Add(blob.Position, Muls(targetDirection, 1.5*(blob.Radius() + Radius(thrownFoodMass)))),
                 Velocity: Muls(targetDirection, 150),
             }
-            app.gameState.foods[foodId] = food
+            gameState.foods[foodId] = food
 
             blob.Mass = blob.Mass - thrownFoodMass
 
@@ -861,13 +859,13 @@ func randomVecOnCircle(radius float32) Vec2 {
     return Vec2{x, y}
 }
 
-func explodeBlob(botId BotId, blobId BlobId, newMap *map[BlobId]Blob, ids *Ids)  {
+func explodeBlob(gameState *GameState, botId BotId, blobId BlobId, newMap *map[BlobId]Blob, ids *Ids)  {
     blobCount := 12
     splitRadius := float32(3.0)
 
     // ToDo(Maurice): Make exploded Bubbles in random/different sizes with one of them
     // consisting of half the mass!
-    blob := app.gameState.bots[botId].Blobs[blobId]
+    blob := gameState.bots[botId].Blobs[blobId]
     for i := 0; i < blobCount; i++ {
         newIndex  := ids.createBlobId()
         (*newMap)[newIndex] = Blob{
@@ -895,10 +893,10 @@ func makeServerMiddlewareBlob(botId BotId, blobId BlobId, blob Blob) ServerMiddl
     }
 }
 
-func makeServerMiddlewareBlobs(botId BotId) []ServerMiddlewareBlob {
+func makeServerMiddlewareBlobs(gameState *GameState, botId BotId) []ServerMiddlewareBlob {
     var blobArray []ServerMiddlewareBlob
 
-    for blobId, blob := range app.gameState.bots[botId].Blobs {
+    for blobId, blob := range gameState.bots[botId].Blobs {
         blobArray = append(blobArray, makeServerMiddlewareBlob(botId, blobId, blob))
     }
 
@@ -922,8 +920,8 @@ func checkNaNF (f float32, prefix string, s string) {
         Logf(LtDebug, "NaN (Float) is found for: __%v__ %v\n", prefix, s)
     }
 }
-func checkAllValuesOnNaN(prefix string) {
-    for _,bot := range app.gameState.bots {
+func checkAllValuesOnNaN(gameState *GameState, prefix string) {
+    for _,bot := range gameState.bots {
         checkNaNV(bot.ViewWindow.Position, prefix, "bot.ViewWindow.Position")
         checkNaNV(bot.ViewWindow.Size, prefix, "bot.ViewWindow.Size")
         for _,blob := range bot.Blobs {
@@ -934,12 +932,12 @@ func checkAllValuesOnNaN(prefix string) {
             checkNaNF(blob.VelocityFac, prefix, "blob.VelocityFac")
         }
     }
-    for _,food := range app.gameState.foods {
+    for _,food := range gameState.foods {
         checkNaNF(food.Mass, prefix, "food.Mass")
         checkNaNV(food.Position, prefix, "food.Position")
         checkNaNV(food.Velocity, prefix, "food.Velocity")
     }
-    for _,toxin := range app.gameState.toxins {
+    for _,toxin := range gameState.toxins {
         checkNaNV(toxin.Position, prefix, "toxin.Position")
         checkNaNF(toxin.Mass, prefix, "toxin.Mass")
         checkNaNV(toxin.Velocity, prefix, "toxin.Velocity")
@@ -954,33 +952,13 @@ func startBashScript(path string) {
     }
 }
 
-// This locks the mutex so this is just evaluated once at a time!
-func nobodyIsWatching() bool {
-    someoneIsThere := false
-
-    if len(app.gameState.bots) > app.settings.MinNumberOfBots {
-        someoneIsThere = true
-    } else {
-
-        for _,bot := range app.gameState.bots {
-            if bot.Info.Name != "dummy" {
-                someoneIsThere = true
-                break
-            }
-        }
-        someoneIsThere = someoneIsThere || app.guiConnections.count() > 0
-    }
-
-    return !someoneIsThere
-}
-
-func sendDataToMiddleware(mWMessageCounter int) {
+func sendDataToMiddleware(gameState *GameState, mWMessageCounter int) {
     if mWMessageCounter % mwMessageEvery == 0 {
         app.middlewareConnections.Lock()
         for botId, middlewareConnection := range app.middlewareConnections.connections {
             channel := middlewareConnection.MessageChannel
 
-            bot, ok := app.gameState.bots[botId]
+            bot, ok := gameState.bots[botId]
             if (!ok) {
                 Logf(LtDebug, "While sending the data to all middlewares, we encountered a middleware connection, for which we did not find a bot.\n")
                 continue
@@ -988,7 +966,7 @@ func sendDataToMiddleware(mWMessageCounter int) {
 
             // Collecting other blobs
             var otherBlobs []ServerMiddlewareBlob
-            for otherBotId, otherBot := range app.gameState.bots {
+            for otherBotId, otherBot := range gameState.bots {
                 if botId != otherBotId {
                     for otherBlobId, otherBlob := range otherBot.Blobs {
                         if isInViewWindow(bot.ViewWindow, otherBlob.Position, otherBlob.Radius()) {
@@ -1000,7 +978,7 @@ func sendDataToMiddleware(mWMessageCounter int) {
 
             // Collecting foods
             var foods []Food
-            for _, food := range app.gameState.foods {
+            for _, food := range gameState.foods {
                 if isInViewWindow(bot.ViewWindow, food.Position, Radius(food.Mass)) {
                     foods = append(foods, food)
                 }
@@ -1008,14 +986,14 @@ func sendDataToMiddleware(mWMessageCounter int) {
 
             // Collecting toxins
             var toxins []Toxin
-            for _, toxin := range app.gameState.toxins {
+            for _, toxin := range gameState.toxins {
                 if isInViewWindow(bot.ViewWindow, toxin.Position, Radius(toxin.Mass)) {
                     toxins = append(toxins, toxin)
                 }
             }
 
             var wrapper = ServerMiddlewareGameState{
-                MyBlob:         makeServerMiddlewareBlobs(botId),
+                MyBlob:         makeServerMiddlewareBlobs(gameState, botId),
                 OtherBlobs:     otherBlobs,
                 Food:           foods,
                 Toxin:          toxins,
@@ -1027,7 +1005,8 @@ func sendDataToMiddleware(mWMessageCounter int) {
     }
 }
 
-func sendDataToGui(guiMessageCounter            int,
+func sendDataToGui(gameState                    *GameState,
+                   guiMessageCounter            int,
                    guiStatisticsMessageCounter  int,
                    deadBots                     []BotId, 
                    eatenFoods                   []FoodId, 
@@ -1041,7 +1020,7 @@ func sendDataToGui(guiMessageCounter            int,
         channel := app.guiConnections.connections[guiId].MessageChannel
         message := newServerGuiUpdateMessage()
 
-        for botId, bot := range app.gameState.bots {
+        for botId, bot := range gameState.bots {
             key := strconv.Itoa(int(botId))
             if bot.GuiNeedsInfoUpdate || guiConnection.IsNewConnection {
                 message.CreatedOrUpdatedBotInfos[key] = bot.Info
@@ -1062,7 +1041,7 @@ func sendDataToGui(guiMessageCounter            int,
         message.DeletedBots = deadBots
 
         if guiMessageCounter % guiMessageEvery == 0 {
-            for foodId, food := range app.gameState.foods {
+            for foodId, food := range gameState.foods {
                 if food.IsMoving || food.IsNew || guiConnection.IsNewConnection {
                     key := strconv.Itoa(int(foodId))
                     message.CreatedOrUpdatedFoods[key] = makeServerGuiFood(food)
@@ -1073,7 +1052,7 @@ func sendDataToGui(guiMessageCounter            int,
         message.DeletedFoods = eatenFoods
 
         if guiMessageCounter % guiMessageEvery == 0 {
-            for toxinId, toxin := range app.gameState.toxins {
+            for toxinId, toxin := range gameState.toxins {
                 if toxin.IsNew || toxin.IsMoving || guiConnection.IsNewConnection {
                     key := strconv.Itoa(int(toxinId))
                     message.CreatedOrUpdatedToxins[key] = makeServerGuiToxin(toxin)
@@ -1319,7 +1298,7 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
 
             } else if bot.Command.Action == BatThrow {
                 bot := gameState.bots[botId]
-                throwAllBlobsOfBot(&bot, botId)
+                throwAllBlobsOfBot(gameState, &bot, botId)
                 gameState.bots[botId] = bot
             }
         }
@@ -1444,7 +1423,7 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
                             }
                         }
 
-                        explodeBlob(botId, blobId, &subMap, ids)
+                        explodeBlob(gameState, botId, blobId, &subMap, ids)
                         exploded = true
 
                         // Add all the new explosions:
@@ -1680,7 +1659,7 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
     return deadBots, eatenFoods, eatenToxins
 }
 
-func (app* Application) startUpdateLoop() {
+func (app* Application) startUpdateLoop(gameState* GameState) {
     ticker := time.NewTicker(time.Millisecond * 30)
     var lastTime = time.Now()
 
@@ -1721,7 +1700,7 @@ func (app* Application) startUpdateLoop() {
 
         // Once every 10 seconds
         if fpsCnt == 300 {
-            for _,bot := range app.gameState.bots {
+            for _,bot := range gameState.bots {
                 go WriteStatisticToFile(bot.Info.Name, bot.StatisticsThisGame)
             }
             fpsCnt = 0
@@ -1774,33 +1753,33 @@ func (app* Application) startUpdateLoop() {
                             Logf(LtDebug, "Toggle Profiling\n");
                             app.profiling = !app.profiling
                         case "KillAllBots":
-                            for botId, _ := range app.gameState.bots {
-                                delete(app.gameState.bots, botId)
+                            for botId, _ := range gameState.bots {
+                                delete(gameState.bots, botId)
                                 botsKilledByServerGui = append(botsKilledByServerGui, botId)
                             }
                             Logf(LtDebug, "Killed all bots\n")
                         case "KillBotsWithoutConnection":
                             Logf(LtDebug, "The server does not support the command \"KillBotsWithoutConnection\" anylonger.\n")
                         case "KillBotsAboveMassThreshold":
-                            for botId, bot := range app.gameState.bots {
+                            for botId, bot := range gameState.bots {
                                 var mass float32 = 0
                                 for _, blob := range bot.Blobs {
                                     mass += blob.Mass
                                 }
                                 if mass > float32(command.Value) {
-                                    delete(app.gameState.bots, botId)
+                                    delete(gameState.bots, botId)
                                     botsKilledByServerGui = append(botsKilledByServerGui, botId)
                                 }
                             }
                             Logf(LtDebug, "Killed bots above mass threshold\n")
                         case "FoodSpawnImage":
-                            app.settings.foodDistribution  = loadSpawnImage(command.Image, 10)
+                            app.settings.foodDistribution     = loadSpawnImage(command.Image, 10)
                             app.settings.foodDistributionName = command.Image
                         case "ToxinSpawnImage":
-                            app.settings.toxinDistribution = loadSpawnImage(command.Image, 10)
+                            app.settings.toxinDistribution     = loadSpawnImage(command.Image, 10)
                             app.settings.toxinDistributionName = command.Image
                         case "BotSpawnImage":
-                            app.settings.botDistribution   = loadSpawnImage(command.Image, 10)
+                            app.settings.botDistribution     = loadSpawnImage(command.Image, 10)
                             app.settings.botDistributionName = command.Image
                         }
                     } else {
@@ -1825,10 +1804,10 @@ func (app* Application) startUpdateLoop() {
             for {
                 select {
                     case middlewareRegistration := <-app.middlewareRegistrations:
-                        if len(app.gameState.bots) < app.settings.MaxNumberOfBots {
-                            bot, ok := createStartingBot(middlewareRegistration.botInfo, middlewareRegistration.statistics)
+                        if len(gameState.bots) < app.settings.MaxNumberOfBots {
+                            bot, ok := createStartingBot(gameState, middlewareRegistration.botInfo, middlewareRegistration.statistics)
                             if ok {
-                                app.gameState.bots[middlewareRegistration.botId] = bot
+                                gameState.bots[middlewareRegistration.botId] = bot
                             } else {
                                 Logf(LtDebug, "Due to a spawn image with a 0 spawn rate, there is no possible spawn position for this bot.\n")
                             }
@@ -1843,8 +1822,8 @@ func (app* Application) startUpdateLoop() {
                 select {
                 case mwInfo, ok := <-app.mwInfo:
                     if ok {
-                        if _, ok := app.gameState.bots[mwInfo.botId]; ok {
-                            bot := app.gameState.bots[mwInfo.botId]
+                        if _, ok := gameState.bots[mwInfo.botId]; ok {
+                            bot := gameState.bots[mwInfo.botId]
                             
                             // TODO(henk): Is this really redundant now? Is the connection already removed?
                             //bot.connection.ConnectionAlive = mwInfo.connectionAlive
@@ -1854,7 +1833,7 @@ func (app* Application) startUpdateLoop() {
                                 bot.Command = mwInfo.command
                             }
 
-                            app.gameState.bots[mwInfo.botId] = bot
+                            gameState.bots[mwInfo.botId] = bot
                         }
                     } else {
                         // Channel closed. Something is SERIOUSLY wrong.
@@ -1877,7 +1856,7 @@ func (app* Application) startUpdateLoop() {
         {
             profileEventAddDummyBots := startProfileEvent(&profile, "Add Dummy Bots")
             if lastMiddlewareStart > 2 {
-                if len(app.gameState.bots) < app.settings.MinNumberOfBots {
+                if len(gameState.bots) < app.settings.MinNumberOfBots {
                     go startBashScript("./startMiddleware.sh")
                     lastMiddlewareStart = 0
                 }
@@ -1889,13 +1868,13 @@ func (app* Application) startUpdateLoop() {
         ////////////////////////////////////////////////////////////////
         // UPDATE THE GAME STATE
         ////////////////////////////////////////////////////////////////
-        deadBots, eatenFoods, eatenToxins := update(&app.gameState, &app.settings, &app.ids, &profile, dt)        
+        deadBots, eatenFoods, eatenToxins := update(gameState, &app.settings, &app.ids, &profile, dt)        
         deadBots = append(deadBots, botsKilledByServerGui...)
 
         ////////////////////////////////////////////////////////////////
         // CHECK ANYTHING ON NaN VALUES
         ////////////////////////////////////////////////////////////////
-        checkAllValuesOnNaN("end")
+        checkAllValuesOnNaN(gameState, "end")
 
         ////////////////////////////////////////////////////////////////
         // DELETE BOTS WITHOUT ACTIVE CONNECTION
@@ -1907,10 +1886,10 @@ func (app* Application) startUpdateLoop() {
         // 3. We can append the appertaining bot to a list of bots, that is removed in the subsequent call of the update function.
         app.middlewareConnections.Lock();
         for botId, middlewareConnection := range app.middlewareConnections.connections {
-            if bot, ok := app.gameState.bots[botId]; ok {
+            if bot, ok := gameState.bots[botId]; ok {
                 if !middlewareConnection.ConnectionAlive {
                     go WriteStatisticToFile(bot.Info.Name, bot.StatisticsThisGame)
-                    delete(app.gameState.bots, botId)
+                    delete(gameState.bots, botId)
                     deadBots = append(deadBots, botId)
                 }
             }
@@ -1923,31 +1902,32 @@ func (app* Application) startUpdateLoop() {
             ////////////////////////////////////////////////////////////////
             // SEND UPDATED DATA TO MIDDLEWARE AND GUI
             ////////////////////////////////////////////////////alive_test////////////
-            sendDataToMiddleware(messageCounters.mWMessageCounter)
-            sendDataToGui(messageCounters.guiMessageCounter, 
+            sendDataToMiddleware(gameState, messageCounters.mWMessageCounter)
+            sendDataToGui(gameState,
+                          messageCounters.guiMessageCounter, 
                           messageCounters.guiStatisticsMessageCounter, 
                           deadBots, 
                           eatenFoods, 
                           eatenToxins, 
-                          app.gameState.bots, 
-                          app.gameState.toxins, 
-                          app.gameState.foods)
+                          gameState.bots, 
+                          gameState.toxins, 
+                          gameState.foods)
 
-            for toxinId, toxin := range app.gameState.toxins {
+            for toxinId, toxin := range gameState.toxins {
                 if toxin.IsNew {
                     toxin.IsNew = false
-                    app.gameState.toxins[toxinId] = toxin
+                    gameState.toxins[toxinId] = toxin
                 }
             }
-            for foodId, food := range app.gameState.foods {
+            for foodId, food := range gameState.foods {
                 if food.IsNew {
                     food.IsNew = false
-                    app.gameState.foods[foodId] = food
+                    gameState.foods[foodId] = food
                 }
             }
-            for botId, bot := range app.gameState.bots {
+            for botId, bot := range gameState.bots {
                 bot.GuiNeedsInfoUpdate = false
-                app.gameState.bots[botId] = bot
+                gameState.bots[botId] = bot
             }
 
             app.guiConnections.makeAllOld()
@@ -2086,8 +2066,8 @@ func handleGui(ws *websocket.Conn) {
     }
 }
 
-func createStartingBot(botInfo BotInfo, statistics Statistics) (Bot, bool) {
-    if pos, ok := newBotPos(); ok {
+func createStartingBot(gameState *GameState, botInfo BotInfo, statistics Statistics) (Bot, bool) {
+    if pos, ok := newBotPos(gameState, &app.settings); ok {
         blob := Blob {
             Position:       pos,  // TODO(henk): How do we decide this?
             Mass:           100.0,
@@ -2487,9 +2467,12 @@ func main() {
 
     InitOrganisation()
     UpdateAllSVN()
+    
+    var gameState GameState
+    gameState.initialize(app.settings)
 
     // Run the update-loop in parallel to serve the websocket on the main thread.
-    go app.startUpdateLoop()
+    go app.startUpdateLoop(&gameState)
 
     // HTML sides
     http.Handle("/", http.FileServer(http.Dir("../Public/")))
