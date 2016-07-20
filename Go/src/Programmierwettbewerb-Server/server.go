@@ -159,10 +159,12 @@ type MiddlewareCommand struct {
 ////////////////////////////////////////////////////////////////////////
 
 type ServerSettings struct {
-    MinNumberOfBots     int
-    MaxNumberOfBots     int
-    MaxNumberOfFoods    int
-    MaxNumberOfToxins   int
+    fieldSize                   Vec2
+
+    MinNumberOfBots             int
+    MaxNumberOfBots             int
+    MaxNumberOfFoods            int
+    MaxNumberOfToxins           int
 
     foodDistributionName        string
     toxinDistributionName       string
@@ -174,18 +176,20 @@ type ServerSettings struct {
 }
 
 func (settings *ServerSettings) initialize() {
-    settings.MinNumberOfBots    = 14
-    settings.MaxNumberOfBots    = 100
-    settings.MaxNumberOfFoods   = 1000
-    settings.MaxNumberOfToxins  = 50
-    
-    settings.foodDistributionName        = "black.bmp"
-    settings.toxinDistributionName       = "black.bmp"
-    settings.botDistributionName         = "black.bmp"
+    settings.fieldSize              = Vec2{ 1000, 1000 }
 
-    settings.foodDistribution            = loadSpawnImage(settings.foodDistributionName, 10)
-    settings.toxinDistribution           = loadSpawnImage(settings.toxinDistributionName, 10)
-    settings.botDistribution             = loadSpawnImage(settings.botDistributionName, 10)
+    settings.MinNumberOfBots        = 14
+    settings.MaxNumberOfBots        = 100
+    settings.MaxNumberOfFoods       = 1000
+    settings.MaxNumberOfToxins      = 50
+    
+    settings.foodDistributionName   = "black.bmp"
+    settings.toxinDistributionName  = "black.bmp"
+    settings.botDistributionName    = "black.bmp"
+
+    settings.foodDistribution       = loadSpawnImage(settings, settings.foodDistributionName, 10)
+    settings.toxinDistribution      = loadSpawnImage(settings, settings.toxinDistributionName, 10)
+    settings.botDistribution        = loadSpawnImage(settings, settings.botDistributionName, 10)
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -305,8 +309,6 @@ func (ids* Ids) createToxinId() ToxinId {
 ////////////////////////////////////////////////////////////////////////
 
 type Application struct {
-    fieldSize                   Vec2    
-
     standbyMode                 chan bool
     runningState                chan bool
     middlewareCommands          chan MiddlewareCommand
@@ -325,9 +327,7 @@ type Application struct {
 
 var app Application
 
-func (app* Application) initialize() {
-    app.fieldSize                   = Vec2{ 1000, 1000 }
-    
+func (app* Application) initialize() {   
     app.middlewareCommands          = make(chan MiddlewareCommand, 100)
     app.middlewareRegistrations     = make(chan MiddlewareRegistration, 100)
     app.standbyMode                 = make(chan bool)
@@ -648,11 +648,11 @@ func makeServerMiddlewareBlobs(gameState *GameState, botId BotId) []ServerMiddle
     return blobArray
 }
 
-func limitPosition(position *Vec2) {
+func limitPosition(settings *ServerSettings, position *Vec2) {
     if (*position).X < 0 { (*position).X = 0 }
     if (*position).Y < 0 { (*position).Y = 0 }
-    if (*position).X > app.fieldSize.X { (*position).X = app.fieldSize.X }
-    if (*position).Y > app.fieldSize.Y { (*position).Y = app.fieldSize.Y }
+    if (*position).X > settings.fieldSize.X { (*position).X = settings.fieldSize.X }
+    if (*position).Y > settings.fieldSize.Y { (*position).Y = settings.fieldSize.Y }
 }
 
 func checkNaNV (v Vec2, prefix string, s string) {
@@ -879,7 +879,7 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
                     blob.ReunionTime -= dt
                 }
 
-                limitPosition(&blob.Position)
+                limitPosition(settings, &blob.Position)
 
                 gameState.bots[botId].Blobs[blobId] = blob
             }
@@ -957,7 +957,7 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
         for foodId, food := range gameState.foods {
             if food.IsMoving {
                 food.Position = Add(food.Position, Muls(food.Velocity, dt))
-                limitPosition(&food.Position)
+                limitPosition(settings, &food.Position)
                 food.Velocity = Muls(food.Velocity, velocityDecreaseFactor)
                 gameState.foods[foodId] = food
                 if Length(food.Velocity) <= 0.001 {
@@ -976,7 +976,7 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
         for toxinId, toxin := range gameState.toxins {
             if toxin.IsMoving {
                 toxin.Position = Add(toxin.Position, Muls(toxin.Velocity, dt))
-                limitPosition(&toxin.Position)
+                limitPosition(settings, &toxin.Position)
                 toxin.Velocity = Muls(toxin.Velocity, velocityDecreaseFactor)
                 gameState.toxins[toxinId] = toxin
                 if Length(toxin.Velocity) <= 0.001 {
@@ -1492,13 +1492,13 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                             }
                             Logf(LtDebug, "Killed bots above mass threshold\n")
                         case "FoodSpawnImage":
-                            app.settings.foodDistribution     = loadSpawnImage(command.Image, 10)
+                            app.settings.foodDistribution     = loadSpawnImage(&app.settings, command.Image, 10)
                             app.settings.foodDistributionName = command.Image
                         case "ToxinSpawnImage":
-                            app.settings.toxinDistribution     = loadSpawnImage(command.Image, 10)
+                            app.settings.toxinDistribution     = loadSpawnImage(&app.settings, command.Image, 10)
                             app.settings.toxinDistributionName = command.Image
                         case "BotSpawnImage":
-                            app.settings.botDistribution     = loadSpawnImage(command.Image, 10)
+                            app.settings.botDistribution     = loadSpawnImage(&app.settings, command.Image, 10)
                             app.settings.botDistributionName = command.Image
                         }
                     } else {
@@ -1983,7 +1983,7 @@ func rgbToGrayscale(r, g, b uint32) uint8 {
     return uint8(y >> 8)
 }
 
-func loadSpawnImage(imageName string, shadesOfGray int) []Vec2 {
+func loadSpawnImage(settings *ServerSettings, imageName string, shadesOfGray int) []Vec2 {
     var filename = makeLocalSpawnName(imageName)
 
     var distributionArray []Vec2
@@ -2002,13 +2002,13 @@ func loadSpawnImage(imageName string, shadesOfGray int) []Vec2 {
             arrayCount := int(gray * float32(shadesOfGray))
 
             for i := 0; i < arrayCount; i++ {
-                minX := (x-1) * (int(app.fieldSize.X) / image.Bounds().Max.X)
-                maxX := x   * (int(app.fieldSize.X) / image.Bounds().Max.X)
+                minX := (x-1) * (int(settings.fieldSize.X) / image.Bounds().Max.X)
+                maxX :=  x    * (int(settings.fieldSize.X) / image.Bounds().Max.X)
                 if x == 0 {
                     minX = maxX
                 }
-                minY := (y-1) * (int(app.fieldSize.Y) / image.Bounds().Max.Y)
-                maxY := y   * (int(app.fieldSize.Y) / image.Bounds().Max.Y)
+                minY := (y-1) * (int(settings.fieldSize.Y) / image.Bounds().Max.Y)
+                maxY :=  y    * (int(settings.fieldSize.Y) / image.Bounds().Max.Y)
                 if y == 0 {
                     minY = maxY
                 }
