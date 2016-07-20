@@ -19,7 +19,6 @@ import (
 type MiddlewareConnection struct {
     Connection          *websocket.Conn
     MessageChannel      chan ServerMiddlewareGameState
-    Alive               chan bool
     ConnectionAlive     bool                // TODO(henk): What shall we do when the connection is lost?
 }
 
@@ -220,7 +219,6 @@ type GuiConnection struct {
     Connection          *websocket.Conn
     IsNewConnection     bool
     MessageChannel      chan ServerGuiUpdateMessage
-    CloseEvent          chan bool
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -268,7 +266,8 @@ func (guiConnections *GuiConnections) Delete(guiId GuiId) {
     defer guiConnections.Unlock()
     
     // Send a signal to exit the go-routine for sending update-messages.
-    guiConnections.connections[guiId].CloseEvent <- true
+    close(guiConnections.connections[guiId].MessageChannel)
+    
     delete(guiConnections.connections, guiId)
 }
 

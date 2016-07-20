@@ -1676,9 +1676,8 @@ func handleGui(ws *websocket.Conn) {
     // TODO(henk): Wake up from standby.
     
     var messageChannel = make(chan ServerGuiUpdateMessage, 10000)
-    var closeEvent     = make(chan bool)
 
-    guiConnection := GuiConnection{ ws, true, messageChannel, closeEvent }
+    guiConnection := GuiConnection{ ws, true, messageChannel }
     app.guiConnections.Add(guiId, guiConnection)
     
     // This procedure sends the "ServerGuiUpdateMessages"
@@ -1689,50 +1688,49 @@ func handleGui(ws *websocket.Conn) {
         timeout := time.NewTimer(timeoutDuration)
         for {
             select {
-                case message, ok := <-messageChannel:
-                    if ok {
-                        var err error
-
-                        // Consume all the messages from the channel.
-                        otherMessages := make([]ServerGuiUpdateMessage, 0, 11)
-                        Consuming:
-                        for {
-                            select {
-                                case message := <-messageChannel:
-                                    otherMessages = append(otherMessages, message)
-                                default:
-                                    break Consuming
-                            }
-                            if len(otherMessages) > 10 {
-                                Logf(LtDebug, "More than 10 messages are in the Queue for gui %v. So we just shut it down!\n", guiId)
-                                app.guiConnections.Delete(guiId)
-                                ws.Close()
-                                return
-                            }
-                        }
-
-                        // Send the messages.
-                        if len(otherMessages) == 0 {
-                            err = websocket.JSON.Send(ws, message)
-                        } else {
-                            allMessages := append([]ServerGuiUpdateMessage{message}, otherMessages...)
-                            for _, m := range(allMessages) {
-                                m.CreatedOrUpdatedBots = make(map[string]ServerGuiBot)
-                                m.StatisticsThisGame   = make(map[string]Statistics)
-                                m.StatisticsGlobal     = make(map[string]Statistics)
-                                err = websocket.JSON.Send(ws, m)
-                            }
-                        }
-                        
-                        if err != nil {
-                            Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
-                        }
-                        
-                        timeout.Reset(timeoutDuration)
-                    }
-                case <-closeEvent:
+                case message, isOpen := <-messageChannel:
+                    if !isOpen {
                         Logf(LtDebug, "===> Go-routine for sending update-messages to the gui is shutting down.\n")
                         return                    
+                    }
+
+                    // Consume all the messages from the channel.
+                    otherMessages := make([]ServerGuiUpdateMessage, 0, 11)
+                    Consuming:
+                    for {
+                        select {
+                            case message := <-messageChannel:
+                                otherMessages = append(otherMessages, message)
+                            default:
+                                break Consuming
+                        }
+                        if len(otherMessages) > 10 {
+                            Logf(LtDebug, "More than 10 messages are in the Queue for gui %v. So we just shut it down!\n", guiId)
+                            app.guiConnections.Delete(guiId)
+                            ws.Close()
+                            return
+                        }
+                    }
+
+                    // Send the messages.
+                    var err error
+                    if len(otherMessages) == 0 {
+                        err = websocket.JSON.Send(ws, message)
+                    } else {
+                        allMessages := append([]ServerGuiUpdateMessage{message}, otherMessages...)
+                        for _, m := range(allMessages) {
+                            m.CreatedOrUpdatedBots = make(map[string]ServerGuiBot)
+                            m.StatisticsThisGame   = make(map[string]Statistics)
+                            m.StatisticsGlobal     = make(map[string]Statistics)
+                            err = websocket.JSON.Send(ws, m)
+                        }
+                    }
+                    
+                    if err != nil {
+                        Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
+                    }
+                    
+                    timeout.Reset(timeoutDuration)
                 case <-timeout.C:
                     Logf(LtDebug, "===> Timeout for Gui messages (GuiId: %v) - go routine shutting down!\n", guiId)
                     return
@@ -1744,7 +1742,7 @@ func handleGui(ws *websocket.Conn) {
         if connectionIsTerminated(app.runningState) {
             Logf(LtDebug, "HandleGui is shutting down.\n")
             app.guiConnections.Delete(guiId)
-            closeEvent <- true
+            close(messageChannel)
             ws.Close()
             return
         }
@@ -1753,7 +1751,7 @@ func handleGui(ws *websocket.Conn) {
         if err := websocket.Message.Receive(ws, &reply); err != nil {
             Logf(LtDebug, "Can't receive (%v)\n", err)
             app.guiConnections.Delete(guiId)
-            closeEvent <- true
+            close(messageChannel)
             break
         }
     }
@@ -1847,13 +1845,11 @@ func handleMiddleware(ws *websocket.Conn) {
     // TODO(henk): Wake up from standby.
 
     var messageChannel = make(chan ServerMiddlewareGameState, 10000)
-    var closeEvent     = make(chan bool, 10000)
     
     isRegistered := false
     
     app.middlewareConnections.Add(botId, MiddlewareConnection{
                                 MessageChannel:         messageChannel,
-                                Alive:                  closeEvent,
                                 Connection:             ws,
                                 ConnectionAlive:        true,
                             })
@@ -1866,7 +1862,11 @@ func handleMiddleware(ws *websocket.Conn) {
             timeout := time.NewTimer(timeoutDuration)
 
             select {
-                case message := <-messageChannel:
+                case message, isOpen := <-messageChannel:
+                    if !isOpen {
+                        Logf(LtDebug, "===> Go-routine for sending messages to the middleware is shutting down.\n")
+                        return
+                    }
                     if isRegistered {
                         var err error
                         otherMessages := getOtherMessagesFromMWChannel(messageChannel)
@@ -1881,9 +1881,6 @@ func handleMiddleware(ws *websocket.Conn) {
                             Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
                         }
                     }
-                case <-closeEvent:
-                    Logf(LtDebug, "===> Go-routine for sending messages to the middleware is shutting down.\n")
-                    return
                 case <-timeout.C:
                     Logf(LtDebug, "===> Timeout for MW messages (botId: %v) - go routine shutting down!\n", botId)
                     return
@@ -1896,7 +1893,7 @@ func handleMiddleware(ws *websocket.Conn) {
     for {
         if connectionIsTerminated(app.runningState) {
             Logf(LtDebug, "handleMiddleware is shutting down.\n")
-            closeEvent <- true
+            close(messageChannel)
             ws.Close()
             return
         }
@@ -1905,8 +1902,7 @@ func handleMiddleware(ws *websocket.Conn) {
         var message MessageMiddlewareServer
         if err = websocket.JSON.Receive(ws, &message); err != nil {
             Logf(LtDebug, "Can't receive from bot %v. Error: %v\n", botId, err)
-
-            closeEvent <- true
+            close(messageChannel)
             
             // TODO(henk): Remove the connection? Its not alive anymore.
             
