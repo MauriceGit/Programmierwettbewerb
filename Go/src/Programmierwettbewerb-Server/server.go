@@ -204,10 +204,12 @@ type GameState struct {
     bots                    map[BotId]Bot
 }
 
-func (gameState* GameState) initialize(serverSettings ServerSettings) {
-    gameState.foods                       = make(map[FoodId]Food)
-    gameState.bots                        = make(map[BotId]Bot)
-    gameState.toxins                      = make(map[ToxinId]Toxin)
+func NewGameState(serverSettings ServerSettings) GameState {
+    var gameState GameState
+    
+    gameState.foods         = make(map[FoodId]Food)
+    gameState.bots          = make(map[BotId]Bot)
+    gameState.toxins        = make(map[ToxinId]Toxin)
     
     for i := FoodId(0); i < FoodId(app.settings.MaxNumberOfFoods); i++ {
         mass := foodMassMin + rand.Float32() * (foodMassMax - foodMassMin)
@@ -221,6 +223,8 @@ func (gameState* GameState) initialize(serverSettings ServerSettings) {
             gameState.toxins[ToxinId(i)] = Toxin{true, false, pos, false, BotId(0), toxinMassMin, RandomVec2()}
         }
     }
+    
+    return gameState
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -311,8 +315,11 @@ func (ids* Ids) createToxinId() ToxinId {
 type Application struct {
     standbyMode                 chan bool
     runningState                chan bool
+    
     middlewareCommands          chan MiddlewareCommand
     middlewareRegistrations     chan MiddlewareRegistration
+    middlewareTerminations      chan BotId
+    
     serverCommands              []string
     messagesToServerGui         chan interface{}
     serverGuiIsConnected        bool
@@ -327,9 +334,11 @@ type Application struct {
 
 var app Application
 
-func (app* Application) initialize() {   
+func (app* Application) initialize() {       
     app.middlewareCommands          = make(chan MiddlewareCommand, 100)
     app.middlewareRegistrations     = make(chan MiddlewareRegistration, 100)
+    app.middlewareTerminations      = make(chan BotId, 100)
+    
     app.standbyMode                 = make(chan bool)
     app.runningState                = make(chan bool, 1)
     app.messagesToServerGui         = make(chan interface{}, 10)
@@ -1409,6 +1418,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         ////////////////////////////////////////////////////////////////
         // READ FROM MIDDLEWARE
         ////////////////////////////////////////////////////////////////
+        terminatedBots := make([]BotId, 0, 10)
         {
             profileEventReadFromMiddleware := startProfileEvent(&profile, "Read from Middleware")
             
@@ -1434,9 +1444,6 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                 select {
                 case middlewareCommand := <-app.middlewareCommands:
                     if bot, ok := gameState.bots[middlewareCommand.botId]; ok {                       
-                        // TODO(henk): Is this really redundant now? Is the connection already removed?
-                        //bot.connection.ConnectionAlive = mwInfo.connectionAlive
-                                                
                         bot.Command = middlewareCommand.botCommand
                         gameState.bots[middlewareCommand.botId] = bot
                     }
@@ -1444,6 +1451,21 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                     break ProcessingNewCommands
                 }
             }
+            
+            ProcessingTerminations:
+            for {
+                select {
+                case botId := <-app.middlewareTerminations:
+                    // TODO(henk): Do I need to check this?
+                    if _, ok := gameState.bots[botId]; ok {
+                        delete(gameState.bots, botId)
+                        terminatedBots = append(terminatedBots, botId)
+                    }
+                default:
+                    break ProcessingTerminations
+                }
+            }
+            
             endProfileEvent(&profile, &profileEventReadFromMiddleware)
         }
 
@@ -1467,6 +1489,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         ////////////////////////////////////////////////////////////////
         deadBots, eatenFoods, eatenToxins := update(gameState, &app.settings, &app.ids, &profile, dt)        
         deadBots = append(deadBots, botsKilledByServerGui...)
+        deadBots = append(deadBots, terminatedBots...)
 
         ////////////////////////////////////////////////////////////////
         // CHECK ANYTHING ON NaN VALUES
@@ -1742,8 +1765,6 @@ func handleGui(ws *websocket.Conn) {
         if connectionIsTerminated(app.runningState) {
             Logf(LtDebug, "HandleGui is shutting down.\n")
             app.guiConnections.Delete(guiId)
-            close(messageChannel)
-            ws.Close()
             return
         }
 
@@ -1751,7 +1772,6 @@ func handleGui(ws *websocket.Conn) {
         if err := websocket.Message.Receive(ws, &reply); err != nil {
             Logf(LtDebug, "Can't receive (%v)\n", err)
             app.guiConnections.Delete(guiId)
-            close(messageChannel)
             break
         }
     }
@@ -1848,19 +1868,23 @@ func handleMiddleware(ws *websocket.Conn) {
     
     isRegistered := false
     
-    app.middlewareConnections.Add(botId, MiddlewareConnection{
-                                MessageChannel:         messageChannel,
-                                Connection:             ws,
-                                ConnectionAlive:        true,
-                            })
+    app.middlewareConnections.Add(botId, 
+        MiddlewareConnection{
+            MessageChannel:         messageChannel,
+            Connection:             ws,
+            ConnectionAlive:        true,
+        })
+    
+    terminate := func() {
+        app.middlewareConnections.Delete(botId)
+        app.middlewareTerminations <- botId
+    }
     
     // This procedure sends the "ServerMiddlewareGameStates".
     go func() {
+        timeoutDuration := 5*time.Second
+        timeout := time.NewTimer(timeoutDuration)
         for {
-            // After 5 seconds with no new Middleware-message, it shuts down!
-            timeoutDuration := 5*time.Second
-            timeout := time.NewTimer(timeoutDuration)
-
             select {
                 case message, isOpen := <-messageChannel:
                     if !isOpen {
@@ -1880,8 +1904,11 @@ func handleMiddleware(ws *websocket.Conn) {
                         if err != nil {
                             Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
                         }
+                        // This also means, that the bots have "timeoutDuration" to register themselves.
+                        timeout.Reset(timeoutDuration)
                     }
                 case <-timeout.C:
+                    terminate()
                     Logf(LtDebug, "===> Timeout for MW messages (botId: %v) - go routine shutting down!\n", botId)
                     return
             }
@@ -1891,10 +1918,10 @@ func handleMiddleware(ws *websocket.Conn) {
 
     var err error
     for {
+        // TODO(henk): This should be done differently
         if connectionIsTerminated(app.runningState) {
             Logf(LtDebug, "handleMiddleware is shutting down.\n")
-            close(messageChannel)
-            ws.Close()
+            terminate()
             return
         }
 
@@ -1902,11 +1929,7 @@ func handleMiddleware(ws *websocket.Conn) {
         var message MessageMiddlewareServer
         if err = websocket.JSON.Receive(ws, &message); err != nil {
             Logf(LtDebug, "Can't receive from bot %v. Error: %v\n", botId, err)
-            close(messageChannel)
-            
-            // TODO(henk): Remove the connection? Its not alive anymore.
-            
-            ws.Close()
+            terminate()
             return
         }
 
@@ -2136,7 +2159,6 @@ func createConfigFile() {
 }
 
 func main() {
-
     runtime.GOMAXPROCS(32)
 
     // TODO(henk): Maybe we wanna toggle this at runtime.
@@ -2150,13 +2172,10 @@ func main() {
     InitOrganisation()
     UpdateAllSVN()
     
-    var gameState GameState
-    gameState.initialize(app.settings)
-
-    // Run the update-loop in parallel to serve the websocket on the main thread.
+    gameState := NewGameState(app.settings)
     go app.startUpdateLoop(&gameState)
 
-    // HTML sides
+    // HTML sites
     http.Handle("/", http.FileServer(http.Dir("../Public/")))
     http.HandleFunc("/game.html", handleGameHTML)
     http.HandleFunc("/server/", handleServerControl)
@@ -2180,6 +2199,4 @@ func main() {
     if err := http.ListenAndServe(":8080", nil); err != nil {
         log.Fatal("ListenAndServe:", err)
     }
-
-
 }

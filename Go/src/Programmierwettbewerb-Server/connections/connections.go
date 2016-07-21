@@ -49,11 +49,14 @@ func (middlewareConnections *MiddlewareConnections) Add(botId BotId, middlewareC
 func (middlewareConnections *MiddlewareConnections) Delete(botId BotId) {
     middlewareConnections.Lock()
     defer middlewareConnections.Unlock()
-
-    // TODO(henk): Is this necessary?
-    middlewareConnections.connections[botId].Connection.Close()
     
-    delete(middlewareConnections.connections, botId)
+    middlewareConnection, found := middlewareConnections.connections[botId]
+    if found {
+        middlewareConnection.Connection.Close()    
+        close(middlewareConnection.MessageChannel)
+
+        delete(middlewareConnections.connections, botId)
+    }
 }
 
 func (middlewareConnections *MiddlewareConnections) IsAlive(botId BotId) bool {
@@ -265,10 +268,12 @@ func (guiConnections *GuiConnections) Delete(guiId GuiId) {
     guiConnections.Lock()
     defer guiConnections.Unlock()
     
-    // Send a signal to exit the go-routine for sending update-messages.
-    close(guiConnections.connections[guiId].MessageChannel)
-    
-    delete(guiConnections.connections, guiId)
+    guiConnection, found := guiConnections.connections[guiId]
+    if found {
+        guiConnection.Connection.Close()
+        close(guiConnection.MessageChannel)
+        delete(guiConnections.connections, guiId)
+    }
 }
 
 type GuiConnectionHandler func(GuiId, GuiConnection)
