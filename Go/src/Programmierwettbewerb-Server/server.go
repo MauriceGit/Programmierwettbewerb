@@ -1677,20 +1677,6 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
     }
 }
 
-func getOtherMessagesFromMWChannel(channel chan ServerMiddlewareGameState) []ServerMiddlewareGameState {
-    var messages = make([]ServerMiddlewareGameState, 0)
-
-    select {
-        case message, ok := <-channel:
-            if ok {
-                messages = append(messages, message)
-            }
-        default:
-            return messages
-    }
-    return messages
-}
-
 func handleGui(ws *websocket.Conn) {   
     var guiId          = app.ids.createGuiId()
 
@@ -1705,10 +1691,9 @@ func handleGui(ws *websocket.Conn) {
     
     // This procedure sends the "ServerGuiUpdateMessages"
     go func() {
-        // After 5 seconds with no new Gui-message, it shuts down!
-        // TODO(henk): This should be based on the time it takes to send the message.
         timeoutDuration := 5*time.Second
         timeout := time.NewTimer(timeoutDuration)
+        
         for {
             select {
                 case message, isOpen := <-messageChannel:
@@ -1750,7 +1735,7 @@ func handleGui(ws *websocket.Conn) {
                     }
                     
                     if err != nil {
-                        Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
+                        Logf(LtDebug, "ServerGuiUpdateMessage could not be sent because of: %v\n", err)
                     }
                     
                     timeout.Reset(timeoutDuration)
@@ -1824,8 +1809,6 @@ func handleServerCommands(ws *websocket.Conn) {
         for {
             message := <- app.messagesToServerGui
 
-
-
             if err := websocket.JSON.Send(ws, message); err != nil {
                 Logf(LtDebug, "ERROR when trying to send profiling information to %v: %s\n", commandId, err.Error())
                 app.serverGuiIsConnected = false
@@ -1891,10 +1874,26 @@ func handleMiddleware(ws *websocket.Conn) {
                         Logf(LtDebug, "===> Go-routine for sending messages to the middleware is shutting down.\n")
                         return
                     }
-                    if isRegistered {
+                    if isRegistered {                       
+                        // Consuming all messages from the channel
+                        otherMessages := make([]ServerMiddlewareGameState, 0, 11)
+                        Consuming:
+                        for {
+                            select {
+                                case message := <-messageChannel:
+                                    otherMessages = append(otherMessages, message)
+                                default:
+                                    break Consuming
+                            }
+                            if len(otherMessages) > 10 {
+                                Logf(LtDebug, "More than 10 messages are in the Queue for middleware %v. So we just shut it down!\n", botId)
+                                app.middlewareConnections.Delete(botId)
+                                return
+                            }
+                        }
+                        
+                        // Sending the messages
                         var err error
-                        otherMessages := getOtherMessagesFromMWChannel(messageChannel)
-
                         if len(otherMessages) == 0 {
                             err = websocket.JSON.Send(ws, message)
                         } else {
@@ -1904,19 +1903,18 @@ func handleMiddleware(ws *websocket.Conn) {
                         if err != nil {
                             Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
                         }
+                        
                         // This also means, that the bots have "timeoutDuration" to register themselves.
                         timeout.Reset(timeoutDuration)
                     }
                 case <-timeout.C:
-                    terminate()
                     Logf(LtDebug, "===> Timeout for MW messages (botId: %v) - go routine shutting down!\n", botId)
+                    terminate()
                     return
             }
-
         }
     }()
 
-    var err error
     for {
         // TODO(henk): This should be done differently
         if connectionIsTerminated(app.runningState) {
@@ -1927,7 +1925,7 @@ func handleMiddleware(ws *websocket.Conn) {
 
         // Receive the message
         var message MessageMiddlewareServer
-        if err = websocket.JSON.Receive(ws, &message); err != nil {
+        if err := websocket.JSON.Receive(ws, &message); err != nil {
             Logf(LtDebug, "Can't receive from bot %v. Error: %v\n", botId, err)
             terminate()
             return
@@ -1952,11 +1950,11 @@ func handleMiddleware(ws *websocket.Conn) {
                     isAllowed, statisticsOverall := CheckPotentialPlayer(message.BotInfo.Name)
 
                     sourceIP := strings.Split(ws.Request().RemoteAddr, ":")[0]
-                    myIP := getIP()
+                    //myIP := getIP()
                     
                     // TODO(henk): Remove this.
-                    Logf(LtDebug, "SourceIP: %v\n", sourceIP)
-                    Logf(LtDebug, "myIP: %v\n", myIP)
+                    //Logf(LtDebug, "SourceIP: %v\n", sourceIP)
+                    //Logf(LtDebug, "myIP: %v\n", myIP)
 
                     // TODO(henk): Use this again. The adresses where not equal.
                     //if message.BotInfo.Name == "dummy" && sourceIP != myIP && sourceIP != "localhost" && sourceIP != "127.0.0.1" {
