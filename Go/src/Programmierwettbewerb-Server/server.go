@@ -924,12 +924,8 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
     }
 
     ////////////////////////////////////////////////////////////////
-    // BOT INTERACTION WITH EVERYTHING
+    // SPLIT BOTS
     ////////////////////////////////////////////////////////////////
-
-    killedBlobs := NewIdsContainer()
-
-    // Split command received - Creating new Blob with same ID.
     {
         profileEventSplitBot := startProfileEvent(profile, "Split Bot")
         for botId, bot := range gameState.bots {
@@ -950,7 +946,9 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
         endProfileEvent(profile, &profileEventSplitBot)
     }
 
-    // Splitting the Toxin!
+    ////////////////////////////////////////////////////////////////
+    // SPLIT THE TOXINS
+    ////////////////////////////////////////////////////////////////
     {
         profileEventSplitToxin := startProfileEvent(profile, "Split Toxin")
         for toxinId, toxin := range gameState.toxins {
@@ -989,9 +987,12 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
         endProfileEvent(profile, &profileEventSplitToxin)
     }
 
-    // Reunion of Subblobs
+    ////////////////////////////////////////////////////////////////
+    // REUNION OF BLOBS
+    ////////////////////////////////////////////////////////////////
+    killedBlobs := NewIdsContainer()
     {
-        profileEventSubblobReunion := startProfileEvent(profile, "Subblob reunion")
+        profileEventSubblobReunion := startProfileEvent(profile, "Blob reunion")
         for botId, _ := range gameState.bots {
             var bot = gameState.bots[botId]
             var botRef = &bot
@@ -1002,20 +1003,10 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
         endProfileEvent(profile, &profileEventSubblobReunion)
     }
 
-    // Blob Collision with Toxin
+    ////////////////////////////////////////////////////////////////
+    // COLLISION WITH TOXINS
+    ////////////////////////////////////////////////////////////////
     {
-        // QuadTree Building
-        /*
-        profileEventQuadTreeBuilding := startProfileEvent(&profile, "QuadTree Building (Toxins)")
-        quadTree := NewQuadTree(NewQuad(Vec2{0, 0}, 1000))
-        {
-            for toxinId, toxin := range app.toxins {
-                quadTree.Insert(toxin.Position, toxinId)
-            }
-        }
-        endProfileEvent(&profile, &profileEventQuadTreeBuilding)
-        */
-
         profileEventCollisionWithToxin := startProfileEvent(profile, "Collision with Toxin")
         for tId,toxin := range gameState.toxins {
             var toxinIsEaten = false
@@ -1119,9 +1110,9 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
         endProfileEvent(profile, &profileEventCollisionWithToxin)
     }
 
-    //
-    // Push Blobs apart
-    //
+    ////////////////////////////////////////////////////////////////
+    // PUSH BLOBS APART
+    ////////////////////////////////////////////////////////////////
     {
         profileEventPushBlobsApart := startProfileEvent(profile, "Push Blobs Apart")
         for botId, _ := range gameState.bots {
@@ -1136,24 +1127,25 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
         }
         endProfileEvent(profile, &profileEventPushBlobsApart)
     }
-
-    //
-    // Eating Foods
-    //
+    
+    ////////////////////////////////////////////////////////////////
+    // BUILD QUAD TREE FOR FOODS
+    ////////////////////////////////////////////////////////////////
+    quadTree := NewQuadTree(NewQuad(Vec2{0,0}, 1000))
     {
-        quadTree := NewQuadTree(NewQuad(Vec2{0,0}, 1000))
-        profileEventQuadTreeBuilding := startProfileEvent(profile, "QuadTree Building (Foods)")
+        profileEventQuadTreeBuilding := startProfileEvent(profile, "QuadTree Building for Foods")
         {
             for foodId, food := range gameState.foods {
                 quadTree.Insert(food.Position, foodId)
             }
         }
         endProfileEvent(profile, &profileEventQuadTreeBuilding);
+    }
 
-
-        //
-        // Blobs eating Foods
-        //
+    ////////////////////////////////////////////////////////////////
+    // EATING FOODS
+    ////////////////////////////////////////////////////////////////
+    {
         profileEventQuadTreeSearching := startProfileEvent(profile, "QuadTree Seaching (Blobs eating Foods)")
         {
             var buffer FoodBuffer
@@ -1197,10 +1189,12 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
             }
         }
         endProfileEvent(profile, &profileEventQuadTreeSearching)
-
-        //
-        // Toxins eating Foods
-        //
+    }
+    
+    ////////////////////////////////////////////////////////////////
+    // TOXINS EATING FOODS
+    ////////////////////////////////////////////////////////////////
+    {
         profileEventEatingFood := startProfileEvent(profile, "QuadTree Searching (Toxins eating Foods)")
         {
             var buffer FoodBuffer
@@ -1239,7 +1233,12 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
             }
         }
         endProfileEvent(profile, &profileEventEatingFood)
-
+    }
+    
+    ////////////////////////////////////////////////////////////////
+    // BLOBS EATING BLOBS
+    ////////////////////////////////////////////////////////////////
+    {
         profileEventEatingBlobs := startProfileEvent(profile, "Eating Blobs")
         for botId1, bot1 := range gameState.bots {
 
@@ -1271,9 +1270,6 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
                                     deadBots = append(deadBots, NewBotKill(botId2, bot2))
 
                                     bot1.StatisticsThisGame.BotKillCount += 1
-
-                                    // TODO(henk): Remove this
-                                    go WriteStatisticToFile(bot2.Info.Name, bot2.StatisticsThisGame)
 
                                     app.middlewareConnections.Delete(botId2)
                                     delete(gameState.bots, botId2)
@@ -1471,7 +1467,6 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
             for {
                 select {
                 case botId := <-app.middlewareTerminations:
-                    // TODO(henk): Do I need to check this?
                     if bot, ok := gameState.bots[botId]; ok {
                         delete(gameState.bots, botId)
                         terminatedBots = append(terminatedBots, NewBotKill(botId, bot))
@@ -1776,7 +1771,7 @@ func handleGui(ws *websocket.Conn) {
 func createStartingBot(gameState *GameState, botInfo BotInfo, statistics Statistics) (Bot, bool) {
     if pos, ok := newBotPos(gameState, &app.settings); ok {
         blob := Blob {
-            Position:       pos,  // TODO(henk): How do we decide this?
+            Position:       pos,
             Mass:           100.0,
             VelocityFac:    1.0,
             IsSplit:        false,
