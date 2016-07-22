@@ -1497,24 +1497,6 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         checkAllValuesOnNaN(gameState, "end")
 
         ////////////////////////////////////////////////////////////////
-        // DELETE BOTS WITHOUT ACTIVE CONNECTION
-        ////////////////////////////////////////////////////////////////
-
-        // TODO(henk): This should not be necessary. 
-        // 1. We can remove the connections, when they are lost.
-        // 2. We can write the statistics, when the connection is lost.
-        // 3. We can append the appertaining bot to a list of bots, that is removed in the subsequent call of the update function.        
-        app.middlewareConnections.Foreach(func(botId BotId, middlewareConnection MiddlewareConnection) {
-            if bot, ok := gameState.bots[botId]; ok {
-                if !middlewareConnection.ConnectionAlive {
-                    go WriteStatisticToFile(bot.Info.Name, bot.StatisticsThisGame)
-                    delete(gameState.bots, botId)
-                    deadBots = append(deadBots, botId)
-                }
-            }
-        })
-
-        ////////////////////////////////////////////////////////////////
         // PREPARE DATA TO BE SENT TO THE MIDDLEWARES
         ////////////////////////////////////////////////////////////////
         {
@@ -1851,13 +1833,6 @@ func handleMiddleware(ws *websocket.Conn) {
     
     isRegistered := false
     
-    app.middlewareConnections.Add(botId, 
-        MiddlewareConnection{
-            MessageChannel:         messageChannel,
-            Connection:             ws,
-            ConnectionAlive:        true,
-        })
-    
     terminate := func() {
         app.middlewareConnections.Delete(botId)
         app.middlewareTerminations <- botId
@@ -1973,11 +1948,22 @@ func handleMiddleware(ws *websocket.Conn) {
                     
                     isRegistered = isAllowed
                     
-                    app.middlewareRegistrations <- MiddlewareRegistration{ 
-                                                       botId:       botId,
-                                                       botInfo:     *message.BotInfo,
-                                                       statistics:  statisticsOverall,
+                    if isRegistered {
+                        app.middlewareRegistrations <- MiddlewareRegistration{ 
+                                                           botId:       botId,
+                                                           botInfo:     *message.BotInfo,
+                                                           statistics:  statisticsOverall,
                                                    }
+                                                   
+                        app.middlewareConnections.Add(botId, 
+                            MiddlewareConnection{
+                                MessageChannel:         messageChannel,
+                                Connection:             ws,
+                                ConnectionAlive:        true,
+                            })
+                        
+                    }
+                    
                     Logf(LtDebug, "Bot %v registered: %v. From: %s, at: %s\n", botId, *message.BotInfo, sourceIP, time.Now().Format(time.RFC850))
                 } else {
                     Logf(LtDebug, "Got a dirty message from bot %v. BotInfo is nil.\n", botId)
