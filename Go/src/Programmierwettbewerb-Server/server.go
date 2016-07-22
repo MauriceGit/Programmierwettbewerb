@@ -728,8 +728,22 @@ type MessageCounters struct {
     guiStatisticsMessageCounter int
 }
 
-func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *Profile, dt float32) ([]BotId, []FoodId, []ToxinId) {
-    deadBots    := make([]BotId,   0)
+type BotKill struct {
+    botId               BotId
+    name                string
+    statisticsThisGame  Statistics
+}
+
+func NewBotKill(botId BotId, bot Bot) BotKill {
+    return BotKill{
+        botId:              botId,
+        name:               bot.Info.Name,
+        statisticsThisGame: bot.StatisticsThisGame,
+    }
+}
+
+func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *Profile, dt float32) ([]BotKill, []FoodId, []ToxinId) {
+    deadBots    := make([]BotKill, 0)
     eatenFoods  := make([]FoodId,  0)
     eatenToxins := make([]ToxinId, 0)
     
@@ -745,7 +759,7 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
                     delete(bot.Blobs, blobId)
                     if len(bot.Blobs) == 0 {
                         botDied = true
-                        deadBots = append(deadBots, botId)
+                        deadBots = append(deadBots, NewBotKill(botId, bot))
                     }
                     break
                 }
@@ -1254,10 +1268,11 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
 
                                 // Completely delete this bot.
                                 if len(gameState.bots[botId2].Blobs) <= 0 {
-                                    deadBots = append(deadBots, botId2)
+                                    deadBots = append(deadBots, NewBotKill(botId2, bot2))
 
                                     bot1.StatisticsThisGame.BotKillCount += 1
 
+                                    // TODO(henk): Remove this
                                     go WriteStatisticToFile(bot2.Info.Name, bot2.StatisticsThisGame)
 
                                     app.middlewareConnections.Delete(botId2)
@@ -1331,7 +1346,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         ////////////////////////////////////////////////////////////////
         // HANDLE EVENTS
         ////////////////////////////////////////////////////////////////
-        botsKilledByServerGui := make([]BotId, 0)
+        botsKilledByServerGui := make([]BotKill, 0)
         {
             profileEventHandleEvents := startProfileEvent(&profile, "Handle Events")
             if len(app.serverCommands) > 0 {
@@ -1374,9 +1389,9 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                             Logf(LtDebug, "Toggle Profiling\n");
                             app.profiling = !app.profiling
                         case "KillAllBots":
-                            for botId, _ := range gameState.bots {
+                            for botId, bot := range gameState.bots {
                                 delete(gameState.bots, botId)
-                                botsKilledByServerGui = append(botsKilledByServerGui, botId)
+                                botsKilledByServerGui = append(botsKilledByServerGui, NewBotKill(botId, bot))
                             }
                             Logf(LtDebug, "Killed all bots\n")
                         case "KillBotsWithoutConnection":
@@ -1389,7 +1404,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                                 }
                                 if mass > float32(command.Value) {
                                     delete(gameState.bots, botId)
-                                    botsKilledByServerGui = append(botsKilledByServerGui, botId)
+                                    botsKilledByServerGui = append(botsKilledByServerGui, NewBotKill(botId, bot))
                                 }
                             }
                             Logf(LtDebug, "Killed bots above mass threshold\n")
@@ -1418,7 +1433,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         ////////////////////////////////////////////////////////////////
         // READ FROM MIDDLEWARE
         ////////////////////////////////////////////////////////////////
-        terminatedBots := make([]BotId, 0, 10)
+        terminatedBots := make([]BotKill, 0, 10)
         {
             profileEventReadFromMiddleware := startProfileEvent(&profile, "Read from Middleware")
             
@@ -1457,9 +1472,9 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                 select {
                 case botId := <-app.middlewareTerminations:
                     // TODO(henk): Do I need to check this?
-                    if _, ok := gameState.bots[botId]; ok {
+                    if bot, ok := gameState.bots[botId]; ok {
                         delete(gameState.bots, botId)
-                        terminatedBots = append(terminatedBots, botId)
+                        terminatedBots = append(terminatedBots, NewBotKill(botId, bot))
                     }
                 default:
                     break ProcessingTerminations
@@ -1495,6 +1510,15 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         // CHECK ANYTHING ON NaN VALUES
         ////////////////////////////////////////////////////////////////
         checkAllValuesOnNaN(gameState, "end")
+
+        ////////////////////////////////////////////////////////////////
+        // WRITE STATISTICS FOR DEAD BOTS
+        ////////////////////////////////////////////////////////////////
+        {
+            for _, botKill := range deadBots {
+                go WriteStatisticToFile(botKill.name, botKill.statisticsThisGame)
+            }
+        }
 
         ////////////////////////////////////////////////////////////////
         // PREPARE DATA TO BE SENT TO THE MIDDLEWARES
@@ -1576,10 +1600,15 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                         message.StatisticsGlobal[key] = bot.StatisticsOverall
                     }
                 }
+                            
+                deadBotIds := make([]BotId, 0, 10)
+                for _, botKill := range deadBots {
+                    deadBotIds = append(deadBotIds, botKill.botId)
+                }
 
-                message.DeletedBotInfos = deadBots
-                message.DeletedBots = deadBots
-
+                message.DeletedBotInfos = deadBotIds
+                message.DeletedBots = deadBotIds
+                
                 if messageCounters.guiMessageCounter % guiMessageEvery == 0 {
                     for foodId, food := range gameState.foods {
                         if food.IsMoving || food.IsNew || guiConnection.IsNewConnection {
