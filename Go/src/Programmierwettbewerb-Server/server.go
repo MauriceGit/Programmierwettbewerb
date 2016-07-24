@@ -1201,7 +1201,7 @@ func (app* Application) startUpdateLoop() {
                 }
 
                 center = Muls(center, 1.0 / float32(len(bot.Blobs)))
-                var windowDiameter float32 = 30.0 * float32(math.Log(float64(completeMass))) - 20.0
+                var windowDiameter float32 = 50.0 * float32(math.Log(float64(completeMass))) - 20.0
 
                 bot.ViewWindow = ViewWindow{
                     Position:   Sub(center, Vec2{ windowDiameter / 2.0, windowDiameter / 2.0 }),
