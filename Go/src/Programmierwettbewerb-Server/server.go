@@ -1330,6 +1330,14 @@ func (app* Application) startUpdateLoop() {
             }
             endProfileEvent(&profile, &profileEventSplitBot)
         }
+        
+        // Resetting the BotCommand not "BatNone"
+        {
+            for botId, bot := range app.bots {
+                bot.Command = BotCommand{ BatNone, bot.Command.Target }
+                app.bots[botId] = bot
+            }
+        }
 
         // Splitting the Toxin!
         {
