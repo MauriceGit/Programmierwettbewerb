@@ -1331,10 +1331,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         guiStatisticsMessageCounter int
     }
 
-
-    messageCounters := MessageCounters{ 0, 0, 0 }
-    
-    var fpsCnt = 0
+    var simulationStepCounter = 0
     
     var lastMiddlewareStart = float32(0.0)
     
@@ -1363,13 +1360,13 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         ////////////////////////////////////////////////////////////////
         // Save statistics
         ////////////////////////////////////////////////////////////////
-        if fpsCnt == 300 {
+        if simulationStepCounter == 300 {
             for _,bot := range gameState.bots {
                 go WriteStatisticToFile(bot.Info.Name, bot.StatisticsThisGame)
             }
-            fpsCnt = 0
+            simulationStepCounter = 0
         }
-        fpsCnt += 1
+        simulationStepCounter += 1
         
         ////////////////////////////////////////////////////////////////
         // HANDLE EVENTS
@@ -1552,7 +1549,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         ////////////////////////////////////////////////////////////////
         {
             profileEventPrepareDataForMiddleware := startProfileEvent(&profile, "Prepare data to be sent to the middlewares")
-            if messageCounters.mWMessageCounter % mwMessageEvery == 0 {
+            if simulationStepCounter % mwMessageEvery == 0 {
                 app.middlewareConnections.Foreach(func(botId BotId, middlewareConnection MiddlewareConnection) {
                     channel := middlewareConnection.MessageChannel
 
@@ -1617,11 +1614,11 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                         message.CreatedOrUpdatedBotInfos[key] = bot.Info
                     }
 
-                    if messageCounters.guiMessageCounter % guiMessageEvery == 0 {
+                    if simulationStepCounter % guiMessageEvery == 0 {
                         message.CreatedOrUpdatedBots[key] = NewServerGuiBot(bot)
                     }
 
-                    if messageCounters.guiStatisticsMessageCounter % guiStatisticsMessageEvery == 0 {
+                    if simulationStepCounter % guiStatisticsMessageEvery == 0 {
                         message.StatisticsThisGame[key] = bot.StatisticsThisGame
                         // @Todo: The global one MUCH more rarely!
                         message.StatisticsGlobal[key] = bot.StatisticsOverall
@@ -1636,7 +1633,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                 message.DeletedBotInfos = deadBotIds
                 message.DeletedBots = deadBotIds
                 
-                if messageCounters.guiMessageCounter % guiMessageEvery == 0 {
+                if simulationStepCounter % guiMessageEvery == 0 {
                     for foodId, food := range gameState.foods {
                         if food.IsMoving || food.IsNew || guiConnection.IsNewConnection {
                             key := strconv.Itoa(int(foodId))
@@ -1647,7 +1644,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
 
                 message.DeletedFoods = eatenFoods
 
-                if messageCounters.guiMessageCounter % guiMessageEvery == 0 {
+                if simulationStepCounter % guiMessageEvery == 0 {
                     for toxinId, toxin := range gameState.toxins {
                         if toxin.IsNew || toxin.IsMoving || guiConnection.IsNewConnection {
                             key := strconv.Itoa(int(toxinId))
@@ -1684,14 +1681,6 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         }
 
         app.guiConnections.MakeAllOld()
-
-        ////////////////////////////////////////////////////////////////
-        // INCREMENT COUNTERS
-        ////////////////////////////////////////////////////////////////
-        // TODO(henk): Why are this multiple counters?
-        messageCounters.guiMessageCounter += 1
-        messageCounters.mWMessageCounter += 1
-        messageCounters.guiStatisticsMessageCounter += 1
 
         ////////////////////////////////////////////////////////////////
         // PROFILING
@@ -1814,7 +1803,7 @@ func handleGui(ws *websocket.Conn) {
         defer func() { 
             receivingDone <- true
             terminate()
-            LogfColored(LtDebug, LcYellow, "<=== Gui connection (BotId: %v): Go-routine for receiving messages is shutting down.\n", guiId)
+            LogfColored(LtDebug, LcYellow, "<=== Gui connection (GuiId: %v): Go-routine for receiving messages is shutting down.\n", guiId)
         }()
         
         for {
@@ -2263,7 +2252,6 @@ func createConfigFile() {
 func main() {
     runtime.GOMAXPROCS(32)
 
-    // TODO(henk): Maybe we wanna toggle this at runtime.
     SetLoggingDebug(true)
     SetLoggingVerbose(false)
 

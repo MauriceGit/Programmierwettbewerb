@@ -7,6 +7,7 @@ import (
     "runtime"
     "time"
     "github.com/fatih/color"
+    "sync"
 )
 
 type GuiId uint32
@@ -116,6 +117,8 @@ type ServerMiddlewareGameState struct {
 // Logging
 // -------------------------------------------------------------------------------------------------
 
+var loggingMutex sync.Mutex
+
 var (
     globalDebug             bool = false
     globalVerbose           bool = false
@@ -189,6 +192,9 @@ func log(f LogFun, logType LogType, format string, a ...interface{}) (n int, err
 }
 
 func Logln(logType LogType, a ...interface{}) (n int, err error) {
+    loggingMutex.Lock()
+    defer loggingMutex.Unlock()
+
     f := func(format string, a ...interface{}) (n int, err error) {
         return fmt.Println(a...)
     }
@@ -196,6 +202,9 @@ func Logln(logType LogType, a ...interface{}) (n int, err error) {
 }
 
 func Logf(logType LogType, format string, a ...interface{}) (n int, err error) {
+    loggingMutex.Lock()
+    defer loggingMutex.Unlock()
+
     f := func(format string, a ...interface{}) (n int, err error) {
         return fmt.Printf(format, a...)
     }
@@ -203,6 +212,9 @@ func Logf(logType LogType, format string, a ...interface{}) (n int, err error) {
 }
 
 func LogfColored(logType LogType, logColor LogColor, format string, a ...interface{}) (n int, err error) {
+    loggingMutex.Lock()
+    defer loggingMutex.Unlock()
+    
     color.Set(color.Attribute(logColor))
     color.Set(color.Bold)
     defer color.Unset()
