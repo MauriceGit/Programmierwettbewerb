@@ -5,6 +5,8 @@ import (
 
     "fmt"
     "runtime"
+    "time"
+    "github.com/fatih/color"
 )
 
 type GuiId uint32
@@ -130,6 +132,14 @@ const (
     // LtNotToFile          LogType = 1 << iota // TODO(henk): Do we want a log file?
 )
 
+type LogColor int
+const (
+    LcGreen         LogColor = LogColor(color.FgGreen)
+    LcMagenta       LogColor = LogColor(color.FgMagenta)
+    LcYellow        LogColor = LogColor(color.FgYellow)
+    LcRed           LogColor = LogColor(color.FgRed)
+)
+
 func SetLoggingDebug(value bool) {
     globalDebug = value
 }
@@ -168,7 +178,12 @@ func log(f LogFun, logType LogType, format string, a ...interface{}) (n int, err
     }
     if globalPrintLineNumber {
         _, _, line, _ := runtime.Caller(2)
-        fmt.Printf("(%d) ", line)
+        lineString := fmt.Sprintf("%d", line)
+        for len(lineString) < 5 {
+            lineString = fmt.Sprintf(" %s", lineString)
+        }
+        str := fmt.Sprintf("%s Line:%s |  ", time.Now().Format("02 Jan 15:04:05"), lineString)
+        fmt.Printf(str)
     }
     return f(format, a...)
 }
@@ -181,6 +196,17 @@ func Logln(logType LogType, a ...interface{}) (n int, err error) {
 }
 
 func Logf(logType LogType, format string, a ...interface{}) (n int, err error) {
+    f := func(format string, a ...interface{}) (n int, err error) {
+        return fmt.Printf(format, a...)
+    }
+    return log(f, logType, format, a...)
+}
+
+func LogfColored(logType LogType, logColor LogColor, format string, a ...interface{}) (n int, err error) {
+    color.Set(color.Attribute(logColor))
+    color.Set(color.Bold)
+    defer color.Unset()
+    
     f := func(format string, a ...interface{}) (n int, err error) {
         return fmt.Printf(format, a...)
     }

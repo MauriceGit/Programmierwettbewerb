@@ -17,6 +17,7 @@ echo "Get Libaries"
 go get "golang.org/x/net/websocket"
 go get "golang.org/x/image/bmp"
 go get "github.com/BurntSushi/toml"
+go get "github.com/fatih/color"
 
 echo "Build Server"
 go install Programmierwettbewerb-Server

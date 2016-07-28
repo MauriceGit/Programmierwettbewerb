@@ -1659,7 +1659,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                 message.DeletedToxins = eatenToxins
 
                 channel <- message
-            })
+            })            
             endProfileEvent(&profile, &profileEventPrepareDataForGui)
         }
         
@@ -1717,7 +1717,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
 
 func handleGui(ws *websocket.Conn) {
     var guiId = app.ids.createGuiId()
-    Logf(LtDebug, "Got connection for Gui %v\n", guiId)
+    LogfColored(LtDebug, LcYellow, "===> Got connection for Gui %v\n", guiId)
 
     // TODO(henk): Wake up from standby.
     
@@ -1730,7 +1730,7 @@ func handleGui(ws *websocket.Conn) {
     
     defer func() {
         app.guiConnections.Delete(guiId)
-        Logf(LtDebug, "===> Gui connection (GuiId: %v): Connection was handled.\n", guiId)
+        LogfColored(LtDebug, LcYellow, "<=== Gui connection (GuiId: %v): Connection was handled.\n", guiId)
     }()
     
     ////////////////////////////////////////////////////////////////
@@ -1750,7 +1750,7 @@ func handleGui(ws *websocket.Conn) {
         defer func() {
             sendingDone <- true
             terminate()
-            Logf(LtDebug, "===> Gui connection (BotId: %v): Go-routine for sending messages is shutting down.\n", guiId)
+            LogfColored(LtDebug, LcYellow, "<=== Gui connection (BotId: %v): Go-routine for sending messages is shutting down.\n", guiId)
         }()
         
         timeoutDuration := 5*time.Second
@@ -1760,7 +1760,7 @@ func handleGui(ws *websocket.Conn) {
             select {
                 case message, isOpen := <-messageChannel:
                     if !isOpen {
-                        Logf(LtDebug, "===> Gui connection (GuiId: %v): Go-routine for sending is shutting down.\n")
+                        LogfColored(LtDebug, LcYellow, "<=== Gui connection (GuiId: %v): Go-routine for sending is shutting down.\n")
                         return
                     }
 
@@ -1775,7 +1775,7 @@ func handleGui(ws *websocket.Conn) {
                                 break Consuming
                         }
                         if len(otherMessages) > 10 {
-                            Logf(LtDebug, "More than 10 messages are in the Queue for gui %v. So we just shut it down!\n", guiId)
+                            LogfColored(LtDebug, LcYellow, "<=== More than 10 messages are in the Queue for gui %v. So we just shut it down!\n", guiId)
                             return
                         }
                     }
@@ -1795,13 +1795,13 @@ func handleGui(ws *websocket.Conn) {
                     }
                     
                     if err != nil {
-                        Logf(LtDebug, "ServerGuiUpdateMessage could not be sent because of: %v\n", err)
+                        LogfColored(LtDebug, LcYellow, "<=== ServerGuiUpdateMessage could not be sent because of: %v\n", err)
                         return
                     }
                     
                     timeout.Reset(timeoutDuration)
                 case <-timeout.C:
-                    Logf(LtDebug, "===> Gui connection (GuiId: %v): Timeout for Gui messages.\n", guiId)
+                    LogfColored(LtDebug, LcYellow, "<=== Gui connection (GuiId: %v): Timeout for Gui messages.\n", guiId)
                     return
             }
         }
@@ -1814,7 +1814,7 @@ func handleGui(ws *websocket.Conn) {
         defer func() { 
             receivingDone <- true
             terminate()
-            Logf(LtDebug, "===> Gui connection (BotId: %v): Go-routine for receiving messages is shutting down.\n", guiId)
+            LogfColored(LtDebug, LcYellow, "<=== Gui connection (BotId: %v): Go-routine for receiving messages is shutting down.\n", guiId)
         }()
         
         for {
@@ -1924,10 +1924,10 @@ func handleMiddleware(ws *websocket.Conn) {
     defer func() {
         app.middlewareConnections.Delete(botId)
         app.middlewareTerminations <- botId
-        Logf(LtDebug, "===> Middleware connection (BotId: %v): Connection was handled.\n", botId)
+        LogfColored(LtDebug, LcYellow, "<=== Middleware connection (BotId: %v): Connection was handled.\n", botId)
     }()
 
-    Logf(LtDebug, "Got connection from Middleware %v\n", botId)
+    LogfColored(LtDebug, LcYellow, "===> Got connection from Middleware %v\n", botId)
     
     // TODO(henk): Wake up from standby.
 
@@ -1957,7 +1957,7 @@ func handleMiddleware(ws *websocket.Conn) {
         defer func() { 
             sendingDone <- true
             terminate()
-            Logf(LtDebug, "===> Middleware connection (BotId: %v): Go-routine for sending messages is shutting down.\n", botId)
+            LogfColored(LtDebug, LcYellow, "<=== Middleware connection (BotId: %v): Go-routine for sending messages is shutting down.\n", botId)
         }()
         
         timeoutDuration := 5*time.Second
@@ -1978,7 +1978,7 @@ func handleMiddleware(ws *websocket.Conn) {
                                     break Consuming
                             }
                             if len(otherMessages) > 10 {
-                                Logf(LtDebug, "More than 10 messages are in the Queue for middleware %v. So we just shut it down!\n", botId)
+                                LogfColored(LtDebug, LcYellow, "<=== More than 10 messages are in the Queue for middleware %v. So we just shut it down!\n", botId)
                                 return
                             }
                         }
@@ -1988,11 +1988,11 @@ func handleMiddleware(ws *websocket.Conn) {
                         if len(otherMessages) == 0 {
                             err = websocket.JSON.Send(ws, message)
                         } else {
-                            Logf(LtDebug, "Middleware %v skips one message, as it is not fast enough receiving the ones before...\n", botId)
+                            LogfColored(LtDebug, LcYellow, "<=== Middleware %v skips one message, as it is not fast enough receiving the ones before...\n", botId)
                         }
 
                         if err != nil {
-                            Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
+                            LogfColored(LtDebug, LcYellow, "<=== JSON could not be sent because of: %v\n", err)
                             return
                         }
                         
@@ -2012,14 +2012,14 @@ func handleMiddleware(ws *websocket.Conn) {
         defer func() { 
             receivingDone <- true 
             terminate()
-            Logf(LtDebug, "===> Middleware connection (BotId: %v): Go-routine for receiving is shutting down.\n", botId)
+            LogfColored(LtDebug, LcYellow, "<=== Middleware connection (BotId: %v): Go-routine for receiving is shutting down.\n", botId)
         }()
         
         for {
             // Receive the message
             var message MessageMiddlewareServer
             if err := websocket.JSON.Receive(ws, &message); err != nil {
-                Logf(LtDebug, "Can't receive from bot %v. Error: %v\n", botId, err)
+                LogfColored(LtDebug, LcYellow, "<=== Can't receive from bot %v. Error: %v\n", botId, err)
                 return
             }
 
@@ -2032,39 +2032,24 @@ func handleMiddleware(ws *websocket.Conn) {
                                                       botCommand: *message.BotCommand,
                                                   }
                     } else {
-                        Logf(LtDebug, "Got a dirty message from bot %v. BotCommand is nil.\n", botId)
+                        LogfColored(LtDebug, LcRed, "Got a dirty message from bot %v. BotCommand is nil.\n", botId)
                     }
                 case MmstBotInfo:
                     if message.BotInfo != nil {
                         // Check, if a player with this name is actually allowed to play
                         // So we take the time to sort out old statistics from files here and not
                         // in the main game loop (so adding, say, 100 bots, doesn't affect the other, normal computations!)
-                        isAllowed, statisticsOverall := CheckPotentialPlayer(message.BotInfo.Name)
+                        isAllowed, repository, statisticsOverall := CheckPotentialPlayer(message.BotInfo.Name)
 
                         sourceIP := strings.Split(ws.Request().RemoteAddr, ":")[0]
-                        //myIP := getIP()
+                        myIP := getIP()
                         
-                        // TODO(henk): Remove this.
-                        //Logf(LtDebug, "SourceIP: %v\n", sourceIP)
-                        //Logf(LtDebug, "myIP: %v\n", myIP)
-
-                        // TODO(henk): Use this again. The adresses where not equal.
-                        //if message.BotInfo.Name == "dummy" && sourceIP != myIP && sourceIP != "localhost" && sourceIP != "127.0.0.1" {
-                        //    isAllowed = false
-                        //    Logf(LtDebug, "The player name 'dummy' is not allowed! Request from: %s, at: %s\n", sourceIP, time.Now().Format(time.RFC850))
-                        //}
-                        if message.BotInfo.Name == "dummy" {
-                            isAllowed = true
+                        if message.BotInfo.Name == "dummy" && sourceIP != myIP && sourceIP != "localhost" && sourceIP != "127.0.0.1" {
+                            isAllowed = false
+                            LogfColored(LtDebug, LcRed, "The player name 'dummy' is not allowed! Request from: %s\n", sourceIP)
                         }
 
-                        if !isAllowed {
-                            Logf(LtDebug, "The player %v is not allowed to play. Please add %v to your bot.names. Request from: %s, at: %s\n", message.BotInfo.Name, message.BotInfo.Name, sourceIP, time.Now().Format(time.RFC850))
-                            return
-                        }
-                        
-                        isRegistered = isAllowed
-                        
-                        if isRegistered {
+                        if isAllowed {
                             app.middlewareRegistrations <- MiddlewareRegistration{ 
                                                                botId:       botId,
                                                                botInfo:     *message.BotInfo,
@@ -2077,12 +2062,16 @@ func handleMiddleware(ws *websocket.Conn) {
                                     Connection:             ws,
                                     ConnectionAlive:        true,
                                 })
+                                
+                            isRegistered = true
                             
+                            LogfColored(LtDebug, LcGreen, "New bot connection: The player \"%v\" can be associated with the svn-repository \"%v\".\n", message.BotInfo.Name, repository)
+                        } else {
+                            LogfColored(LtDebug, LcMagenta, "New bot connection: The player \"%v\" can not be associated with any svn-repositories!\n", message.BotInfo.Name)
+                            return
                         }
-                        
-                        Logf(LtDebug, "Bot %v registered: %v. From: %s, at: %s\n", botId, *message.BotInfo, sourceIP, time.Now().Format(time.RFC850))
                     } else {
-                        Logf(LtDebug, "Got a dirty message from bot %v. BotInfo is nil.\n", botId)
+                        LogfColored(LtDebug, LcRed,  "Got a dirty message from bot %v. BotInfo is nil.\n", botId)
                     }
             }
         }

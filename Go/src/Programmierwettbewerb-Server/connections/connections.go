@@ -53,9 +53,8 @@ func (middlewareConnections *MiddlewareConnections) Delete(botId BotId) {
     
     middlewareConnection, found := middlewareConnections.connections[botId]
     if found {
-        middlewareConnection.Connection.Close()    
+        middlewareConnection.Connection.Close()
         close(middlewareConnection.MessageChannel)
-
         delete(middlewareConnections.connections, botId)
     }
 }
@@ -271,7 +270,7 @@ func (guiConnections *GuiConnections) Delete(guiId GuiId) {
     
     guiConnection, found := guiConnections.connections[guiId]
     if found {
-        guiConnection.Connection.Close()
+        guiConnection.Connection.Close()        
         close(guiConnection.MessageChannel)
         delete(guiConnections.connections, guiId)
     }

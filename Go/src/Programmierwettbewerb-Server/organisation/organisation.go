@@ -245,7 +245,7 @@ func WriteStatisticToFile(botName string, stats Statistics) {
 //
 // This function checks, if the given nickname is a valid one, (from at least one bot.names).
 // Right now, it updates itself automatically (svn update, file update, data update) every 1 minutes (maximum but only when this function is called).
-func CheckPotentialPlayer(playerNickname string) (bool, Statistics) {
+func CheckPotentialPlayer(playerNickname string) (bool, string, Statistics) {
 
     if time.Now().Sub(lastUpdate).Minutes() > 1 {
         UpdateAllSVN()
@@ -254,15 +254,11 @@ func CheckPotentialPlayer(playerNickname string) (bool, Statistics) {
     for i,svn := range playerData.SvnReposInformation {
         for _,nick := range svn.Nicknames {
             if nick == playerNickname {
-                i=i
-                Logf(LtDebug, "The player %v can be associated with the svn-repos %v. At: %v\n", playerNickname, i, time.Now().Format(time.RFC850))
-                return true, svn.Statistics
+                return true, i, svn.Statistics
             }
         }
     }
-
-    Logf(LtDebug, "The player %v can not be associated with any svn-repos! At: %v\n", playerNickname, time.Now().Format(time.RFC850))
-    return false, Statistics{}
+    return false, "", Statistics{}
 }
 
 // This must be called once before any other function of this module is called!
