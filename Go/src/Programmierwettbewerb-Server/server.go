@@ -1716,19 +1716,40 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
 }
 
 func handleGui(ws *websocket.Conn) {
-    var guiId          = app.ids.createGuiId()
-
+    var guiId = app.ids.createGuiId()
     Logf(LtDebug, "Got connection for Gui %v\n", guiId)
 
     // TODO(henk): Wake up from standby.
     
     var messageChannel = make(chan ServerGuiUpdateMessage, 10000)
-
-    guiConnection := GuiConnection{ ws, true, messageChannel }
-    app.guiConnections.Add(guiId, guiConnection)
     
-    // This procedure sends the "ServerGuiUpdateMessages"
+    sendingDone   := make(chan bool)
+    receivingDone := make(chan bool)
+    
+    app.guiConnections.Add(guiId, GuiConnection{ ws, true, messageChannel })
+    
+    defer func() {
+        app.guiConnections.Delete(guiId)
+        Logf(LtDebug, "===> Gui connection (GuiId: %v): Connection was handled.\n", guiId)
+    }()
+    
+    terminate := func() {
+        ws.Close()
+        if _, isOpen := <-messageChannel; isOpen {
+            close(messageChannel)
+        }
+    }
+    
+    ////////////////////////////////////////////////////////////////
+    // SENDING
+    ////////////////////////////////////////////////////////////////
     go func() {
+        defer func() {
+            sendingDone <- true
+            terminate()
+            Logf(LtDebug, "===> Gui connection (BotId: %v): Go-routine for sending messages is shutting down.\n", guiId)
+        }()
+        
         timeoutDuration := 5*time.Second
         timeout := time.NewTimer(timeoutDuration)
         
@@ -1736,8 +1757,8 @@ func handleGui(ws *websocket.Conn) {
             select {
                 case message, isOpen := <-messageChannel:
                     if !isOpen {
-                        Logf(LtDebug, "===> Go-routine for sending update-messages to the gui is shutting down.\n")
-                        return                    
+                        Logf(LtDebug, "===> Gui connection (GuiId: %v): Go-routine for sending is shutting down.\n")
+                        return
                     }
 
                     // Consume all the messages from the channel.
@@ -1752,8 +1773,6 @@ func handleGui(ws *websocket.Conn) {
                         }
                         if len(otherMessages) > 10 {
                             Logf(LtDebug, "More than 10 messages are in the Queue for gui %v. So we just shut it down!\n", guiId)
-                            app.guiConnections.Delete(guiId)
-                            ws.Close()
                             return
                         }
                     }
@@ -1774,32 +1793,50 @@ func handleGui(ws *websocket.Conn) {
                     
                     if err != nil {
                         Logf(LtDebug, "ServerGuiUpdateMessage could not be sent because of: %v\n", err)
+                        return
                     }
                     
                     timeout.Reset(timeoutDuration)
                 case <-timeout.C:
-                    Logf(LtDebug, "===> Timeout for Gui messages (GuiId: %v) - go routine shutting down!\n", guiId)
+                    Logf(LtDebug, "===> Gui connection (GuiId: %v): Timeout for Gui messages.\n", guiId)
                     return
             }
         }
     }()
    
-    for {
-        if connectionIsTerminated(app.runningState) {
-            Logf(LtDebug, "HandleGui is shutting down.\n")
-            app.guiConnections.Delete(guiId)
-            return
+    ////////////////////////////////////////////////////////////////
+    // SENDING
+    ////////////////////////////////////////////////////////////////
+    go func () {
+        defer func() { 
+            receivingDone <- true
+            terminate()
+            Logf(LtDebug, "===> Gui connection (BotId: %v): Go-routine for receiving messages is shutting down.\n", guiId)
+        }()
+        
+        for {
+            // TODO(henk): We never receive anything from the gui.
+            var reply string
+            if err := websocket.Message.Receive(ws, &reply); err != nil {
+                Logf(LtDebug, "Can't receive (%v)\n", err)
+                return
+            }
         }
-
-        // TODO(henk): We never receive anything from the gui.
-        var reply string
-        if err := websocket.Message.Receive(ws, &reply); err != nil {
-            Logf(LtDebug, "Can't receive (%v)\n", err)
-            app.guiConnections.Delete(guiId)
-            break
+    }()
+   
+    ////////////////////////////////////////////////////////////////
+    // WAITING FOR THE WORKERS
+    ////////////////////////////////////////////////////////////////
+    waiter := 2
+    for waiter > 0 {
+        select {
+            case <-receivingDone: waiter -= 1
+            case <-sendingDone: waiter -= 1
+            case <-app.runningState: return
         }
     }
 }
+
 
 func createStartingBot(gameState *GameState, botInfo BotInfo, statistics Statistics) (Bot, bool) {
     if pos, ok := newBotPos(gameState, &app.settings); ok {
@@ -1881,8 +1918,13 @@ func handleServerCommands(ws *websocket.Conn) {
 
 func handleMiddleware(ws *websocket.Conn) {    
     var botId = app.ids.createBotId()
-    defer Logf(LtDebug, "===> Middleware connection (BotId: %v): Connection was handled.\n", botId)
-   
+    
+    defer func() {
+        app.middlewareConnections.Delete(botId)
+        app.middlewareTerminations <- botId
+        Logf(LtDebug, "===> Middleware connection (BotId: %v): Connection was handled.\n", botId)
+    }()
+
     Logf(LtDebug, "Got connection from Middleware %v\n", botId)
     
     // TODO(henk): Wake up from standby.
@@ -1910,18 +1952,18 @@ func handleMiddleware(ws *websocket.Conn) {
     // SENDING
     ////////////////////////////////////////////////////////////////
     go func() {
-        defer Logf(LtDebug, "===> Middleware connection (BotId: %v): Go-routine for sending messages is shutting down.\n", botId)
-        defer func() { sendingDone <- true }()
+        defer func() { 
+            sendingDone <- true
+            terminate()
+            Logf(LtDebug, "===> Middleware connection (BotId: %v): Go-routine for sending messages is shutting down.\n", botId)
+        }()
         
         timeoutDuration := 5*time.Second
         timeout := time.NewTimer(timeoutDuration)
         for {
             select {
                 case message, isOpen := <-messageChannel:
-                    if !isOpen {
-                        terminate()
-                        return
-                    }
+                    if !isOpen { return }
                     if isRegistered {
                         // Consuming all messages from the channel
                         otherMessages := make([]ServerMiddlewareGameState, 0, 11)
@@ -1935,7 +1977,6 @@ func handleMiddleware(ws *websocket.Conn) {
                             }
                             if len(otherMessages) > 10 {
                                 Logf(LtDebug, "More than 10 messages are in the Queue for middleware %v. So we just shut it down!\n", botId)
-                                terminate()
                                 return
                             }
                         }
@@ -1950,13 +1991,13 @@ func handleMiddleware(ws *websocket.Conn) {
 
                         if err != nil {
                             Logf(LtDebug, "JSON could not be sent because of: %v\n", err)
+                            return
                         }
                         
                         // This also means, that the bots have "timeoutDuration" to register themselves.
                         timeout.Reset(timeoutDuration)
                     }
-                case <-timeout.C:                    
-                    terminate()
+                case <-timeout.C:
                     return
             }
         }
@@ -1966,15 +2007,17 @@ func handleMiddleware(ws *websocket.Conn) {
     // RECEIVING
     ////////////////////////////////////////////////////////////////
     go func() {
-        defer Logf(LtDebug, "===> Middleware connection (BotId: %v): Go-routine for receiving is shutting down.\n", botId)
-        defer func() { receivingDone <- true }()
+        defer func() { 
+            receivingDone <- true 
+            terminate()
+            Logf(LtDebug, "===> Middleware connection (BotId: %v): Go-routine for receiving is shutting down.\n", botId)
+        }()
         
         for {
             // Receive the message
             var message MessageMiddlewareServer
             if err := websocket.JSON.Receive(ws, &message); err != nil {
                 Logf(LtDebug, "Can't receive from bot %v. Error: %v\n", botId, err)
-                terminate()
                 return
             }
 
@@ -2014,7 +2057,6 @@ func handleMiddleware(ws *websocket.Conn) {
 
                         if !isAllowed {
                             Logf(LtDebug, "The player %v is not allowed to play. Please add %v to your bot.names. Request from: %s, at: %s\n", message.BotInfo.Name, message.BotInfo.Name, sourceIP, time.Now().Format(time.RFC850))
-                            terminate()
                             return
                         }
                         
@@ -2055,9 +2097,6 @@ func handleMiddleware(ws *websocket.Conn) {
             case <-app.runningState: return
         }
     }
-    
-    app.middlewareConnections.Delete(botId)
-    app.middlewareTerminations <- botId
 }
 
 func loadSpawnImage(fieldSize Vec2, imageName string, shadesOfGray int) []Vec2 {
