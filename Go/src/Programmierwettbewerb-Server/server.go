@@ -1733,6 +1733,9 @@ func handleGui(ws *websocket.Conn) {
         Logf(LtDebug, "===> Gui connection (GuiId: %v): Connection was handled.\n", guiId)
     }()
     
+    ////////////////////////////////////////////////////////////////
+    // TERMINATE THE GO-ROUTINES FOR SENDING AND RECEIVING
+    ////////////////////////////////////////////////////////////////
     terminate := func() {
         ws.Close()
         if _, isOpen := <-messageChannel; isOpen {
@@ -1805,7 +1808,7 @@ func handleGui(ws *websocket.Conn) {
     }()
    
     ////////////////////////////////////////////////////////////////
-    // SENDING
+    // RECEIVING
     ////////////////////////////////////////////////////////////////
     go func () {
         defer func() { 
@@ -1836,7 +1839,6 @@ func handleGui(ws *websocket.Conn) {
         }
     }
 }
-
 
 func createStartingBot(gameState *GameState, botInfo BotInfo, statistics Statistics) (Bot, bool) {
     if pos, ok := newBotPos(gameState, &app.settings); ok {
