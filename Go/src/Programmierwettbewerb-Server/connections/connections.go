@@ -19,7 +19,8 @@ import (
 type MiddlewareConnection struct {
     Connection          *websocket.Conn
     MessageChannel      chan ServerMiddlewareGameState
-    ConnectionAlive     bool                // TODO(henk): What shall we do when the connection is lost?
+    // TODO(henk): Why should there be a connection alive flag?
+    ConnectionAlive     bool
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -29,7 +30,7 @@ type MiddlewareConnection struct {
 ////////////////////////////////////////////////////////////////////////
 
 type MiddlewareConnections struct {
-    sync.Mutex
+    mutex               sync.Mutex
     connections         map[BotId]MiddlewareConnection
 }
 
@@ -40,15 +41,15 @@ func NewMiddlewareConnections() MiddlewareConnections {
 }
 
 func (middlewareConnections *MiddlewareConnections) Add(botId BotId, middlewareConnection MiddlewareConnection) {
-    middlewareConnections.Lock()
-    defer middlewareConnections.Unlock()
+    middlewareConnections.mutex.Lock()
+    defer middlewareConnections.mutex.Unlock()
     
     middlewareConnections.connections[botId] = middlewareConnection
 }
 
 func (middlewareConnections *MiddlewareConnections) Delete(botId BotId) {
-    middlewareConnections.Lock()
-    defer middlewareConnections.Unlock()
+    middlewareConnections.mutex.Lock()
+    defer middlewareConnections.mutex.Unlock()
     
     middlewareConnection, found := middlewareConnections.connections[botId]
     if found {
@@ -60,16 +61,16 @@ func (middlewareConnections *MiddlewareConnections) Delete(botId BotId) {
 }
 
 func (middlewareConnections *MiddlewareConnections) IsAlive(botId BotId) bool {
-    middlewareConnections.Lock()
-    defer middlewareConnections.Unlock()
+    middlewareConnections.mutex.Lock()
+    defer middlewareConnections.mutex.Unlock()
     
     return middlewareConnections.connections[botId].ConnectionAlive
 }
 
 type MiddlewareConnectionHandler func(BotId, MiddlewareConnection)
 func (middlewareConnections *MiddlewareConnections) Foreach(middlewareConnectionHandler MiddlewareConnectionHandler) {
-    middlewareConnections.Lock()
-    defer middlewareConnections.Unlock()
+    middlewareConnections.mutex.Lock()
+    defer middlewareConnections.mutex.Unlock()
     
     for botId, middlewareConnection := range middlewareConnections.connections {
         middlewareConnectionHandler(botId, middlewareConnection)
@@ -231,7 +232,7 @@ type GuiConnection struct {
 ////////////////////////////////////////////////////////////////////////
 
 type GuiConnections struct {
-    sync.Mutex
+    mutex           sync.Mutex
     connections     map[GuiId]GuiConnection
 }
 
@@ -242,31 +243,31 @@ func NewGuiConnections() GuiConnections {
 }
 
 func (guiConnections *GuiConnections) Count() int {
-    guiConnections.Lock()
-    defer guiConnections.Unlock()
+    guiConnections.mutex.Lock()
+    defer guiConnections.mutex.Unlock()
     
     return len(guiConnections.connections)
 }
 
 func (guiConnections *GuiConnections) MakeAllOld() {
-    guiConnections.Lock()
+    guiConnections.mutex.Lock()
     for guiConnectionId, guiConnection := range guiConnections.connections {
         guiConnection.IsNewConnection = false
         guiConnections.connections[guiConnectionId] = guiConnection
     }
-    guiConnections.Unlock()
+    guiConnections.mutex.Unlock()
 }
 
 func (guiConnections *GuiConnections) Add(guiId GuiId, guiConnection GuiConnection) {
-    guiConnections.Lock()
-    defer guiConnections.Unlock()
+    guiConnections.mutex.Lock()
+    defer guiConnections.mutex.Unlock()
     
     guiConnections.connections[guiId] = guiConnection
 }
 
 func (guiConnections *GuiConnections) Delete(guiId GuiId) {
-    guiConnections.Lock()
-    defer guiConnections.Unlock()
+    guiConnections.mutex.Lock()
+    defer guiConnections.mutex.Unlock()
     
     guiConnection, found := guiConnections.connections[guiId]
     if found {
@@ -278,8 +279,8 @@ func (guiConnections *GuiConnections) Delete(guiId GuiId) {
 
 type GuiConnectionHandler func(GuiId, GuiConnection)
 func (guiConnections *GuiConnections) Foreach(connectionHandler GuiConnectionHandler) {
-    guiConnections.Lock()
-    defer guiConnections.Unlock()
+    guiConnections.mutex.Lock()
+    defer guiConnections.mutex.Unlock()
     
     for guiId, guiConnection := range guiConnections.connections {
         connectionHandler(guiId, guiConnection)

@@ -175,21 +175,26 @@ type ServerSettings struct {
     botDistribution             []Vec2
 }
 
-func (settings *ServerSettings) initialize() {
-    settings.fieldSize              = Vec2{ 1000, 1000 }
-
-    settings.MinNumberOfBots        = 14
-    settings.MaxNumberOfBots        = 100
-    settings.MaxNumberOfFoods       = 1000
-    settings.MaxNumberOfToxins      = 50
+func NewSettings() ServerSettings {
+    defaultDistributionName := "black.bmp"
+    defaultFieldSize := Vec2{ 1000, 1000 }
     
-    settings.foodDistributionName   = "black.bmp"
-    settings.toxinDistributionName  = "black.bmp"
-    settings.botDistributionName    = "black.bmp"
-
-    settings.foodDistribution       = loadSpawnImage(settings, settings.foodDistributionName, 10)
-    settings.toxinDistribution      = loadSpawnImage(settings, settings.toxinDistributionName, 10)
-    settings.botDistribution        = loadSpawnImage(settings, settings.botDistributionName, 10)
+    return ServerSettings{
+        fieldSize:              defaultFieldSize,
+        
+        MinNumberOfBots:        14,
+        MaxNumberOfBots:        100,
+        MaxNumberOfFoods:       1000,
+        MaxNumberOfToxins:      50,
+            
+        foodDistributionName:   defaultDistributionName,
+        toxinDistributionName:  defaultDistributionName,
+        botDistributionName:    defaultDistributionName,
+        
+        foodDistribution:       loadSpawnImage(defaultFieldSize, defaultDistributionName, 10),
+        toxinDistribution:      loadSpawnImage(defaultFieldSize, defaultDistributionName, 10),
+        botDistribution:        loadSpawnImage(defaultFieldSize, defaultDistributionName, 10),
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -243,13 +248,15 @@ type Ids struct {
     nextServerCommandId         CommandId
 }
 
-func (ids *Ids) initialize(settings ServerSettings) {
-    ids.nextGuiId                   = 0
-    ids.nextBotId                   = 1
-    ids.nextBlobId                  = 1
-    ids.nextServerCommandId         = 0
-    ids.nextFoodId                  = FoodId(settings.MaxNumberOfFoods) + 1
-    ids.nextToxinId                 = ToxinId(settings.MaxNumberOfToxins) + 1
+func NewIds(settings ServerSettings) Ids {
+    return Ids{
+        nextGuiId:              0,
+        nextBotId:              1,
+        nextBlobId:             1,
+        nextServerCommandId:    0,
+        nextFoodId:             FoodId(settings.MaxNumberOfFoods) + 1,
+        nextToxinId:            ToxinId(settings.MaxNumberOfToxins) + 1,
+    }
 }
 
 func (ids* Ids) createGuiId() GuiId {
@@ -348,10 +355,9 @@ func (app* Application) initialize() {
 
     app.guiConnections              = NewGuiConnections()
     app.middlewareConnections       = NewMiddlewareConnections()
-    app.settings.initialize()
-    app.ids.initialize(app.settings)
+    app.settings                    = NewSettings()
+    app.ids                         = NewIds(app.settings)
 }
-
 
 ////////////////////////////////////////////////////////////////////////
 //
@@ -664,6 +670,12 @@ func limitPosition(settings *ServerSettings, position *Vec2) {
     if (*position).Y > settings.fieldSize.Y { (*position).Y = settings.fieldSize.Y }
 }
 
+////////////////////////////////////////////////////////////////////////
+//
+// NaN Problem
+//
+////////////////////////////////////////////////////////////////////////
+
 func checkNaNV (v Vec2, prefix string, s string) {
     if math.IsNaN(float64(v.X)) || math.IsNaN(float64(v.Y)) {
         Logf(LtDebug, "NaN ( Vec ) is found for: __%v__ %v\n", prefix, s)
@@ -709,6 +721,12 @@ func checkPasswordAgainstFile(password string) bool {
     return pwString == password
 }
 
+////////////////////////////////////////////////////////////////////////
+//
+// FoodBuffer for QuadTree
+//
+////////////////////////////////////////////////////////////////////////
+
 const foodBufferSize int = 100
 type FoodBuffer struct {
     values      [foodBufferSize]interface{}
@@ -722,11 +740,11 @@ func (buffer *FoodBuffer) Append(value interface{}) {
     }
 }
 
-type MessageCounters struct {
-    guiMessageCounter           int
-    mWMessageCounter            int
-    guiStatisticsMessageCounter int
-}
+////////////////////////////////////////////////////////////////////////
+//
+// BotKill
+//
+////////////////////////////////////////////////////////////////////////
 
 type BotKill struct {
     botId               BotId
@@ -741,6 +759,12 @@ func NewBotKill(botId BotId, bot Bot) BotKill {
         statisticsThisGame: bot.StatisticsThisGame,
     }
 }
+
+////////////////////////////////////////////////////////////////////////
+//
+// Update Function
+//
+////////////////////////////////////////////////////////////////////////
 
 func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *Profile, dt float32) ([]BotKill, []FoodId, []ToxinId) {
     deadBots    := make([]BotKill, 0)
@@ -1300,6 +1324,14 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
     ticker := time.NewTicker(time.Millisecond * 30)
     var lastTime = time.Now()
 
+
+    type MessageCounters struct {
+        guiMessageCounter           int
+        mWMessageCounter            int
+        guiStatisticsMessageCounter int
+    }
+
+
     messageCounters := MessageCounters{ 0, 0, 0 }
     
     var fpsCnt = 0
@@ -1405,13 +1437,13 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                             }
                             Logf(LtDebug, "Killed bots above mass threshold\n")
                         case "FoodSpawnImage":
-                            app.settings.foodDistribution     = loadSpawnImage(&app.settings, command.Image, 10)
+                            app.settings.foodDistribution     = loadSpawnImage(app.settings.fieldSize, command.Image, 10)
                             app.settings.foodDistributionName = command.Image
                         case "ToxinSpawnImage":
-                            app.settings.toxinDistribution     = loadSpawnImage(&app.settings, command.Image, 10)
+                            app.settings.toxinDistribution     = loadSpawnImage(app.settings.fieldSize, command.Image, 10)
                             app.settings.toxinDistributionName = command.Image
                         case "BotSpawnImage":
-                            app.settings.botDistribution     = loadSpawnImage(&app.settings, command.Image, 10)
+                            app.settings.botDistribution     = loadSpawnImage(app.settings.fieldSize, command.Image, 10)
                             app.settings.botDistributionName = command.Image
                         }
                     } else {
@@ -1683,7 +1715,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
     }
 }
 
-func handleGui(ws *websocket.Conn) {   
+func handleGui(ws *websocket.Conn) {
     var guiId          = app.ids.createGuiId()
 
     Logf(LtDebug, "Got connection for Gui %v\n", guiId)
@@ -1759,6 +1791,7 @@ func handleGui(ws *websocket.Conn) {
             return
         }
 
+        // TODO(henk): We never receive anything from the gui.
         var reply string
         if err := websocket.Message.Receive(ws, &reply); err != nil {
             Logf(LtDebug, "Can't receive (%v)\n", err)
@@ -1846,34 +1879,50 @@ func handleServerCommands(ws *websocket.Conn) {
     }
 }
 
-func handleMiddleware(ws *websocket.Conn) {
+func handleMiddleware(ws *websocket.Conn) {    
     var botId = app.ids.createBotId()
-    
+    defer Logf(LtDebug, "===> Middleware connection (BotId: %v): Connection was handled.\n", botId)
+   
     Logf(LtDebug, "Got connection from Middleware %v\n", botId)
     
     // TODO(henk): Wake up from standby.
 
-    var messageChannel = make(chan ServerMiddlewareGameState, 10000)
+    // TODO(henk): Why such a high number?
+    messageChannel := make(chan ServerMiddlewareGameState, 10000)
     
     isRegistered := false
     
+    sendingDone   := make(chan bool)
+    receivingDone := make(chan bool)
+    
+    ////////////////////////////////////////////////////////////////
+    // TERMINATE THE GO-ROUTINES FOR SENDING AND RECEIVING
+    ////////////////////////////////////////////////////////////////
     terminate := func() {
-        app.middlewareConnections.Delete(botId)
-        app.middlewareTerminations <- botId
+        ws.Close()
+        // This has to be checked because go panic, when a closed channel is being closed.
+        if _, isOpen := <-messageChannel; isOpen {
+            close(messageChannel)
+        }
     }
     
-    // This procedure sends the "ServerMiddlewareGameStates".
+    ////////////////////////////////////////////////////////////////
+    // SENDING
+    ////////////////////////////////////////////////////////////////
     go func() {
+        defer Logf(LtDebug, "===> Middleware connection (BotId: %v): Go-routine for sending messages is shutting down.\n", botId)
+        defer func() { sendingDone <- true }()
+        
         timeoutDuration := 5*time.Second
         timeout := time.NewTimer(timeoutDuration)
         for {
             select {
                 case message, isOpen := <-messageChannel:
                     if !isOpen {
-                        Logf(LtDebug, "===> Go-routine for sending messages to the middleware is shutting down.\n")
+                        terminate()
                         return
                     }
-                    if isRegistered {                       
+                    if isRegistered {
                         // Consuming all messages from the channel
                         otherMessages := make([]ServerMiddlewareGameState, 0, 11)
                         Consuming:
@@ -1886,7 +1935,7 @@ func handleMiddleware(ws *websocket.Conn) {
                             }
                             if len(otherMessages) > 10 {
                                 Logf(LtDebug, "More than 10 messages are in the Queue for middleware %v. So we just shut it down!\n", botId)
-                                app.middlewareConnections.Delete(botId)
+                                terminate()
                                 return
                             }
                         }
@@ -1906,102 +1955,112 @@ func handleMiddleware(ws *websocket.Conn) {
                         // This also means, that the bots have "timeoutDuration" to register themselves.
                         timeout.Reset(timeoutDuration)
                     }
-                case <-timeout.C:
-                    Logf(LtDebug, "===> Timeout for MW messages (botId: %v) - go routine shutting down!\n", botId)
+                case <-timeout.C:                    
                     terminate()
                     return
             }
         }
     }()
+    
+    ////////////////////////////////////////////////////////////////
+    // RECEIVING
+    ////////////////////////////////////////////////////////////////
+    go func() {
+        defer Logf(LtDebug, "===> Middleware connection (BotId: %v): Go-routine for receiving is shutting down.\n", botId)
+        defer func() { receivingDone <- true }()
+        
+        for {
+            // Receive the message
+            var message MessageMiddlewareServer
+            if err := websocket.JSON.Receive(ws, &message); err != nil {
+                Logf(LtDebug, "Can't receive from bot %v. Error: %v\n", botId, err)
+                terminate()
+                return
+            }
 
-    for {
-        // TODO(henk): This should be done differently
-        if connectionIsTerminated(app.runningState) {
-            Logf(LtDebug, "handleMiddleware is shutting down.\n")
-            terminate()
-            return
-        }
-
-        // Receive the message
-        var message MessageMiddlewareServer
-        if err := websocket.JSON.Receive(ws, &message); err != nil {
-            Logf(LtDebug, "Can't receive from bot %v. Error: %v\n", botId, err)
-            terminate()
-            return
-        }
-
-        // Evaluate the message
-        switch (message.Type) {
-            case MmstBotCommand:
-                if message.BotCommand != nil {
-                    app.middlewareCommands <- MiddlewareCommand{
-                                                  botId:   botId,
-                                                  botCommand: *message.BotCommand,
-                                              }
-                } else {
-                    Logf(LtDebug, "Got a dirty message from bot %v. BotCommand is nil.\n", botId)
-                }
-            case MmstBotInfo:
-                if message.BotInfo != nil {
-                    // Check, if a player with this name is actually allowed to play
-                    // So we take the time to sort out old statistics from files here and not
-                    // in the main game loop (so adding, say, 100 bots, doesn't affect the other, normal computations!)
-                    isAllowed, statisticsOverall := CheckPotentialPlayer(message.BotInfo.Name)
-
-                    sourceIP := strings.Split(ws.Request().RemoteAddr, ":")[0]
-                    //myIP := getIP()
-                    
-                    // TODO(henk): Remove this.
-                    //Logf(LtDebug, "SourceIP: %v\n", sourceIP)
-                    //Logf(LtDebug, "myIP: %v\n", myIP)
-
-                    // TODO(henk): Use this again. The adresses where not equal.
-                    //if message.BotInfo.Name == "dummy" && sourceIP != myIP && sourceIP != "localhost" && sourceIP != "127.0.0.1" {
-                    //    isAllowed = false
-                    //    Logf(LtDebug, "The player name 'dummy' is not allowed! Request from: %s, at: %s\n", sourceIP, time.Now().Format(time.RFC850))
-                    //}
-                    if message.BotInfo.Name == "dummy" {
-                        isAllowed = true
+            // Evaluate the message
+            switch (message.Type) {
+                case MmstBotCommand:
+                    if message.BotCommand != nil {
+                        app.middlewareCommands <- MiddlewareCommand{
+                                                      botId:   botId,
+                                                      botCommand: *message.BotCommand,
+                                                  }
+                    } else {
+                        Logf(LtDebug, "Got a dirty message from bot %v. BotCommand is nil.\n", botId)
                     }
+                case MmstBotInfo:
+                    if message.BotInfo != nil {
+                        // Check, if a player with this name is actually allowed to play
+                        // So we take the time to sort out old statistics from files here and not
+                        // in the main game loop (so adding, say, 100 bots, doesn't affect the other, normal computations!)
+                        isAllowed, statisticsOverall := CheckPotentialPlayer(message.BotInfo.Name)
 
-                    if !isAllowed {
-                        Logf(LtDebug, "The player %v is not allowed to play. Please add %v to your bot.names. Request from: %s, at: %s\n", message.BotInfo.Name, message.BotInfo.Name, sourceIP, time.Now().Format(time.RFC850))
-                        ws.Close()
-                        return
-                    }
-                    
-                    isRegistered = isAllowed
-                    
-                    if isRegistered {
-                        app.middlewareRegistrations <- MiddlewareRegistration{ 
-                                                           botId:       botId,
-                                                           botInfo:     *message.BotInfo,
-                                                           statistics:  statisticsOverall,
-                                                   }
-                                                   
-                        app.middlewareConnections.Add(botId, 
-                            MiddlewareConnection{
-                                MessageChannel:         messageChannel,
-                                Connection:             ws,
-                                ConnectionAlive:        true,
-                            })
+                        sourceIP := strings.Split(ws.Request().RemoteAddr, ":")[0]
+                        //myIP := getIP()
                         
+                        // TODO(henk): Remove this.
+                        //Logf(LtDebug, "SourceIP: %v\n", sourceIP)
+                        //Logf(LtDebug, "myIP: %v\n", myIP)
+
+                        // TODO(henk): Use this again. The adresses where not equal.
+                        //if message.BotInfo.Name == "dummy" && sourceIP != myIP && sourceIP != "localhost" && sourceIP != "127.0.0.1" {
+                        //    isAllowed = false
+                        //    Logf(LtDebug, "The player name 'dummy' is not allowed! Request from: %s, at: %s\n", sourceIP, time.Now().Format(time.RFC850))
+                        //}
+                        if message.BotInfo.Name == "dummy" {
+                            isAllowed = true
+                        }
+
+                        if !isAllowed {
+                            Logf(LtDebug, "The player %v is not allowed to play. Please add %v to your bot.names. Request from: %s, at: %s\n", message.BotInfo.Name, message.BotInfo.Name, sourceIP, time.Now().Format(time.RFC850))
+                            terminate()
+                            return
+                        }
+                        
+                        isRegistered = isAllowed
+                        
+                        if isRegistered {
+                            app.middlewareRegistrations <- MiddlewareRegistration{ 
+                                                               botId:       botId,
+                                                               botInfo:     *message.BotInfo,
+                                                               statistics:  statisticsOverall,
+                                                       }
+                                                       
+                            app.middlewareConnections.Add(botId, 
+                                MiddlewareConnection{
+                                    MessageChannel:         messageChannel,
+                                    Connection:             ws,
+                                    ConnectionAlive:        true,
+                                })
+                            
+                        }
+                        
+                        Logf(LtDebug, "Bot %v registered: %v. From: %s, at: %s\n", botId, *message.BotInfo, sourceIP, time.Now().Format(time.RFC850))
+                    } else {
+                        Logf(LtDebug, "Got a dirty message from bot %v. BotInfo is nil.\n", botId)
                     }
-                    
-                    Logf(LtDebug, "Bot %v registered: %v. From: %s, at: %s\n", botId, *message.BotInfo, sourceIP, time.Now().Format(time.RFC850))
-                } else {
-                    Logf(LtDebug, "Got a dirty message from bot %v. BotInfo is nil.\n", botId)
-                }
+            }
+        }
+    }()
+    
+    ////////////////////////////////////////////////////////////////
+    // WAITING FOR THE WORKERS
+    ////////////////////////////////////////////////////////////////
+    waiter := 2
+    for waiter > 0 {
+        select {
+            case <-receivingDone: waiter -= 1
+            case <-sendingDone: waiter -= 1
+            case <-app.runningState: return
         }
     }
+    
+    app.middlewareConnections.Delete(botId)
+    app.middlewareTerminations <- botId
 }
 
-func rgbToGrayscale(r, g, b uint32) uint8 {
-    y := (299*r + 587*g + 114*b + 500) / 1000
-    return uint8(y >> 8)
-}
-
-func loadSpawnImage(settings *ServerSettings, imageName string, shadesOfGray int) []Vec2 {
+func loadSpawnImage(fieldSize Vec2, imageName string, shadesOfGray int) []Vec2 {
     var filename = makeLocalSpawnName(imageName)
 
     var distributionArray []Vec2
@@ -2012,6 +2071,11 @@ func loadSpawnImage(settings *ServerSettings, imageName string, shadesOfGray int
         return distributionArray
     }
 
+    rgbToGrayscale := func(r, g, b uint32) uint8 {
+        y := (299*r + 587*g + 114*b + 500) / 1000
+        return uint8(y >> 8)
+    }
+
     for x := image.Bounds().Min.X; x < image.Bounds().Max.X; x++ {
         for y := image.Bounds().Min.Y; y < image.Bounds().Max.Y; y++ {
             r, g, b, _ := image.At(x,y).RGBA()
@@ -2020,13 +2084,13 @@ func loadSpawnImage(settings *ServerSettings, imageName string, shadesOfGray int
             arrayCount := int(gray * float32(shadesOfGray))
 
             for i := 0; i < arrayCount; i++ {
-                minX := (x-1) * (int(settings.fieldSize.X) / image.Bounds().Max.X)
-                maxX :=  x    * (int(settings.fieldSize.X) / image.Bounds().Max.X)
+                minX := (x-1) * (int(fieldSize.X) / image.Bounds().Max.X)
+                maxX :=  x    * (int(fieldSize.X) / image.Bounds().Max.X)
                 if x == 0 {
                     minX = maxX
                 }
-                minY := (y-1) * (int(settings.fieldSize.Y) / image.Bounds().Max.Y)
-                maxY :=  y    * (int(settings.fieldSize.Y) / image.Bounds().Max.Y)
+                minY := (y-1) * (int(fieldSize.Y) / image.Bounds().Max.Y)
+                maxY :=  y    * (int(fieldSize.Y) / image.Bounds().Max.Y)
                 if y == 0 {
                     minY = maxY
                 }

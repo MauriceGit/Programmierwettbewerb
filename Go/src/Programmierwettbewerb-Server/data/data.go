@@ -290,18 +290,6 @@ func quadsOverlap(q1 Quad, q2 Quad) bool {
     return horizontal && vertical
 }
 
-func TEST() {
-    /*
-    q1 := NewQuad(Vec2{0,0}, 2)
-    q2 := NewQuad(Vec2{-3,-3}, 2)
-    
-    if quadsOverlap(q1, q2) {
-        fmt.Printf("Overlap\n")
-    }
-    */
-}
-
-
 func (empty *emptyNode) Print(indentation string) {
     fmt.Printf("%sEmpty\n", indentation)
 }
