@@ -932,13 +932,13 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
     ////////////////////////////////////////////////////////////////
     {
         profileEventAddFoodOrToxin := startProfileEvent(profile, "Add Food Or Toxin")
-        if rand.Intn(100) <= 5 && len(gameState.toxins) < settings.MaxNumberOfToxins {
+        for len(gameState.toxins) < settings.MaxNumberOfToxins {
             if pos, ok := newToxinPos(); ok {
                 newToxinId := ids.createToxinId()
                 gameState.toxins[newToxinId] = Toxin{true, false, pos, false, 0, toxinMassMin, RandomVec2()}
             }
         }
-        if rand.Intn(100) <= 5 && len(gameState.foods) < settings.MaxNumberOfFoods {
+        for len(gameState.foods) < settings.MaxNumberOfFoods {
             mass := foodMassMin + rand.Float32() * (foodMassMax - foodMassMin)
             if pos, ok := newFoodPos(); ok {
                 newFoodId := ids.createFoodId()
