@@ -1479,6 +1479,10 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                 LogfColored(LtDebug, LcBlue, "Entering Standby!\n")
             }
         })
+        
+        if simulationStepCounter % 300 == 0 {
+            Logf(LtDebug, "Number of go-routines: %v\n", runtime.NumGoroutine())
+        }
 
         profile := NewProfile()
 
