@@ -234,6 +234,47 @@ func NewGameState(serverSettings ServerSettings) GameState {
 
 ////////////////////////////////////////////////////////////////////////
 //
+// ConnectionRoutinesWaiter
+//
+////////////////////////////////////////////////////////////////////////
+
+type ConnectionRoutinesWaiter struct {
+    mutex           sync.Mutex
+    sendingDone     bool
+    receivingDone   bool
+    Done            chan bool
+}
+
+func NewConnectionRoutinesWaiter() ConnectionRoutinesWaiter {
+    return ConnectionRoutinesWaiter{
+        Done: make(chan bool, 1),
+    }
+}
+
+func (connectionRoutinesWaiter *ConnectionRoutinesWaiter) SendingDone() {
+    connectionRoutinesWaiter.mutex.Lock()
+    defer connectionRoutinesWaiter.mutex.Unlock()
+    
+    connectionRoutinesWaiter.sendingDone = true
+    
+    if connectionRoutinesWaiter.sendingDone && connectionRoutinesWaiter.receivingDone {
+        connectionRoutinesWaiter.Done <- true
+    }
+}
+
+func (connectionRoutinesWaiter *ConnectionRoutinesWaiter) ReceivingDone() {
+    connectionRoutinesWaiter.mutex.Lock()
+    defer connectionRoutinesWaiter.mutex.Unlock()
+    
+    connectionRoutinesWaiter.receivingDone = true
+
+    if connectionRoutinesWaiter.sendingDone && connectionRoutinesWaiter.receivingDone {
+        connectionRoutinesWaiter.Done <- true
+    }
+}
+
+////////////////////////////////////////////////////////////////////////
+//
 // Ids
 //
 ////////////////////////////////////////////////////////////////////////
@@ -1812,35 +1853,23 @@ func handleGui(ws *websocket.Conn) {
     messageChannel         := make(chan ServerGuiUpdateMessage, 1000)
     stopServerNotification := make(chan bool, 1)
 
-    sendingDone   := make(chan bool)
-    receivingDone := make(chan bool)
+    waiter := NewConnectionRoutinesWaiter()
 
     app.guiConnections.Add(guiId, GuiConnection{ ws, true, messageChannel, stopServerNotification })
-
-    wakeUpFromStandby()
-
     defer func() {
         app.guiConnections.Delete(guiId)
         LogfColored(LtDebug, LcYellow, "<=== Gui connection (GuiId: %v): Connection was handled.\n", guiId)
     }()
 
-    ////////////////////////////////////////////////////////////////
-    // TERMINATE THE GO-ROUTINES FOR SENDING AND RECEIVING
-    ////////////////////////////////////////////////////////////////
-    terminate := func() {
-        ws.Close()
-        if _, isOpen := <-messageChannel; isOpen {
-            close(messageChannel)
-        }
-    }
-
+    wakeUpFromStandby()
+    
     ////////////////////////////////////////////////////////////////
     // SENDING
     ////////////////////////////////////////////////////////////////
     go func() {
         defer func() {
-            sendingDone <- true
-            terminate()
+            waiter.SendingDone()
+            app.guiConnections.Delete(guiId)
             LogfColored(LtDebug, LcYellow, "<=== Gui connection (BotId: %v): Go-routine for sending messages is shutting down.\n", guiId)
         }()
 
@@ -1850,10 +1879,7 @@ func handleGui(ws *websocket.Conn) {
         for {
             select {
                 case message, isOpen := <-messageChannel:
-                    if !isOpen {
-                        LogfColored(LtDebug, LcYellow, "<=== Gui connection (GuiId: %v): Go-routine for sending is shutting down.\n")
-                        return
-                    }
+                    if !isOpen { return }
 
                     // Consume all the messages from the channel.
                     otherMessages := make([]ServerGuiUpdateMessage, 0, 11)
@@ -1903,8 +1929,8 @@ func handleGui(ws *websocket.Conn) {
     ////////////////////////////////////////////////////////////////
     go func () {
         defer func() {
-            receivingDone <- true
-            terminate()
+            waiter.ReceivingDone()
+            app.guiConnections.Delete(guiId)
             LogfColored(LtDebug, LcYellow, "<=== Gui connection (GuiId: %v): Go-routine for receiving messages is shutting down.\n", guiId)
         }()
 
@@ -1921,13 +1947,9 @@ func handleGui(ws *websocket.Conn) {
     ////////////////////////////////////////////////////////////////
     // WAITING FOR THE WORKERS
     ////////////////////////////////////////////////////////////////
-    waiter := 2
-    for waiter > 0 {
-        select {
-            case <-receivingDone: waiter -= 1
-            case <-sendingDone: waiter -= 1
-            case <-stopServerNotification: terminate()
-        }
+    select {
+        case <-waiter.Done:
+        case <-stopServerNotification:
     }
 }
 
@@ -2081,27 +2103,15 @@ func handleMiddleware(ws *websocket.Conn) {
 
     isRegistered := false
 
-    sendingDone   := make(chan bool)
-    receivingDone := make(chan bool)
-
-    ////////////////////////////////////////////////////////////////
-    // TERMINATE THE GO-ROUTINES FOR SENDING AND RECEIVING
-    ////////////////////////////////////////////////////////////////
-    terminate := func() {
-        ws.Close()
-        // This has to be checked because go panics, when a closed channel is being closed.
-        if _, isOpen := <-messageChannel; isOpen {
-            close(messageChannel)
-        }
-    }
+    waiter := NewConnectionRoutinesWaiter()
 
     ////////////////////////////////////////////////////////////////
     // SENDING
     ////////////////////////////////////////////////////////////////
     go func() {
         defer func() {
-            sendingDone <- true
-            terminate()
+            waiter.SendingDone()
+            app.middlewareConnections.Delete(botId)
             LogfColored(LtDebug, LcYellow, "<=== Middleware connection (BotId: %v): Go-routine for sending messages is shutting down.\n", botId)
         }()
 
@@ -2163,8 +2173,8 @@ func handleMiddleware(ws *websocket.Conn) {
     ////////////////////////////////////////////////////////////////
     go func() {
         defer func() {
-            receivingDone <- true
-            terminate()
+            waiter.ReceivingDone()
+            app.middlewareConnections.Delete(botId)
             LogfColored(LtDebug, LcYellow, "<=== Middleware connection (BotId: %v): Go-routine for receiving is shutting down.\n", botId)
         }()
 
@@ -2229,13 +2239,9 @@ func handleMiddleware(ws *websocket.Conn) {
     ////////////////////////////////////////////////////////////////
     // WAITING FOR THE WORKERS
     ////////////////////////////////////////////////////////////////
-    waiter := 2
-    for waiter > 0 {
-        select {
-            case <-receivingDone: waiter -= 1
-            case <-sendingDone: waiter -= 1
-            case <-stopServerNotification: terminate()
-        }
+    select {
+        case <-waiter.Done:
+        case <-stopServerNotification:
     }
 }
 
