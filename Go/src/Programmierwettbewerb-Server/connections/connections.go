@@ -17,16 +17,18 @@ import (
 ////////////////////////////////////////////////////////////////////////
 
 type MiddlewareConnection struct {
-    Websocket           *websocket.Conn
-    MessageChannel      chan ServerMiddlewareGameState
-    IsStandbyChanging   bool
+    Websocket               *websocket.Conn
+    MessageChannel          chan ServerMiddlewareGameState
+    StandbyNotification     chan bool
+    IsStandbyChanging       bool
 }
 
-func NewMiddlewareConnection(websocket *websocket.Conn, messageChannel chan ServerMiddlewareGameState, isStandbyChanging bool) MiddlewareConnection {
+func NewMiddlewareConnection(websocket *websocket.Conn, messageChannel chan ServerMiddlewareGameState, standbyNotification chan bool, isStandbyChanging bool) MiddlewareConnection {
     return MiddlewareConnection{
-        Websocket:          websocket,
-        MessageChannel:     messageChannel,
-        IsStandbyChanging:  isStandbyChanging,
+        Websocket:              websocket,
+        MessageChannel:         messageChannel,
+        StandbyNotification:    standbyNotification,
+        IsStandbyChanging:      isStandbyChanging,
     }
 }
 

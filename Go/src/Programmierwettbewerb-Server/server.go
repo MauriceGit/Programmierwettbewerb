@@ -408,6 +408,9 @@ func waitOnStandbyChangingConnections(waitNotifier WaitNotifier) bool {
     if !hasStandbyRelevantConnections() {
         waitNotifier(app.standbyActive)
         app.standbyActive = true
+        app.middlewareConnections.Foreach(func(botId BotId, middlewareConnection MiddlewareConnection) {
+            middlewareConnection.StandbyNotification <- true
+        })
         app.standby.Wait()
     }
     return result
@@ -419,6 +422,9 @@ func wakeUpFromStandby() {
     
     if app.standbyActive {
         app.standbyActive = false
+        app.middlewareConnections.Foreach(func(botId BotId, middlewareConnection MiddlewareConnection) {
+            middlewareConnection.StandbyNotification <- false
+        })
         LogfColored(LtDebug, LcBlue, "Exited Standby!\n")
     }
     app.standby.Broadcast()
@@ -1978,7 +1984,8 @@ func handleMiddleware(ws *websocket.Conn) {
 
     LogfColored(LtDebug, LcYellow, "===> Got connection from Middleware %v\n", botId)
 
-    messageChannel := make(chan ServerMiddlewareGameState, 100)
+    messageChannel      := make(chan ServerMiddlewareGameState, 100)
+    standbyNotification := make(chan bool, 1)
 
     isRegistered := false
 
@@ -2046,20 +2053,15 @@ func handleMiddleware(ws *websocket.Conn) {
                         
                         timeout.Reset(timeoutDuration)
                     }
-                case <-timeout.C:
-                    standbyWasActive := waitOnStandbyChangingConnections(func(standbyActive bool) {
-                        if standbyActive {
-                            LogfColored(LtDebug, LcBlue, "Timeout for middleware connection was reached but standby is active. Go-routine is waiting now!\n")
-                        } else {
-                            LogfColored(LtDebug, LcBlue, "Entering Standby!\n")
-                        }
-                    })
-                    if standbyWasActive {
-                        timeout.Reset(timeoutDuration)
+                case standbyActive := <-standbyNotification:
+                    if standbyActive {
+                        timeout.Stop()
                     } else {
-                        LogfColored(LtDebug, LcYellow, "<=== Middleware connection (BotId: %v): Timeout for Middleware messages.\n", botId)
-                        return
+                        timeout.Reset(timeoutDuration)
                     }
+                case <-timeout.C:
+                    LogfColored(LtDebug, LcYellow, "<=== Middleware connection (BotId: %v): Timeout for Middleware messages.\n", botId)
+                    return
             }
         }
     }()
@@ -2115,7 +2117,7 @@ func handleMiddleware(ws *websocket.Conn) {
                                                                statistics:  statisticsOverall,
                                                        }
 
-                            app.middlewareConnections.Add(botId, NewMiddlewareConnection(ws, messageChannel, message.BotInfo.Name != "dummy"))
+                            app.middlewareConnections.Add(botId, NewMiddlewareConnection(ws, messageChannel, standbyNotification, message.BotInfo.Name != "dummy"))
                             isRegistered = true
 
                             wakeUpFromStandby()
