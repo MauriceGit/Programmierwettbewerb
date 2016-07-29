@@ -20,14 +20,16 @@ type MiddlewareConnection struct {
     Websocket               *websocket.Conn
     MessageChannel          chan ServerMiddlewareGameState
     StandbyNotification     chan bool
+    StopServerNotification  chan bool
     IsStandbyChanging       bool
 }
 
-func NewMiddlewareConnection(websocket *websocket.Conn, messageChannel chan ServerMiddlewareGameState, standbyNotification chan bool, isStandbyChanging bool) MiddlewareConnection {
+func NewMiddlewareConnection(websocket *websocket.Conn, messageChannel chan ServerMiddlewareGameState, standbyNotification chan bool, stopServerNotification chan bool, isStandbyChanging bool) MiddlewareConnection {
     return MiddlewareConnection{
         Websocket:              websocket,
         MessageChannel:         messageChannel,
         StandbyNotification:    standbyNotification,
+        StopServerNotification: stopServerNotification,
         IsStandbyChanging:      isStandbyChanging,
     }
 }
@@ -228,9 +230,10 @@ func NewServerGuiUpdateMessage() ServerGuiUpdateMessage {
 ////////////////////////////////////////////////////////////////////////
 
 type GuiConnection struct {
-    Connection          *websocket.Conn
-    IsNewConnection     bool
-    MessageChannel      chan ServerGuiUpdateMessage
+    Connection                  *websocket.Conn
+    IsNewConnection             bool
+    MessageChannel              chan ServerGuiUpdateMessage
+    StopServerNotification      chan bool
 }
 
 ////////////////////////////////////////////////////////////////////////

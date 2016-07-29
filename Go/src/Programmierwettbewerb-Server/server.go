@@ -182,10 +182,10 @@ func NewSettings() ServerSettings {
     return ServerSettings{
         fieldSize:              defaultFieldSize,
 
-        MinNumberOfBots:        14,
-        MaxNumberOfBots:        100,
+        MinNumberOfBots:        8,
+        MaxNumberOfBots:        30,
         MaxNumberOfFoods:       1000,
-        MaxNumberOfToxins:      50,
+        MaxNumberOfToxins:      30,
 
         foodDistributionName:   defaultDistributionName,
         toxinDistributionName:  defaultDistributionName,
@@ -324,7 +324,8 @@ type Application struct {
     standby                     *sync.Cond
     standbyActive               bool
 
-    runningState                chan bool
+    runningStateMutex           sync.Mutex
+    runningState                bool
 
     middlewareCommands          chan MiddlewareCommand
     middlewareRegistrations     chan MiddlewareRegistration
@@ -351,7 +352,8 @@ func (app* Application) initialize() {
     app.middlewareRegistrations     = make(chan MiddlewareRegistration, 100)
     app.middlewareTerminations      = make(chan BotId, 100)
 
-    app.runningState                = make(chan bool, 1)
+    app.runningState                = true    
+    
     app.messagesToServerGui         = make(chan interface{}, 10)
     app.serverGuiIsConnected        = false
 
@@ -361,6 +363,20 @@ func (app* Application) initialize() {
     app.middlewareConnections       = NewMiddlewareConnections()
     app.settings                    = NewSettings()
     app.ids                         = NewIds(app.settings)
+}
+
+func stopServer() {
+    app.runningStateMutex.Lock()
+    defer app.runningStateMutex.Unlock()
+    
+    app.runningState = false
+}
+
+func isServerRunning() bool {
+    app.runningStateMutex.Lock()
+    defer app.runningStateMutex.Unlock()
+    
+    return app.runningState
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -1401,6 +1417,18 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
     // Main Loop
     ////////////////////////////////////////////////////////////////
     for t := range ticker.C {
+        // When we want to shut down the server, we have to notify all the go-routines that server the connections.
+        if !isServerRunning() {
+            app.guiConnections.Foreach(func(guiId GuiId, guiConnection GuiConnection) {
+                guiConnection.StopServerNotification <- true
+            })
+            app.middlewareConnections.Foreach(func(botId BotId, middlewareConnection MiddlewareConnection) {
+                middlewareConnection.StopServerNotification <- true
+            })
+            return
+        }
+        
+        // Go into Standby when there are no relevant connections.
         waitOnStandbyChangingConnections(func(standbyActive bool) {
             if standbyActive {
                 LogfColored(LtDebug, LcBlue, "Standby was initiated by a connection timeout. The main loop is waiting now!\n")
@@ -1462,8 +1490,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                             time.Sleep(2000 * time.Millisecond)
                             Logf(LtDebug, "Restarting the server\n")
                             go startBashScript("./restartServer.sh")
-
-                            terminateNonBlocking(app.runningState)
+                            stopServer()
                             Logf(LtDebug, "Server is shutting down.\n")
                             // We give the other go routines a few seconds to gracefully shut down!
                             time.Sleep(3000 * time.Millisecond)
@@ -1775,12 +1802,13 @@ func handleGui(ws *websocket.Conn) {
     var guiId = app.ids.createGuiId()
     LogfColored(LtDebug, LcYellow, "===> Got connection for Gui %v\n", guiId)
 
-    var messageChannel = make(chan ServerGuiUpdateMessage, 1000)
+    messageChannel         := make(chan ServerGuiUpdateMessage, 1000)
+    stopServerNotification := make(chan bool, 1)
 
     sendingDone   := make(chan bool)
     receivingDone := make(chan bool)
 
-    app.guiConnections.Add(guiId, GuiConnection{ ws, true, messageChannel })
+    app.guiConnections.Add(guiId, GuiConnection{ ws, true, messageChannel, stopServerNotification })
 
     wakeUpFromStandby()
 
@@ -1891,7 +1919,7 @@ func handleGui(ws *websocket.Conn) {
         select {
             case <-receivingDone: waiter -= 1
             case <-sendingDone: waiter -= 1
-            case <-app.runningState: terminate()
+            case <-stopServerNotification: terminate()
         }
     }
 }
@@ -1954,13 +1982,6 @@ func handleServerCommands(ws *websocket.Conn) {
     }()
 
     for {
-        if connectionIsTerminated(app.runningState) {
-            Logf(LtDebug, "HandleServerCommands is shutting down.\n")
-            app.serverGuiIsConnected = false
-            ws.Close()
-            return
-        }
-
         var message string
         if err := websocket.Message.Receive(ws, &message); err != nil {
             Logf(LtDebug, "\n\nThe command line with id: %v is closed because of: %v\n\n", commandId, err)
@@ -1984,8 +2005,9 @@ func handleMiddleware(ws *websocket.Conn) {
 
     LogfColored(LtDebug, LcYellow, "===> Got connection from Middleware %v\n", botId)
 
-    messageChannel      := make(chan ServerMiddlewareGameState, 100)
-    standbyNotification := make(chan bool, 1)
+    messageChannel         := make(chan ServerMiddlewareGameState, 100)
+    stopServerNotification := make(chan bool ,1)
+    standbyNotification    := make(chan bool, 1)
 
     isRegistered := false
 
@@ -2117,7 +2139,7 @@ func handleMiddleware(ws *websocket.Conn) {
                                                                statistics:  statisticsOverall,
                                                        }
 
-                            app.middlewareConnections.Add(botId, NewMiddlewareConnection(ws, messageChannel, standbyNotification, message.BotInfo.Name != "dummy"))
+                            app.middlewareConnections.Add(botId, NewMiddlewareConnection(ws, messageChannel, standbyNotification, stopServerNotification, message.BotInfo.Name != "dummy"))
                             isRegistered = true
 
                             wakeUpFromStandby()
@@ -2142,7 +2164,7 @@ func handleMiddleware(ws *websocket.Conn) {
         select {
             case <-receivingDone: waiter -= 1
             case <-sendingDone: waiter -= 1
-            case <-app.runningState: terminate()
+            case <-stopServerNotification: terminate()
         }
     }
 }
@@ -2260,33 +2282,6 @@ func handleGameHTML(w http.ResponseWriter, r *http.Request) {
     page, _ := ioutil.ReadFile("../Public/game.html")
     t, _ = t.Parse(string(page))
     t.Execute(w, data)
-}
-
-func terminateNonBlocking(runningState chan(bool)) {
-    // Try to send a non-blocking close to the channel...
-    select {
-    case runningState <- false:
-    default:
-        // Aaaaand it didn't work.
-        Logf(LtDebug, "Not sending a close\n")
-    }
-}
-
-func connectionIsTerminated(runningState chan(bool)) bool {
-    select {
-    case state, ok := <-runningState:
-        if ok {
-            if !state {
-                terminateNonBlocking(runningState)
-                return true
-            }
-        } else {
-            return true
-        }
-    default:
-        return false
-    }
-    return false
 }
 
 func getIP() string {
