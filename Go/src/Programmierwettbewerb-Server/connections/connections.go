@@ -20,8 +20,6 @@ type MiddlewareConnection struct {
     Websocket           *websocket.Conn
     MessageChannel      chan ServerMiddlewareGameState
     IsStandbyChanging   bool
-    // TODO(henk): Why should there be a connection alive flag?
-    ConnectionAlive     bool
 }
 
 func NewMiddlewareConnection(websocket *websocket.Conn, messageChannel chan ServerMiddlewareGameState, isStandbyChanging bool) MiddlewareConnection {
@@ -29,7 +27,6 @@ func NewMiddlewareConnection(websocket *websocket.Conn, messageChannel chan Serv
         Websocket:          websocket,
         MessageChannel:     messageChannel,
         IsStandbyChanging:  isStandbyChanging,
-        ConnectionAlive:    true,
     }
 }
 
@@ -74,13 +71,6 @@ func (middlewareConnections *MiddlewareConnections) Count() int {
     defer middlewareConnections.mutex.Unlock()
     
     return len(middlewareConnections.connections)
-}
-
-func (middlewareConnections *MiddlewareConnections) IsAlive(botId BotId) bool {
-    middlewareConnections.mutex.Lock()
-    defer middlewareConnections.mutex.Unlock()
-    
-    return middlewareConnections.connections[botId].ConnectionAlive
 }
 
 type MiddlewareConnectionHandler func(BotId, MiddlewareConnection)
