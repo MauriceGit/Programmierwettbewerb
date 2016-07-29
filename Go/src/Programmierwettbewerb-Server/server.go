@@ -1993,12 +1993,7 @@ func createStartingBot(gameState *GameState, botInfo BotInfo, statistics Statist
 func handleServerCommands(ws *websocket.Conn) {
     commandId := app.ids.createServerCommandId()
     
-    // Only one server gui can be connected at the time.
     app.serverGuiIsConnectedMutex.Lock()
-    if app.serverGuiIsConnected {
-        app.serverGuiIsConnectedMutex.Unlock()
-        return
-    }
     app.serverGuiIsConnected = true
     app.serverGuiIsConnectedMutex.Unlock()
     
@@ -2301,11 +2296,15 @@ func getServerAddress() string {
 }
 
 func handleServerControl(w http.ResponseWriter, r *http.Request) {
-
+    app.serverGuiIsConnectedMutex.Lock()
+    defer app.serverGuiIsConnectedMutex.Unlock()
+    
+    if app.serverGuiIsConnected {
+        fmt.Fprintf(w, "Cannot connect! There is already one server gui connected.")
+        return
+    }
 
     Logf(LtDebug, "request: %v, %v\n", r.Form, r.PostForm)
-
-    //data := struct {}
 
     t := template.New("Server Control")
     page, _ := ioutil.ReadFile("../ServerGui/index.html")
@@ -2319,7 +2318,6 @@ func handleServerControlFinal(w http.ResponseWriter, r *http.Request) {
     Logf(LtDebug, "Request for Password: %v\n", r.PostFormValue("Password"))
 
     if checkPasswordAgainstFile(r.PostFormValue("Password")) {
-
         entries, _ := ioutil.ReadDir("../Public/spawns")
         for _, entry := range entries {
             if filepath.Ext(makeLocalSpawnName(entry.Name())) == ".bmp" {
@@ -2345,6 +2343,8 @@ func handleServerControlFinal(w http.ResponseWriter, r *http.Request) {
         page, _ := ioutil.ReadFile("../ServerGui/index_final.html")
         t, _ = t.Parse(string(page))
         t.Execute(w, data)
+    } else {
+        fmt.Fprintf(w, "Wrong password!")
     }
 }
 
