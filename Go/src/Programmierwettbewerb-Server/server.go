@@ -1970,10 +1970,21 @@ func createStartingBot(gameState *GameState, botInfo BotInfo, statistics Statist
 
 func handleServerCommands(ws *websocket.Conn) {
     commandId := app.ids.createServerCommandId()
-
+    
+    // Only one server gui can be connected at the time.
     app.serverGuiIsConnectedMutex.Lock()
+    if app.serverGuiIsConnected {
+        app.serverGuiIsConnectedMutex.Unlock()
+        return
+    }
     app.serverGuiIsConnected = true
     app.serverGuiIsConnectedMutex.Unlock()
+    
+    defer func() {
+        app.serverGuiIsConnectedMutex.Lock()
+        app.serverGuiIsConnected = false
+        app.serverGuiIsConnectedMutex.Unlock()
+    }()
     
     LogfColored(LtDebug, LcCyan, "===> Starting ServerGui: %v\n", commandId)
     
