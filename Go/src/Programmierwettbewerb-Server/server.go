@@ -2016,7 +2016,7 @@ func handleMiddleware(ws *websocket.Conn) {
         // This also means, that the bots have "timeoutDuration" to register themselves.
         timeoutDuration := 5*time.Second
         timeout := time.NewTimer(timeoutDuration)
-        
+
         for {
             select {
                 case message, isOpen := <-messageChannel:
