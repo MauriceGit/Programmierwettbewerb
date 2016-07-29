@@ -1734,6 +1734,14 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         }
 
         app.guiConnections.MakeAllOld()
+        
+        ////////////////////////////////////////////////////////////////
+        // RESETTING BOT COMMANDS
+        ////////////////////////////////////////////////////////////////
+        for botId, bot := range gameState.bots {
+            bot.Command = BotCommand{ BatNone, bot.Command.Target }
+            gameState.bots[botId] = bot
+        }
 
         ////////////////////////////////////////////////////////////////
         // PROFILING
@@ -1877,7 +1885,7 @@ func handleGui(ws *websocket.Conn) {
         select {
             case <-receivingDone: waiter -= 1
             case <-sendingDone: waiter -= 1
-            case <-app.runningState: return
+            case <-app.runningState: terminate()
         }
     }
 }
@@ -1940,7 +1948,6 @@ func handleServerCommands(ws *websocket.Conn) {
     }()
 
     for {
-
         if connectionIsTerminated(app.runningState) {
             Logf(LtDebug, "HandleServerCommands is shutting down.\n")
             app.serverGuiIsConnected = false
@@ -1983,7 +1990,7 @@ func handleMiddleware(ws *websocket.Conn) {
     ////////////////////////////////////////////////////////////////
     terminate := func() {
         ws.Close()
-        // This has to be checked because go panic, when a closed channel is being closed.
+        // This has to be checked because go panics, when a closed channel is being closed.
         if _, isOpen := <-messageChannel; isOpen {
             close(messageChannel)
         }
@@ -2133,7 +2140,7 @@ func handleMiddleware(ws *websocket.Conn) {
         select {
             case <-receivingDone: waiter -= 1
             case <-sendingDone: waiter -= 1
-            case <-app.runningState: return
+            case <-app.runningState: terminate()
         }
     }
 }

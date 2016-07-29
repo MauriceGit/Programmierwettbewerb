@@ -442,7 +442,15 @@
 
                 return [tuples, maxMass];
             }
-
+            
+            function unifyLength(num, len) {
+                var s = num + "";
+                while (s.length < len) {
+                    s = s + "0";
+                }
+                return s;
+            }
+            
             function updateHighscoreForBotId (botInfoId, mass, maxMass) {
                 //var mass = tuples[i].mass;
                 //var botInfoId = tuples[i].id;
@@ -476,16 +484,12 @@
                     fontFamily: "Courier New",
                     left: 20
                 });
-                pointString = String(Math.round(mass*100)/100) + "00000"
-                pointString = pointString.substr(0, 9)
+                pointString = unifyLength(mass.toFixed(2), 6)
                 pointsNode.html(pointString);
 
 
-                maxSizeString = String(Math.round(stats.size*100)/100) + "00000";
-                maxSizeString = maxSizeString.substr(0, 9);
-
-                survivalString = String(Math.round(stats.survivalTime*100)/100) + "00000";
-                survivalString = survivalString.substr(0, 6);
+                maxSizeString = unifyLength(stats.size.toFixed(2), 9);
+                survivalString = unifyLength(stats.survivalTime.toFixed(2), 9);
                 statsString1 =
                     "---\> " +
                     "Max Size: " + maxSizeString +
