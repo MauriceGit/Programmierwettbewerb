@@ -2004,21 +2004,23 @@ func handleServerCommands(ws *websocket.Conn) {
     }()
     
     LogfColored(LtDebug, LcCyan, "===> Starting ServerGui: %v\n", commandId)
-    
-    sendingDone   := make(chan bool, 1)
-    receivingDone := make(chan bool, 1)
+
+    waiter := NewConnectionRoutinesWaiter()
     
     stopSending   := make(chan bool, 1)
 
     ////////////////////////////////////////////////////////////////
     // TERMINATE
     ////////////////////////////////////////////////////////////////
+    var termination sync.Once
     terminate := func() {
-        ws.Close()
-        select {
-            case stopSending <- true:
-            default:
-        }
+        termination.Do(func() {
+            ws.Close()
+            select {
+                case stopSending <- true:
+                default:
+            }
+        })
     }
 
     ////////////////////////////////////////////////////////////////
@@ -2026,7 +2028,7 @@ func handleServerCommands(ws *websocket.Conn) {
     ////////////////////////////////////////////////////////////////
     go func() {
         defer func() {
-            sendingDone <- true
+            waiter.SendingDone()
             terminate()
             LogfColored(LtDebug, LcCyan, "<=== Server Gui (ServerCommandId: %v): Go-routine for sending messages is shutting down.\n", commandId)
         }()
@@ -2051,7 +2053,7 @@ func handleServerCommands(ws *websocket.Conn) {
     ////////////////////////////////////////////////////////////////
     go func() {
         defer func() {
-            receivingDone <- true
+            waiter.ReceivingDone()
             terminate()
             LogfColored(LtDebug, LcCyan, "<=== Server Gui (ServerCommandId: %v): Go-routine for receiving messages is shutting down.\n", commandId)
         }()
@@ -2072,13 +2074,7 @@ func handleServerCommands(ws *websocket.Conn) {
     ////////////////////////////////////////////////////////////////
     // WAITING FOR THE WORKERS
     ////////////////////////////////////////////////////////////////
-    waiter := 2
-    for waiter > 0 {
-        select {
-            case <-receivingDone: waiter -= 1
-            case <-sendingDone: waiter -= 1
-        }
-    }
+    <-waiter.Done
 }
 
 func handleMiddleware(ws *websocket.Conn) {
