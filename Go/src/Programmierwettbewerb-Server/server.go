@@ -331,8 +331,11 @@ type Application struct {
     middlewareRegistrations     chan MiddlewareRegistration
     middlewareTerminations      chan BotId
 
+    serverCommandsMutex         sync.Mutex
     serverCommands              []string
     messagesToServerGui         chan interface{}
+    
+    serverGuiIsConnectedMutex   sync.Mutex
     serverGuiIsConnected        bool
 
     profiling                   bool
@@ -1361,8 +1364,7 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
                                     deadBots = append(deadBots, NewBotKill(botId2, bot2))
 
                                     bot1.StatisticsThisGame.BotKillCount += 1
-
-                                    app.middlewareConnections.Delete(botId2)
+                                    
                                     delete(gameState.bots, botId2)
                                     break
                                 }
@@ -1624,10 +1626,15 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         ////////////////////////////////////////////////////////////////
         // WRITE STATISTICS FOR DEAD BOTS
         ////////////////////////////////////////////////////////////////
-        {
-            for _, botKill := range deadBots {
-                go WriteStatisticToFile(botKill.name, botKill.statisticsThisGame)
-            }
+        for _, botKill := range deadBots {
+            go WriteStatisticToFile(botKill.name, botKill.statisticsThisGame)
+        }
+        
+        ////////////////////////////////////////////////////////////////
+        // REMOVE THE CONNECTIONS OF THE DEAD BOTS
+        ////////////////////////////////////////////////////////////////
+        for _, botKill := range deadBots {
+            app.middlewareConnections.Delete(botKill.botId)
         }
 
         ////////////////////////////////////////////////////////////////
@@ -1964,33 +1971,85 @@ func createStartingBot(gameState *GameState, botInfo BotInfo, statistics Statist
 func handleServerCommands(ws *websocket.Conn) {
     commandId := app.ids.createServerCommandId()
 
+    app.serverGuiIsConnectedMutex.Lock()
     app.serverGuiIsConnected = true
+    app.serverGuiIsConnectedMutex.Unlock()
+    
+    LogfColored(LtDebug, LcCyan, "===> Starting ServerGui: %v\n", commandId)
+    
+    sendingDone   := make(chan bool, 1)
+    receivingDone := make(chan bool, 1)
+    
+    stopSending   := make(chan bool, 1)
 
+    ////////////////////////////////////////////////////////////////
+    // TERMINATE
+    ////////////////////////////////////////////////////////////////
+    terminate := func() {
+        ws.Close()
+        select {
+            case stopSending <- true:
+            default:
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////
+    // SENDING
+    ////////////////////////////////////////////////////////////////
     go func() {
-        Logf(LtDebug, "Starting ServerGui: %v\n", commandId)
+        defer func() {
+            sendingDone <- true
+            terminate()
+            LogfColored(LtDebug, LcCyan, "<=== Server Gui (ServerCommandId: %v): Go-routine for sending messages is shutting down.\n", commandId)
+        }()
+        
         for {
-            message := <- app.messagesToServerGui
-
-            if err := websocket.JSON.Send(ws, message); err != nil {
-                Logf(LtDebug, "ERROR when trying to send profiling information to %v: %s\n", commandId, err.Error())
-                app.serverGuiIsConnected = false
-                ws.Close()
-                return
+            select {
+                case message := <-app.messagesToServerGui:
+                    if err := websocket.JSON.Send(ws, message); err != nil {
+                        Logf(LtDebug, "ERROR when trying to send profiling information to %v: %s\n", commandId, err.Error())
+                        app.serverGuiIsConnected = false
+                        ws.Close()
+                        return
+                    }
+                case <-stopSending:
+                    return
             }
-
         }
     }()
 
-    for {
-        var message string
-        if err := websocket.Message.Receive(ws, &message); err != nil {
-            Logf(LtDebug, "\n\nThe command line with id: %v is closed because of: %v\n\n", commandId, err)
-            ws.Close()
-
-            return
+    ////////////////////////////////////////////////////////////////
+    // RECEIVING
+    ////////////////////////////////////////////////////////////////
+    go func() {
+        defer func() {
+            receivingDone <- true
+            terminate()
+            LogfColored(LtDebug, LcCyan, "<=== Server Gui (ServerCommandId: %v): Go-routine for receiving messages is shutting down.\n", commandId)
+        }()
+        
+        for {
+            var message string
+            if err := websocket.Message.Receive(ws, &message); err != nil {
+                LogfColored(LtDebug, LcCyan, "<=== Server Gui (ServerCommandId: %v): Error while Receiving: %v.\n", commandId, err.Error())
+                return
+            }
+            
+            app.serverCommandsMutex.Lock()
+            app.serverCommands = append(app.serverCommands, message)
+            app.serverCommandsMutex.Unlock()
         }
+    }()
 
-        app.serverCommands = append(app.serverCommands, message)
+    ////////////////////////////////////////////////////////////////
+    // WAITING FOR THE WORKERS
+    ////////////////////////////////////////////////////////////////
+    waiter := 2
+    for waiter > 0 {
+        select {
+            case <-receivingDone: waiter -= 1
+            case <-sendingDone: waiter -= 1
+        }
     }
 }
 
