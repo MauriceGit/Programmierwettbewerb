@@ -17,10 +17,20 @@ import (
 ////////////////////////////////////////////////////////////////////////
 
 type MiddlewareConnection struct {
-    Connection          *websocket.Conn
+    Websocket           *websocket.Conn
     MessageChannel      chan ServerMiddlewareGameState
+    IsStandbyChanging   bool
     // TODO(henk): Why should there be a connection alive flag?
     ConnectionAlive     bool
+}
+
+func NewMiddlewareConnection(websocket *websocket.Conn, messageChannel chan ServerMiddlewareGameState, isStandbyChanging bool) MiddlewareConnection {
+    return MiddlewareConnection{
+        Websocket:          websocket,
+        MessageChannel:     messageChannel,
+        IsStandbyChanging:  isStandbyChanging,
+        ConnectionAlive:    true,
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -30,8 +40,8 @@ type MiddlewareConnection struct {
 ////////////////////////////////////////////////////////////////////////
 
 type MiddlewareConnections struct {
-    mutex               sync.Mutex
-    connections         map[BotId]MiddlewareConnection
+    mutex           sync.Mutex
+    connections     map[BotId]MiddlewareConnection
 }
 
 func NewMiddlewareConnections() MiddlewareConnections {
@@ -53,10 +63,17 @@ func (middlewareConnections *MiddlewareConnections) Delete(botId BotId) {
     
     middlewareConnection, found := middlewareConnections.connections[botId]
     if found {
-        middlewareConnection.Connection.Close()
+        middlewareConnection.Websocket.Close()
         close(middlewareConnection.MessageChannel)
         delete(middlewareConnections.connections, botId)
     }
+}
+
+func (middlewareConnections *MiddlewareConnections) Count() int {
+    middlewareConnections.mutex.Lock()
+    defer middlewareConnections.mutex.Unlock()
+    
+    return len(middlewareConnections.connections)
 }
 
 func (middlewareConnections *MiddlewareConnections) IsAlive(botId BotId) bool {
@@ -285,5 +302,3 @@ func (guiConnections *GuiConnections) Foreach(connectionHandler GuiConnectionHan
         connectionHandler(guiId, guiConnection)
     }
 }
-
-

@@ -178,19 +178,19 @@ type ServerSettings struct {
 func NewSettings() ServerSettings {
     defaultDistributionName := "black.bmp"
     defaultFieldSize := Vec2{ 1000, 1000 }
-    
+
     return ServerSettings{
         fieldSize:              defaultFieldSize,
-        
+
         MinNumberOfBots:        14,
         MaxNumberOfBots:        100,
         MaxNumberOfFoods:       1000,
         MaxNumberOfToxins:      50,
-            
+
         foodDistributionName:   defaultDistributionName,
         toxinDistributionName:  defaultDistributionName,
         botDistributionName:    defaultDistributionName,
-        
+
         foodDistribution:       loadSpawnImage(defaultFieldSize, defaultDistributionName, 10),
         toxinDistribution:      loadSpawnImage(defaultFieldSize, defaultDistributionName, 10),
         botDistribution:        loadSpawnImage(defaultFieldSize, defaultDistributionName, 10),
@@ -211,11 +211,11 @@ type GameState struct {
 
 func NewGameState(serverSettings ServerSettings) GameState {
     var gameState GameState
-    
+
     gameState.foods         = make(map[FoodId]Food)
     gameState.bots          = make(map[BotId]Bot)
     gameState.toxins        = make(map[ToxinId]Toxin)
-    
+
     for i := FoodId(0); i < FoodId(app.settings.MaxNumberOfFoods); i++ {
         mass := foodMassMin + rand.Float32() * (foodMassMax - foodMassMin)
         if pos, ok := newFoodPos(); ok {
@@ -228,7 +228,7 @@ func NewGameState(serverSettings ServerSettings) GameState {
             gameState.toxins[ToxinId(i)] = Toxin{true, false, pos, false, BotId(0), toxinMassMin, RandomVec2()}
         }
     }
-    
+
     return gameState
 }
 
@@ -271,7 +271,7 @@ func (ids* Ids) createGuiId() GuiId {
 func (ids* Ids) createServerCommandId() CommandId {
     ids.mutex.Lock()
     defer ids.mutex.Unlock()
-    
+
     var id = ids.nextServerCommandId
     ids.nextServerCommandId = id + 1
     return id
@@ -320,19 +320,22 @@ func (ids* Ids) createToxinId() ToxinId {
 ////////////////////////////////////////////////////////////////////////
 
 type Application struct {
-    standbyMode                 chan bool
+    standbyMutex                sync.Mutex
+    standby                     *sync.Cond
+    standbyActive               bool
+
     runningState                chan bool
-    
+
     middlewareCommands          chan MiddlewareCommand
     middlewareRegistrations     chan MiddlewareRegistration
     middlewareTerminations      chan BotId
-    
+
     serverCommands              []string
     messagesToServerGui         chan interface{}
     serverGuiIsConnected        bool
 
     profiling                   bool
-    
+
     guiConnections              GuiConnections
     middlewareConnections       MiddlewareConnections
     settings                    ServerSettings
@@ -341,12 +344,13 @@ type Application struct {
 
 var app Application
 
-func (app* Application) initialize() {       
+func (app* Application) initialize() {
+    app.standby                     = sync.NewCond(&app.standbyMutex)
+
     app.middlewareCommands          = make(chan MiddlewareCommand, 100)
     app.middlewareRegistrations     = make(chan MiddlewareRegistration, 100)
     app.middlewareTerminations      = make(chan BotId, 100)
-    
-    app.standbyMode                 = make(chan bool)
+
     app.runningState                = make(chan bool, 1)
     app.messagesToServerGui         = make(chan interface{}, 10)
     app.serverGuiIsConnected        = false
@@ -377,6 +381,47 @@ func NewIdsContainer() IdsContainer {
 
 func (blobContainer *IdsContainer) insert(botId BotId, blobId BlobId) {
     (*blobContainer) = append((*blobContainer), IdPair{ botId, blobId })
+}
+
+////////////////////////////////////////////////////////////////////////
+//
+// Connections
+//
+////////////////////////////////////////////////////////////////////////
+
+func hasStandbyRelevantConnections() bool {
+    numRealBots := 0
+    app.middlewareConnections.Foreach(func(botId BotId, middlewareConnection MiddlewareConnection) {
+        if middlewareConnection.IsStandbyChanging {
+            numRealBots += 1
+        }
+    })
+    return numRealBots > 0 || app.guiConnections.Count() > 0
+}
+
+type WaitNotifier func(active bool)
+func waitOnStandbyChangingConnections(waitNotifier WaitNotifier) bool {
+    app.standbyMutex.Lock()
+    defer app.standbyMutex.Unlock()
+    
+    result := app.standbyActive
+    if !hasStandbyRelevantConnections() {
+        waitNotifier(app.standbyActive)
+        app.standbyActive = true
+        app.standby.Wait()
+    }
+    return result
+}
+
+func wakeUpFromStandby() {
+    app.standbyMutex.Lock()
+    defer app.standbyMutex.Unlock()
+    
+    if app.standbyActive {
+        app.standbyActive = false
+        LogfColored(LtDebug, LcBlue, "Exited Standby!\n")
+    }
+    app.standby.Broadcast()
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -770,7 +815,7 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
     deadBots    := make([]BotKill, 0)
     eatenFoods  := make([]FoodId,  0)
     eatenToxins := make([]ToxinId, 0)
-    
+
     ////////////////////////////////////////////////////////////////
     // UPDATE BOT POSITION
     ////////////////////////////////////////////////////////////////
@@ -916,7 +961,7 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
         }
         endProfileEvent(profile, &profileEventToxinPosition)
     }
-    
+
     ////////////////////////////////////////////////////////////////
     // DELETE RANDOM TOXIN IF THERE ARE TOO MANY
     ////////////////////////////////////////////////////////////////
@@ -1151,7 +1196,7 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
         }
         endProfileEvent(profile, &profileEventPushBlobsApart)
     }
-    
+
     ////////////////////////////////////////////////////////////////
     // BUILD QUAD TREE FOR FOODS
     ////////////////////////////////////////////////////////////////
@@ -1214,7 +1259,7 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
         }
         endProfileEvent(profile, &profileEventQuadTreeSearching)
     }
-    
+
     ////////////////////////////////////////////////////////////////
     // TOXINS EATING FOODS
     ////////////////////////////////////////////////////////////////
@@ -1258,7 +1303,7 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
         }
         endProfileEvent(profile, &profileEventEatingFood)
     }
-    
+
     ////////////////////////////////////////////////////////////////
     // BLOBS EATING BLOBS
     ////////////////////////////////////////////////////////////////
@@ -1332,9 +1377,9 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
     }
 
     var simulationStepCounter = 0
-    
+
     var lastMiddlewareStart = float32(0.0)
-    
+
     ////////////////////////////////////////////////////////////////
     // Functions
     ////////////////////////////////////////////////////////////////
@@ -1350,6 +1395,14 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
     // Main Loop
     ////////////////////////////////////////////////////////////////
     for t := range ticker.C {
+        waitOnStandbyChangingConnections(func(standbyActive bool) {
+            if standbyActive {
+                LogfColored(LtDebug, LcBlue, "Standby was initiated by a connection timeout. The main loop is waiting now!\n")
+            } else {
+                LogfColored(LtDebug, LcBlue, "Entering Standby!\n")
+            }
+        })
+
         profile := NewProfile()
 
         var dt = float32(t.Sub(lastTime).Nanoseconds()) / 1e9
@@ -1367,7 +1420,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
             simulationStepCounter = 0
         }
         simulationStepCounter += 1
-        
+
         ////////////////////////////////////////////////////////////////
         // HANDLE EVENTS
         ////////////////////////////////////////////////////////////////
@@ -1384,7 +1437,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
 
                     var command Command
                     err := json.Unmarshal([]byte(commandString), &command)
-                    if err == nil {                        
+                    if err == nil {
                         switch command.Type {
                         case "MinNumberOfBots":
                             app.settings.MinNumberOfBots = command.Value
@@ -1461,7 +1514,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         terminatedBots := make([]BotKill, 0, 10)
         {
             profileEventReadFromMiddleware := startProfileEvent(&profile, "Read from Middleware")
-            
+
             ProcessNewRegistrations:
             for {
                 select {
@@ -1483,7 +1536,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
             for {
                 select {
                 case middlewareCommand := <-app.middlewareCommands:
-                    if bot, ok := gameState.bots[middlewareCommand.botId]; ok {                       
+                    if bot, ok := gameState.bots[middlewareCommand.botId]; ok {
                         bot.Command = middlewareCommand.botCommand
                         gameState.bots[middlewareCommand.botId] = bot
                     }
@@ -1491,7 +1544,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                     break ProcessingNewCommands
                 }
             }
-            
+
             ProcessingTerminations:
             for {
                 select {
@@ -1504,7 +1557,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                     break ProcessingTerminations
                 }
             }
-            
+
             endProfileEvent(&profile, &profileEventReadFromMiddleware)
         }
 
@@ -1522,11 +1575,11 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
             lastMiddlewareStart += dt
             endProfileEvent(&profile, &profileEventAddDummyBots)
         }
-        
+
         ////////////////////////////////////////////////////////////////
         // UPDATE THE GAME STATE
         ////////////////////////////////////////////////////////////////
-        deadBots, eatenFoods, eatenToxins := update(gameState, &app.settings, &app.ids, &profile, dt)        
+        deadBots, eatenFoods, eatenToxins := update(gameState, &app.settings, &app.ids, &profile, dt)
         deadBots = append(deadBots, botsKilledByServerGui...)
         deadBots = append(deadBots, terminatedBots...)
 
@@ -1598,7 +1651,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
             }
             endProfileEvent(&profile, &profileEventPrepareDataForMiddleware)
         }
-            
+
         ////////////////////////////////////////////////////////////////
         // PREPARE DATA TO BE SENT TO THE GUIS
         ////////////////////////////////////////////////////////////////
@@ -1624,7 +1677,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                         message.StatisticsGlobal[key] = bot.StatisticsOverall
                     }
                 }
-                            
+
                 deadBotIds := make([]BotId, 0, 10)
                 for _, botKill := range deadBots {
                     deadBotIds = append(deadBotIds, botKill.botId)
@@ -1632,7 +1685,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
 
                 message.DeletedBotInfos = deadBotIds
                 message.DeletedBots = deadBotIds
-                
+
                 if simulationStepCounter % guiMessageEvery == 0 {
                     for foodId, food := range gameState.foods {
                         if food.IsMoving || food.IsNew || guiConnection.IsNewConnection {
@@ -1656,10 +1709,10 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                 message.DeletedToxins = eatenToxins
 
                 channel <- message
-            })            
+            })
             endProfileEvent(&profile, &profileEventPrepareDataForGui)
         }
-        
+
         ////////////////////////////////////////////////////////////////
         // RESET UPDATE INDICATORS OF THE GAME OBJECTS
         ////////////////////////////////////////////////////////////////
@@ -1708,20 +1761,20 @@ func handleGui(ws *websocket.Conn) {
     var guiId = app.ids.createGuiId()
     LogfColored(LtDebug, LcYellow, "===> Got connection for Gui %v\n", guiId)
 
-    // TODO(henk): Wake up from standby.
-    
-    var messageChannel = make(chan ServerGuiUpdateMessage, 10000)
-    
+    var messageChannel = make(chan ServerGuiUpdateMessage, 1000)
+
     sendingDone   := make(chan bool)
     receivingDone := make(chan bool)
-    
+
     app.guiConnections.Add(guiId, GuiConnection{ ws, true, messageChannel })
-    
+
+    wakeUpFromStandby()
+
     defer func() {
         app.guiConnections.Delete(guiId)
         LogfColored(LtDebug, LcYellow, "<=== Gui connection (GuiId: %v): Connection was handled.\n", guiId)
     }()
-    
+
     ////////////////////////////////////////////////////////////////
     // TERMINATE THE GO-ROUTINES FOR SENDING AND RECEIVING
     ////////////////////////////////////////////////////////////////
@@ -1731,7 +1784,7 @@ func handleGui(ws *websocket.Conn) {
             close(messageChannel)
         }
     }
-    
+
     ////////////////////////////////////////////////////////////////
     // SENDING
     ////////////////////////////////////////////////////////////////
@@ -1741,10 +1794,10 @@ func handleGui(ws *websocket.Conn) {
             terminate()
             LogfColored(LtDebug, LcYellow, "<=== Gui connection (BotId: %v): Go-routine for sending messages is shutting down.\n", guiId)
         }()
-        
+
         timeoutDuration := 5*time.Second
         timeout := time.NewTimer(timeoutDuration)
-        
+
         for {
             select {
                 case message, isOpen := <-messageChannel:
@@ -1782,12 +1835,12 @@ func handleGui(ws *websocket.Conn) {
                             err = websocket.JSON.Send(ws, m)
                         }
                     }
-                    
+
                     if err != nil {
                         LogfColored(LtDebug, LcYellow, "<=== ServerGuiUpdateMessage could not be sent because of: %v\n", err)
                         return
                     }
-                    
+
                     timeout.Reset(timeoutDuration)
                 case <-timeout.C:
                     LogfColored(LtDebug, LcYellow, "<=== Gui connection (GuiId: %v): Timeout for Gui messages.\n", guiId)
@@ -1795,19 +1848,19 @@ func handleGui(ws *websocket.Conn) {
             }
         }
     }()
-   
+
     ////////////////////////////////////////////////////////////////
     // RECEIVING
     ////////////////////////////////////////////////////////////////
     go func () {
-        defer func() { 
+        defer func() {
             receivingDone <- true
             terminate()
             LogfColored(LtDebug, LcYellow, "<=== Gui connection (GuiId: %v): Go-routine for receiving messages is shutting down.\n", guiId)
         }()
-        
+
+        // We never receive anything from the gui right now.
         for {
-            // TODO(henk): We never receive anything from the gui.
             var reply string
             if err := websocket.Message.Receive(ws, &reply); err != nil {
                 Logf(LtDebug, "Can't receive (%v)\n", err)
@@ -1815,7 +1868,7 @@ func handleGui(ws *websocket.Conn) {
             }
         }
     }()
-   
+
     ////////////////////////////////////////////////////////////////
     // WAITING FOR THE WORKERS
     ////////////////////////////////////////////////////////////////
@@ -1907,9 +1960,9 @@ func handleServerCommands(ws *websocket.Conn) {
     }
 }
 
-func handleMiddleware(ws *websocket.Conn) {    
+func handleMiddleware(ws *websocket.Conn) {
     var botId = app.ids.createBotId()
-    
+
     defer func() {
         app.middlewareConnections.Delete(botId)
         app.middlewareTerminations <- botId
@@ -1917,17 +1970,14 @@ func handleMiddleware(ws *websocket.Conn) {
     }()
 
     LogfColored(LtDebug, LcYellow, "===> Got connection from Middleware %v\n", botId)
-    
-    // TODO(henk): Wake up from standby.
 
-    // TODO(henk): Why such a high number?
-    messageChannel := make(chan ServerMiddlewareGameState, 10000)
-    
+    messageChannel := make(chan ServerMiddlewareGameState, 100)
+
     isRegistered := false
-    
+
     sendingDone   := make(chan bool)
     receivingDone := make(chan bool)
-    
+
     ////////////////////////////////////////////////////////////////
     // TERMINATE THE GO-ROUTINES FOR SENDING AND RECEIVING
     ////////////////////////////////////////////////////////////////
@@ -1938,19 +1988,21 @@ func handleMiddleware(ws *websocket.Conn) {
             close(messageChannel)
         }
     }
-    
+
     ////////////////////////////////////////////////////////////////
     // SENDING
     ////////////////////////////////////////////////////////////////
     go func() {
-        defer func() { 
+        defer func() {
             sendingDone <- true
             terminate()
             LogfColored(LtDebug, LcYellow, "<=== Middleware connection (BotId: %v): Go-routine for sending messages is shutting down.\n", botId)
         }()
-        
+
+        // This also means, that the bots have "timeoutDuration" to register themselves.
         timeoutDuration := 5*time.Second
         timeout := time.NewTimer(timeoutDuration)
+        
         for {
             select {
                 case message, isOpen := <-messageChannel:
@@ -1971,7 +2023,7 @@ func handleMiddleware(ws *websocket.Conn) {
                                 return
                             }
                         }
-                        
+
                         // Sending the messages
                         var err error
                         if len(otherMessages) == 0 {
@@ -1985,25 +2037,36 @@ func handleMiddleware(ws *websocket.Conn) {
                             return
                         }
                         
-                        // This also means, that the bots have "timeoutDuration" to register themselves.
                         timeout.Reset(timeoutDuration)
                     }
                 case <-timeout.C:
-                    return
+                    standbyWasActive := waitOnStandbyChangingConnections(func(standbyActive bool) {
+                        if standbyActive {
+                            LogfColored(LtDebug, LcBlue, "Timeout for middleware connection was reached but standby is active. Go-routine is waiting now!\n")
+                        } else {
+                            LogfColored(LtDebug, LcBlue, "Entering Standby!\n")
+                        }
+                    })
+                    if standbyWasActive {
+                        timeout.Reset(timeoutDuration)
+                    } else {
+                        LogfColored(LtDebug, LcYellow, "<=== Middleware connection (BotId: %v): Timeout for Middleware messages.\n", botId)
+                        return
+                    }
             }
         }
     }()
-    
+
     ////////////////////////////////////////////////////////////////
     // RECEIVING
     ////////////////////////////////////////////////////////////////
     go func() {
-        defer func() { 
-            receivingDone <- true 
+        defer func() {
+            receivingDone <- true
             terminate()
             LogfColored(LtDebug, LcYellow, "<=== Middleware connection (BotId: %v): Go-routine for receiving is shutting down.\n", botId)
         }()
-        
+
         for {
             // Receive the message
             var message MessageMiddlewareServer
@@ -2032,28 +2095,24 @@ func handleMiddleware(ws *websocket.Conn) {
 
                         sourceIP := strings.Split(ws.Request().RemoteAddr, ":")[0]
                         myIP := getIP()
-                        
+
                         if message.BotInfo.Name == "dummy" && sourceIP != myIP && sourceIP != "localhost" && sourceIP != "127.0.0.1" {
                             isAllowed = false
                             LogfColored(LtDebug, LcRed, "The player name 'dummy' is not allowed! Request from: %s\n", sourceIP)
                         }
 
                         if isAllowed {
-                            app.middlewareRegistrations <- MiddlewareRegistration{ 
+                            app.middlewareRegistrations <- MiddlewareRegistration{
                                                                botId:       botId,
                                                                botInfo:     *message.BotInfo,
                                                                statistics:  statisticsOverall,
                                                        }
-                                                       
-                            app.middlewareConnections.Add(botId, 
-                                MiddlewareConnection{
-                                    MessageChannel:         messageChannel,
-                                    Connection:             ws,
-                                    ConnectionAlive:        true,
-                                })
-                                
+
+                            app.middlewareConnections.Add(botId, NewMiddlewareConnection(ws, messageChannel, message.BotInfo.Name != "dummy"))
                             isRegistered = true
-                            
+
+                            wakeUpFromStandby()
+
                             LogfColored(LtDebug, LcGreen, "New bot connection: The player \"%v\" can be associated with the svn-repository \"%v\".\n", message.BotInfo.Name, repository)
                         } else {
                             LogfColored(LtDebug, LcMagenta, "New bot connection: The player \"%v\" can not be associated with any svn-repositories!\n", message.BotInfo.Name)
@@ -2065,7 +2124,7 @@ func handleMiddleware(ws *websocket.Conn) {
             }
         }
     }()
-    
+
     ////////////////////////////////////////////////////////////////
     // WAITING FOR THE WORKERS
     ////////////////////////////////////////////////////////////////
@@ -2261,7 +2320,7 @@ func main() {
 
     InitOrganisation()
     UpdateAllSVN()
-    
+
     gameState := NewGameState(app.settings)
     go app.startUpdateLoop(&gameState)
 

@@ -141,6 +141,7 @@ const (
     LcMagenta       LogColor = LogColor(color.FgMagenta)
     LcYellow        LogColor = LogColor(color.FgYellow)
     LcRed           LogColor = LogColor(color.FgRed)
+    LcBlue          LogColor = LogColor(color.FgBlue)
 )
 
 func SetLoggingDebug(value bool) {
