@@ -68,7 +68,7 @@ type Statistics struct {
 type BotInfo struct {
     Name        string  `json:"name"`
     Color       Color   `json:"color"`
-    ImagePath   string  `json:"image"` // TODO(henk): How do we handle the image?
+    ImagePath   string  `json:"image"` // This is not used right now.
 }
 
 type MessageMiddlewareServer struct {
@@ -132,7 +132,6 @@ const (
     LtAlways        LogType =      iota // You cannot test on this using a bitwise and operation, the result is always zero.
     LtVerbose       LogType = 1 << iota
     LtDebug         LogType = 1 << iota
-    // LtNotToFile          LogType = 1 << iota // TODO(henk): Do we want a log file?
 )
 
 type LogColor int
