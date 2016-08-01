@@ -60,6 +60,7 @@ const (
     guiMessageEvery = 1
     guiStatisticsMessageEvery = 1
     serverGuiPasswordFile = "../server_gui_password"
+    allocatorLogFile = "../allocator_log"
 )
 
 ////////////////////////////////////////////////////////////////////////
@@ -364,7 +365,7 @@ type Application struct {
     standbyMutex                sync.Mutex
     standby                     *sync.Cond
     standbyActive               bool
-
+    
     runningStateMutex           sync.Mutex
     runningState                bool
 
@@ -391,7 +392,7 @@ var app Application
 
 func (app* Application) initialize() {
     app.standby                     = sync.NewCond(&app.standbyMutex)
-
+    
     app.middlewareCommands          = make(chan MiddlewareCommand, 100)
     app.middlewareRegistrations     = make(chan MiddlewareRegistration, 100)
     app.middlewareTerminations      = make(chan BotId, 100)
@@ -877,7 +878,7 @@ func NewBotKill(botId BotId, bot Bot) BotKill {
 //
 ////////////////////////////////////////////////////////////////////////
 
-func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *Profile, dt float32) ([]BotKill, []FoodId, []ToxinId) {
+func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *Profile, dt float32, simulationStepCounter int) ([]BotKill, []FoodId, []ToxinId) {
     deadBots    := make([]BotKill, 0)
     eatenFoods  := make([]FoodId,  0)
     eatenToxins := make([]ToxinId, 0)
@@ -1266,13 +1267,30 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
     ////////////////////////////////////////////////////////////////
     // BUILD QUAD TREE FOR FOODS
     ////////////////////////////////////////////////////////////////
-    quadTree := NewQuadTree(NewQuad(Vec2{0,0}, 1000))
+    allocator := NewAllocator(10000, 100, 5000, 10000)
+    quadTree := NewQuadTree(NewQuad(Vec2{0,0}, 1000), &allocator)
     {
         profileEventQuadTreeBuilding := startProfileEvent(profile, "QuadTree Building for Foods")
         {
             for foodId, food := range gameState.foods {
                 quadTree.Insert(food.Position, foodId)
             }
+        }
+        if allocator.LimitWasHit {
+            f, err := os.Create(allocatorLogFile)
+            defer f.Close()
+            if err == nil {
+                serializingMap := make(map[string]Food)
+                for key, value := range gameState.foods {
+                    serializingMap[string(key)] = value
+                }
+                b, _ := json.Marshal(serializingMap)
+                f.Write(b)
+                f.Sync()
+            }
+        }
+        if simulationStepCounter % 1200 == 0 {
+            allocator.Report()
         }
         endProfileEvent(profile, &profileEventQuadTreeBuilding);
     }
@@ -1480,7 +1498,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
             }
         })
         
-        if simulationStepCounter % 300 == 0 {
+        if simulationStepCounter % 900 == 0 {
             Logf(LtDebug, "Number of go-routines: %v\n", runtime.NumGoroutine())
         }
 
@@ -1659,7 +1677,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         ////////////////////////////////////////////////////////////////
         // UPDATE THE GAME STATE
         ////////////////////////////////////////////////////////////////
-        deadBots, eatenFoods, eatenToxins := update(gameState, &app.settings, &app.ids, &profile, dt)
+        deadBots, eatenFoods, eatenToxins := update(gameState, &app.settings, &app.ids, &profile, dt, simulationStepCounter)
         deadBots = append(deadBots, botsKilledByServerGui...)
         deadBots = append(deadBots, terminatedBots...)
 
