@@ -1288,6 +1288,8 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
                 f.Write(b)
                 f.Sync()
             }
+            Logf(LtDebug, "Allocator Report:\n")
+            allocator.Report()
         }
         if simulationStepCounter % 1200 == 0 {
             allocator.Report()

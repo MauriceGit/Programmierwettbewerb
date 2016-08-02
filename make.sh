@@ -5,9 +5,9 @@ export GOBIN=$(pwd)/bin
 
 if [[ ! -d "bin" ]]
 then
-	mkdir bin
+    mkdir bin
 else
-	echo "./bin directory already exists"
+    echo "./bin directory already exists"
 fi
 
 echo "Set the GOPATH to '$GOPATH'"
@@ -18,6 +18,9 @@ go get "golang.org/x/net/websocket"
 go get "golang.org/x/image/bmp"
 go get "github.com/BurntSushi/toml"
 go get "github.com/fatih/color"
+
+echo "Build Quad Tree Debugger"
+go install Programmierwettbewerb-QuadTreeDebugger
 
 echo "Build Server"
 go install Programmierwettbewerb-Server
