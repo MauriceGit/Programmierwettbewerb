@@ -1497,8 +1497,6 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
     // Main Loop
     ////////////////////////////////////////////////////////////////
     for t := range ticker.C {
-	Logf(LtDebug, "Frame %v\n", simulationStepCounter)
-
         // When we want to shut down the server, we have to notify all the go-routines that server the connections.
         if !isServerRunning() {
             app.guiConnections.Foreach(func(guiId GuiId, guiConnection GuiConnection) {
@@ -1767,12 +1765,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                             Toxin:          toxins,
                         }
 
-                        // channel <- wrapper
-
-			select {
-			case channel <- wrapper:
-			default: Logf(LtDebug, "NO MIDDLEWARE MESSAGE SENT\n")		
-			}
+                        channel <- wrapper
                     } else {
                         Logf(LtDebug, "While sending the data to all middlewares, we encountered a middleware connection, for which we did not find a bot.\n")
                     }
@@ -1837,11 +1830,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
 
                 message.DeletedToxins = eatenToxins
 
-                // channel <- message
-		select {
-		case channel <- message:
-		default: Logf(LtDebug, "NO GUI MESSAGE SENT\n")
-		}
+                channel <- message
             })
             endProfileEvent(&profile, &profileEventPrepareDataForGui)
         }
@@ -2451,7 +2440,8 @@ func main() {
     UpdateAllSVN()
 
     gameState := NewGameState(app.settings)
-    go app.startUpdateLoop(&gameState)
+    go app.
+startUpdateLoop(&gameState)
 
     // HTML sites
     http.Handle("/", http.FileServer(http.Dir("../Public/")))
