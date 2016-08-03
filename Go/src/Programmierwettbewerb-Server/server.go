@@ -284,6 +284,7 @@ type Ids struct {
     mutex                       sync.Mutex
     nextGuiId                   GuiId
     nextBotId                   BotId
+    nextTeamId                  TeamId
     nextBlobId                  BlobId
     nextFoodId                  FoodId
     nextToxinId                 ToxinId
@@ -325,6 +326,21 @@ func (ids* Ids) createBotId() BotId {
 
     var id = ids.nextBotId
     ids.nextBotId = id + 1
+    return id
+}
+
+func (ids *Ids) createTeamId(gameState *GameState, name string) TeamId {
+    ids.mutex.Lock()
+    defer ids.mutex.Unlock()
+    
+    for _, bot := range gameState.bots {
+        if bot.Info.Name == name {
+            return bot.TeamId
+        }
+    }
+    
+    var id = ids.nextTeamId
+    ids.nextTeamId = id + 1
     return id
 }
 
@@ -755,10 +771,10 @@ func explodeBlob(gameState *GameState, botId BotId, blobId BlobId, newMap *map[B
     }
 }
 
-func makeServerMiddlewareBlob(botId BotId, blobId BlobId, blob Blob) ServerMiddlewareBlob {
+func makeServerMiddlewareBlob(botId BotId, blobId BlobId, teamId TeamId, blob Blob) ServerMiddlewareBlob {
     return ServerMiddlewareBlob{
         BotId:  uint32(botId),
-        TeamId: uint32(botId),
+        TeamId: uint32(teamId),
         Index:  uint32(blobId),
         Position: blob.Position,
         Mass:   uint32(blob.Mass),
@@ -768,8 +784,9 @@ func makeServerMiddlewareBlob(botId BotId, blobId BlobId, blob Blob) ServerMiddl
 func makeServerMiddlewareBlobs(gameState *GameState, botId BotId) []ServerMiddlewareBlob {
     var blobArray []ServerMiddlewareBlob
 
-    for blobId, blob := range gameState.bots[botId].Blobs {
-        blobArray = append(blobArray, makeServerMiddlewareBlob(botId, blobId, blob))
+    bot := gameState.bots[botId]
+    for blobId, blob := range bot.Blobs {
+        blobArray = append(blobArray, makeServerMiddlewareBlob(botId, blobId, bot.TeamId, blob))
     }
 
     return blobArray
@@ -1719,7 +1736,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                             if botId != otherBotId {
                                 for otherBlobId, otherBlob := range otherBot.Blobs {
                                     if IsInViewWindow(bot.ViewWindow, otherBlob.Position, otherBlob.Radius()) {
-                                        otherBlobs = append(otherBlobs, makeServerMiddlewareBlob(otherBotId, otherBlobId, otherBlob))
+                                        otherBlobs = append(otherBlobs, makeServerMiddlewareBlob(otherBotId, otherBlobId, otherBot.TeamId, otherBlob))
                                     }
                                 }
                             }
@@ -2002,6 +2019,7 @@ func createStartingBot(gameState *GameState, botInfo BotInfo, statistics Statist
 
         return Bot{
             Info:                   botInfo,
+            TeamId:                 app.ids.createTeamId(gameState, botInfo.Name),
             GuiNeedsInfoUpdate:     true,
             ViewWindow:             ViewWindow{ Position: Vec2{0,0}, Size:Vec2{100,100} },
             Blobs:                  map[BlobId]Blob{ 0: blob },

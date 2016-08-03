@@ -118,6 +118,7 @@ func (blob Blob) Radius() float32 {
 
 type Bot struct {
     Info                BotInfo
+    TeamId              TeamId
     GuiNeedsInfoUpdate  bool
     ViewWindow          ViewWindow
     Blobs               map[BlobId]Blob
@@ -154,6 +155,7 @@ func IsInViewWindow(viewWindow ViewWindow, position Vec2, radius float32) bool {
 
 type ServerGuiBot struct {
     Blobs       map[string]ServerGuiBlob    `json:"blobs"`
+    TeamId      TeamId                      `json:"teamId"`
     ViewWindow  ViewWindow                  `json:"viewWindow"`
 }
 
@@ -163,7 +165,7 @@ func NewServerGuiBot(bot Bot) ServerGuiBot {
         key := strconv.Itoa(int(blobId))
         blobs[key] = NewServerGuiBlob(blob)
     }
-    return ServerGuiBot{ blobs, bot.ViewWindow }
+    return ServerGuiBot{ blobs, bot.TeamId, bot.ViewWindow }
 }
 
 type ServerGuiBlob struct {

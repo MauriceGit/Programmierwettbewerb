@@ -425,12 +425,14 @@
                 for (var botInfoId in botInfos) {
                     var botInfo = botInfos[botInfoId];
                     var mass = 0;
+                    var team = 0;
                     if (botInfoId in bots) {
                         for (var blobId in bots[botInfoId].blobs) {
                             mass += bots[botInfoId].blobs[blobId].mass;
                         }
+                        team = bots[botInfoId].teamId;
                     }
-                    tuples.push({ id: botInfoId, mass: mass });
+                    tuples.push({ teamId: team, id: botInfoId, mass: mass });
                     if (mass > maxMass) {
                         maxMass = mass;
                     }
@@ -442,7 +444,7 @@
 
                 return [tuples, maxMass];
             }
-            
+
             function unifyLength(num, len) {
                 var s = num + "";
                 while (s.length < len) {
@@ -450,8 +452,8 @@
                 }
                 return s;
             }
-            
-            function updateHighscoreForBotId (botInfoId, mass, maxMass) {
+
+            function updateHighscoreForBotId (botInfoId, botTeamId, mass, maxMass) {
                 //var mass = tuples[i].mass;
                 //var botInfoId = tuples[i].id;
                 var botInfo = botInfos[botInfoId];
@@ -459,7 +461,8 @@
                 var paddedName = botInfo.name + "________________________________"
                 var shortName = paddedName.substr(0, 13);
                 var paddedID = " (id: " + botInfoId + "__________________________"
-                var extendedName = shortName + paddedID.substr(0, 10) + ")";
+                var paddedTeamID = " (Team: " + botTeamId + "__________________________"
+                var extendedName = shortName + paddedID.substr(0, 10) + ")" + paddedTeamID.substr(0,12) + ")";
 
                 var containerNode = $("<div></div>");
                 containerNode.css({
@@ -563,13 +566,14 @@
                 for (var i = 0; i < tuples.length; i++) {
                     var mass = tuples[i].mass;
                     var botInfoId = tuples[i].id;
+                    var teamId = tuples[i].teamId
 
                     // VERY quick and dirty. Should be reworked, so that calculateHighscore is not called all the time.
                     // But we kinda need maxMass. Or we don't show the bar in follower-mode...
                     if (cameraMode == cmShowBot && botInfoId != cameraBotToFollow) {
                         continue;
                     }
-                    containerNode = updateHighscoreForBotId(botInfoId, mass, maxMass);
+                    containerNode = updateHighscoreForBotId(botInfoId, teamId, mass, maxMass);
                     highscore.append(containerNode);
                 }
 

@@ -12,6 +12,7 @@ import (
 
 type GuiId uint32
 type BotId uint32
+type TeamId uint32
 type BlobId uint32
 type FoodId uint32
 type ToxinId uint32
