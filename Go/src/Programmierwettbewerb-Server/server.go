@@ -1305,10 +1305,11 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
                 f.Write(b)
                 f.Sync()
             }
-            Logf(LtDebug, "Allocator Report:\n")
+            Logf(LtDebug, "Allocator Error Report:\n")
             allocator.Report()
         }
         if simulationStepCounter % 1200 == 0 {
+            Logf(LtDebug, "Allocator Report:\n")
             allocator.Report()
         }
         endProfileEvent(profile, &profileEventQuadTreeBuilding);
@@ -1497,7 +1498,9 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
     // Main Loop
     ////////////////////////////////////////////////////////////////
     for t := range ticker.C {
-	Logf(LtDebug, "Frame %v\n", simulationStepCounter)
+        if simulationStepCounter % 300 == 0 {
+            Logf(LtDebug, "Frame %v\n", simulationStepCounter)
+        }
 
         // When we want to shut down the server, we have to notify all the go-routines that server the connections.
         if !isServerRunning() {
@@ -1533,11 +1536,10 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         ////////////////////////////////////////////////////////////////
         // Save statistics
         ////////////////////////////////////////////////////////////////
-        if simulationStepCounter == 300 {
+        if simulationStepCounter % 300 == 0 {
             for _,bot := range gameState.bots {
                 go WriteStatisticToFile(bot.Info.Name, bot.StatisticsThisGame)
             }
-            simulationStepCounter = 0
         }
         simulationStepCounter += 1
 
@@ -1767,12 +1769,10 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                             Toxin:          toxins,
                         }
 
-                        // channel <- wrapper
-
-			select {
-			case channel <- wrapper:
-			default: Logf(LtDebug, "NO MIDDLEWARE MESSAGE SENT\n")		
-			}
+                        select {
+                            case channel <- wrapper:
+                            default: Logf(LtDebug, "NO MIDDLEWARE MESSAGE SENT\n")
+                        }
                     } else {
                         Logf(LtDebug, "While sending the data to all middlewares, we encountered a middleware connection, for which we did not find a bot.\n")
                     }
@@ -1837,11 +1837,10 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
 
                 message.DeletedToxins = eatenToxins
 
-                // channel <- message
-		select {
-		case channel <- message:
-		default: Logf(LtDebug, "NO GUI MESSAGE SENT\n")
-		}
+                select {
+                    case channel <- message:
+                    default: Logf(LtDebug, "NO GUI MESSAGE SENT\n")
+                }
             })
             endProfileEvent(&profile, &profileEventPrepareDataForGui)
         }
