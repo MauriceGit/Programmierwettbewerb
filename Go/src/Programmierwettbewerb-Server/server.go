@@ -1771,7 +1771,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
 
                         select {
                             case channel <- wrapper:
-                            default: Logf(LtDebug, "NO MIDDLEWARE MESSAGE SENT\n")
+                            default: Logf(LtDebug, "NO MIDDLEWARE MESSAGE SENT: %v in channel.\n", len(channel))
                         }
                     } else {
                         Logf(LtDebug, "While sending the data to all middlewares, we encountered a middleware connection, for which we did not find a bot.\n")
@@ -2177,7 +2177,7 @@ func handleMiddleware(ws *websocket.Conn) {
                                 default:
                                     break Consuming
                             }
-                            if len(otherMessages) > 10 {
+                            if len(otherMessages) > 60 {
                                 LogfColored(LtDebug, LcYellow, "<=== More than 10 messages are in the Queue for middleware %v. So we just shut it down!\n", botId)
                                 return
                             }
