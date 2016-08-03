@@ -1942,7 +1942,7 @@ func handleGui(ws *websocket.Conn) {
                             default:
                                 break Consuming
                         }
-                        if len(otherMessages) > 10 {
+                        if len(otherMessages) > 120 {
                             LogfColored(LtDebug, LcYellow, "<=== More than 10 messages are in the Queue for gui %v. So we just shut it down!\n", guiId)
                             return
                         }
