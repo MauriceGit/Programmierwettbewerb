@@ -71,63 +71,62 @@ const (
 
 type ProfileEvent struct {
     Name            string
-    Parent          int // Index into the Events-array of the profile struct.
     Start           time.Time
     Duration        time.Duration
+    Children        []*ProfileEvent
 }
 
 type Profile struct {
-    Stack       []int
-    Events      []ProfileEvent
+    root    *ProfileEvent
+    stack   []*ProfileEvent
 }
 
 func NewProfile() Profile {
-    return Profile{ Events: make([]ProfileEvent, 0, 100), Stack: make([]int, 0, 10) }
+    return Profile{ root: nil, stack: make([]*ProfileEvent, 0, 10) }
 }
 
-func startProfileEvent(profile *Profile, name string) ProfileEvent {
-    var profileEvent ProfileEvent
-    profileEvent.Name = name
-    profileEvent.Start = time.Now()
-
-    if len(profile.Stack) > 0 {
-        profileEvent.Parent = profile.Stack[len(profile.Stack) - 1]
+func startProfileEvent(profile *Profile, name string) {
+    profileEvent := ProfileEvent{
+        Name:       name,
+        Start:      time.Now(),
+        Children:   make([]*ProfileEvent, 0, 10),
+    }
+    
+    if len(profile.stack) > 0 {
+        lastEvent := profile.stack[len(profile.stack) - 1]
+        lastEvent.Children = append(lastEvent.Children, &profileEvent)
     } else {
-        profileEvent.Parent = -1
+        profile.root = &profileEvent
     }
 
-    var index = len(profile.Events)
-    profile.Events = append(profile.Events, profileEvent)
-
-    profile.Stack = append(profile.Stack, index)
-
-    return profileEvent
+    profile.stack = append(profile.stack, &profileEvent)
 }
 
-func endProfileEvent(profile *Profile, profileEvent *ProfileEvent) {
-    var lastProfileEventIndex = profile.Stack[len(profile.Stack) - 1]
-    profile.Stack = profile.Stack[:len(profile.Stack) - 1]
+func endProfileEvent(profile *Profile) {
+    if len(profile.stack) <= 0 {
+        panic("There is no event to end.")
+    }
+    
+    profileEvent := profile.stack[len(profile.stack) - 1]
+    profile.stack = profile.stack[:len(profile.stack) - 1]
 
-    profile.Events[lastProfileEventIndex].Duration = time.Since(profileEvent.Start)
+    profileEvent.Duration = time.Since(profileEvent.Start)
 }
 
-func printProfile(profile Profile) {
-    fmt.Printf("Profile with %v events:\n", len(profile.Events))
-    var overallNanoseconds int64 = 0
-    for _, element := range profile.Events {
-        overallNanoseconds += element.Duration.Nanoseconds()
+func printProfileEvent(profileEvent *ProfileEvent, currentIndent string, indentation string) {
+    fmt.Printf("%s%s: %v (%.2f)\n", currentIndent, profileEvent.Name, profileEvent.Duration, 0.0)
+    for _, child := range profileEvent.Children {
+        printProfileEvent(child, currentIndent + indentation, indentation)
     }
-    for _, element := range profile.Events {
-        relativeDuration := float32(element.Duration.Nanoseconds()) / float32(overallNanoseconds)
-        if element.Parent != -1 {
-            fmt.Printf("\t")
-        }
-        fmt.Printf("%s: %v (%.2f)\n", element.Name, element.Duration, relativeDuration)
-        for i := 0; i < int(relativeDuration*100) + 1; i++ {
-            fmt.Printf("#")
-        }
-        fmt.Printf("\n")
+}
+
+func printProfile(profile *Profile) {
+    if profile.root == nil {
+        fmt.Printf("Profile is empty\n")
+        return
     }
+
+    printProfileEvent(profile.root, "", "  ")    
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -904,7 +903,7 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
     // UPDATE BOT POSITION
     ////////////////////////////////////////////////////////////////
     {
-        profileEventUpdateBotPosition := startProfileEvent(profile, "Update Bot Position")
+        startProfileEvent(profile, "Update Bot Position")
         for botId, bot := range gameState.bots {
             botDied := false
             for blobId, blob := range bot.Blobs {
@@ -945,14 +944,14 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
                 gameState.bots[botId] = bot
             }
         }
-        endProfileEvent(profile, &profileEventUpdateBotPosition)
+        endProfileEvent(profile)
     }
 
     ////////////////////////////////////////////////////////////////
     // UPDATE VIEW WINDOWS AND MAX MASS
     ////////////////////////////////////////////////////////////////
     {
-        profileEventViewWindowsAndMaxMass := startProfileEvent(profile, "View Windows and max Mass")
+        startProfileEvent(profile, "View Windows and max Mass")
         for botId, bot := range gameState.bots {
             //var diameter float32
             var center Vec2
@@ -983,14 +982,14 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
             }
             gameState.bots[botId] = bot
         }
-        endProfileEvent(profile, &profileEventViewWindowsAndMaxMass)
+        endProfileEvent(profile)
     }
 
     ////////////////////////////////////////////////////////////////
     // POSSIBLY ADD A FOOD OR TOXIN
     ////////////////////////////////////////////////////////////////
     {
-        profileEventAddFoodOrToxin := startProfileEvent(profile, "Add Food Or Toxin")
+        startProfileEvent(profile, "Add Food Or Toxin")
         for len(gameState.toxins) < settings.MaxNumberOfToxins {
             if pos, ok := newToxinPos(); ok {
                 newToxinId := ids.createToxinId()
@@ -1004,14 +1003,14 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
                 gameState.foods[newFoodId] = Food{ true, false, false, 0, mass, pos, RandomVec2() }
             }
         }
-        endProfileEvent(profile, &profileEventAddFoodOrToxin)
+        endProfileEvent(profile)
     }
 
     ////////////////////////////////////////////////////////////////
     // UPDATE FOOD POSITION
     ////////////////////////////////////////////////////////////////
     {
-        profileEventFoodPosition := startProfileEvent(profile, "Food Position")
+        startProfileEvent(profile, "Food Position")
         for foodId, food := range gameState.foods {
             if food.IsMoving {
                 food.Position = Add(food.Position, Muls(food.Velocity, dt))
@@ -1023,14 +1022,14 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
                 }
             }
         }
-        endProfileEvent(profile, &profileEventFoodPosition)
+        endProfileEvent(profile)
     }
 
     ////////////////////////////////////////////////////////////////
     // UPDATE TOXIN POSITION
     ////////////////////////////////////////////////////////////////
     {
-        profileEventToxinPosition := startProfileEvent(profile, "Toxin Position")
+        startProfileEvent(profile, "Toxin Position")
         for toxinId, toxin := range gameState.toxins {
             if toxin.IsMoving {
                 toxin.Position = Add(toxin.Position, Muls(toxin.Velocity, dt))
@@ -1043,14 +1042,14 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
             }
             gameState.toxins[toxinId] = toxin
         }
-        endProfileEvent(profile, &profileEventToxinPosition)
+        endProfileEvent(profile)
     }
 
     ////////////////////////////////////////////////////////////////
     // DELETE RANDOM TOXIN IF THERE ARE TOO MANY
     ////////////////////////////////////////////////////////////////
     {
-        profileEventDeleteToxins := startProfileEvent(profile, "Delete Toxins")
+        startProfileEvent(profile, "Delete Toxins")
         for toxinId,_ := range gameState.toxins {
             if len(gameState.toxins) <= settings.MaxNumberOfToxins {
                 break;
@@ -1058,14 +1057,14 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
             eatenToxins = append(eatenToxins, toxinId)
             delete(gameState.toxins, toxinId)
         }
-        endProfileEvent(profile, &profileEventDeleteToxins)
+        endProfileEvent(profile)
     }
 
     ////////////////////////////////////////////////////////////////
     // DELETE RANDOM FOOD IF THERE ARE TOO MANY
     ////////////////////////////////////////////////////////////////
     {
-        profileEventDeleteFood := startProfileEvent(profile, "Delete Foods")
+        startProfileEvent(profile, "Delete Foods")
         for foodId,_ := range gameState.foods {
             if len(gameState.foods) <= settings.MaxNumberOfFoods {
                 break;
@@ -1073,14 +1072,14 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
             eatenFoods = append(eatenFoods, foodId)
             delete(gameState.foods, foodId)
         }
-        endProfileEvent(profile, &profileEventDeleteFood)
+        endProfileEvent(profile)
     }
 
     ////////////////////////////////////////////////////////////////
     // SPLIT BOTS
     ////////////////////////////////////////////////////////////////
     {
-        profileEventSplitBot := startProfileEvent(profile, "Split Bot")
+        startProfileEvent(profile, "Split Bot")
         for botId, bot := range gameState.bots {
             if bot.Command.Action == BatSplit && len(bot.Blobs) <= 10 {
 
@@ -1096,14 +1095,14 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
                 gameState.bots[botId] = bot
             }
         }
-        endProfileEvent(profile, &profileEventSplitBot)
+        endProfileEvent(profile)
     }
 
     ////////////////////////////////////////////////////////////////
     // SPLIT THE TOXINS
     ////////////////////////////////////////////////////////////////
     {
-        profileEventSplitToxin := startProfileEvent(profile, "Split Toxin")
+        startProfileEvent(profile, "Split Toxin")
         for toxinId, toxin := range gameState.toxins {
 
             if toxin.Mass > toxinMassMax {
@@ -1137,7 +1136,7 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
             }
             gameState.toxins[toxinId] = toxin
         }
-        endProfileEvent(profile, &profileEventSplitToxin)
+        endProfileEvent(profile)
     }
 
     ////////////////////////////////////////////////////////////////
@@ -1145,7 +1144,7 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
     ////////////////////////////////////////////////////////////////
     killedBlobs := NewIdsContainer()
     {
-        profileEventSubblobReunion := startProfileEvent(profile, "Blob reunion")
+        startProfileEvent(profile, "Blob reunion")
         for botId, _ := range gameState.bots {
             var bot = gameState.bots[botId]
             var botRef = &bot
@@ -1153,14 +1152,14 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
             calcSubblobReunion(&killedBlobs, botId, botRef)
             gameState.bots[botId] = *botRef
         }
-        endProfileEvent(profile, &profileEventSubblobReunion)
+        endProfileEvent(profile)
     }
 
     ////////////////////////////////////////////////////////////////
     // COLLISION WITH TOXINS
     ////////////////////////////////////////////////////////////////
     {
-        profileEventCollisionWithToxin := startProfileEvent(profile, "Collision with Toxin")
+        startProfileEvent(profile, "Collision with Toxin")
         for tId,toxin := range gameState.toxins {
             var toxinIsEaten = false
             var toxinIsRepositioned = false
@@ -1260,14 +1259,14 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
                 gameState.toxins[tId] = toxin
             }
         }
-        endProfileEvent(profile, &profileEventCollisionWithToxin)
+        endProfileEvent(profile)
     }
 
     ////////////////////////////////////////////////////////////////
     // PUSH BLOBS APART
     ////////////////////////////////////////////////////////////////
     {
-        profileEventPushBlobsApart := startProfileEvent(profile, "Push Blobs Apart")
+        startProfileEvent(profile, "Push Blobs Apart")
         for botId, _ := range gameState.bots {
 
             var blob = gameState.bots[botId]
@@ -1278,7 +1277,7 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
 
             gameState.bots[botId] = blob
         }
-        endProfileEvent(profile, &profileEventPushBlobsApart)
+        endProfileEvent(profile)
     }
 
     ////////////////////////////////////////////////////////////////
@@ -1287,7 +1286,7 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
     allocator := NewAllocator(10000, 100, 5000, 10000)
     quadTree := NewQuadTree(NewQuad(Vec2{0,0}, 1000), &allocator)
     {
-        profileEventQuadTreeBuilding := startProfileEvent(profile, "QuadTree Building for Foods")
+        startProfileEvent(profile, "QuadTree Building for Foods")
         {
             for foodId, food := range gameState.foods {
                 quadTree.Insert(food.Position, foodId)
@@ -1312,14 +1311,14 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
             Logf(LtDebug, "Allocator Report:\n")
             allocator.Report()
         }
-        endProfileEvent(profile, &profileEventQuadTreeBuilding);
+        endProfileEvent(profile);
     }
 
     ////////////////////////////////////////////////////////////////
     // EATING FOODS
     ////////////////////////////////////////////////////////////////
     {
-        profileEventQuadTreeSearching := startProfileEvent(profile, "QuadTree Seaching (Blobs eating Foods)")
+        startProfileEvent(profile, "QuadTree Seaching (Blobs eating Foods)")
         {
             var buffer FoodBuffer
 
@@ -1361,14 +1360,14 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
                 gameState.bots[botId] = bot
             }
         }
-        endProfileEvent(profile, &profileEventQuadTreeSearching)
+        endProfileEvent(profile)
     }
 
     ////////////////////////////////////////////////////////////////
     // TOXINS EATING FOODS
     ////////////////////////////////////////////////////////////////
     {
-        profileEventEatingFood := startProfileEvent(profile, "QuadTree Searching (Toxins eating Foods)")
+        startProfileEvent(profile, "QuadTree Searching (Toxins eating Foods)")
         {
             var buffer FoodBuffer
 
@@ -1405,14 +1404,14 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
                 buffer.count = 0
             }
         }
-        endProfileEvent(profile, &profileEventEatingFood)
+        endProfileEvent(profile)
     }
 
     ////////////////////////////////////////////////////////////////
     // BLOBS EATING BLOBS
     ////////////////////////////////////////////////////////////////
     {
-        profileEventEatingBlobs := startProfileEvent(profile, "Eating Blobs")
+        startProfileEvent(profile, "Eating Blobs")
         for botId1, bot1 := range gameState.bots {
 
             var bot1Mass float32
@@ -1462,7 +1461,7 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
             bot1.StatisticsThisGame = stats
             gameState.bots[botId1] = bot1
         }
-        endProfileEvent(profile, &profileEventEatingBlobs)
+        endProfileEvent(profile)
     }
 
     return deadBots, eatenFoods, eatenToxins
@@ -1498,6 +1497,9 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
     // Main Loop
     ////////////////////////////////////////////////////////////////
     for t := range ticker.C {
+        profile := NewProfile()
+        startProfileEvent(&profile, "Step")
+        
         if simulationStepCounter % 300 == 0 {
             Logf(LtDebug, "Frame %v\n", simulationStepCounter)
         }
@@ -1526,8 +1528,6 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
             Logf(LtDebug, "Number of go-routines: %v\n", runtime.NumGoroutine())
         }
 
-        profile := NewProfile()
-
         var dt = float32(t.Sub(lastTime).Nanoseconds()) / 1e9
         lastTime = t
 
@@ -1548,7 +1548,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         ////////////////////////////////////////////////////////////////
         botsKilledByServerGui := make([]BotKill, 0)
         {
-            profileEventHandleEvents := startProfileEvent(&profile, "Handle Events")
+            startProfileEvent(&profile, "Handle Events")
             if len(app.serverCommands) > 0 {
                 for _, commandString := range app.serverCommands {
                     type Command struct {
@@ -1626,7 +1626,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
 
                 app.serverCommands = make([]string, 0)
             }
-            endProfileEvent(&profile, &profileEventHandleEvents)
+            endProfileEvent(&profile)
         }
 
         ////////////////////////////////////////////////////////////////
@@ -1634,8 +1634,9 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         ////////////////////////////////////////////////////////////////
         terminatedBots := make([]BotKill, 0, 10)
         {
-            profileEventReadFromMiddleware := startProfileEvent(&profile, "Read from Middleware")
+            startProfileEvent(&profile, "Read from Middleware")
 
+            startProfileEvent(&profile, "Process New Registrations")
             ProcessNewRegistrations:
             for {
                 select {
@@ -1652,7 +1653,9 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                         break ProcessNewRegistrations
                 }
             }
+            endProfileEvent(&profile)
 
+            startProfileEvent(&profile, "Process New Commands")
             ProcessingNewCommands:
             for {
                 select {
@@ -1665,7 +1668,9 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                     break ProcessingNewCommands
                 }
             }
+            endProfileEvent(&profile)
 
+            startProfileEvent(&profile, "Process Terminations")
             ProcessingTerminations:
             for {
                 select {
@@ -1678,15 +1683,16 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                     break ProcessingTerminations
                 }
             }
+            endProfileEvent(&profile)
 
-            endProfileEvent(&profile, &profileEventReadFromMiddleware)
+            endProfileEvent(&profile)
         }
 
         ////////////////////////////////////////////////////////////////
         // ADD SOME MIDDLEWARES/BOTS IF NEEDED
         ////////////////////////////////////////////////////////////////
         {
-            profileEventAddDummyBots := startProfileEvent(&profile, "Add Dummy Bots")
+            startProfileEvent(&profile, "Add Dummy Bots")
             if lastMiddlewareStart > 2 {
                 if len(gameState.bots) < app.settings.MinNumberOfBots {
                     go startBashScript("./startMiddleware.sh")
@@ -1694,7 +1700,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                 }
             }
             lastMiddlewareStart += dt
-            endProfileEvent(&profile, &profileEventAddDummyBots)
+            endProfileEvent(&profile)
         }
 
         ////////////////////////////////////////////////////////////////
@@ -1727,7 +1733,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         // PREPARE DATA TO BE SENT TO THE MIDDLEWARES
         ////////////////////////////////////////////////////////////////
         {
-            profileEventPrepareDataForMiddleware := startProfileEvent(&profile, "Prepare data to be sent to the middlewares")
+            startProfileEvent(&profile, "Prepare data to be sent to the middlewares")
             if simulationStepCounter % mwMessageEvery == 0 {
                 app.middlewareConnections.Foreach(func(botId BotId, middlewareConnection MiddlewareConnection) {
                     channel := middlewareConnection.MessageChannel
@@ -1778,14 +1784,14 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                     }
                 })
             }
-            endProfileEvent(&profile, &profileEventPrepareDataForMiddleware)
+            endProfileEvent(&profile)
         }
 
         ////////////////////////////////////////////////////////////////
         // PREPARE DATA TO BE SENT TO THE GUIS
         ////////////////////////////////////////////////////////////////
         {
-            profileEventPrepareDataForGui := startProfileEvent(&profile, "Prepare data to be sent to the middlewares")
+            startProfileEvent(&profile, "Prepare data to be sent to the middlewares")
             app.guiConnections.Foreach(func(guiId GuiId, guiConnection GuiConnection) {
                 channel := guiConnection.MessageChannel
                 message := NewServerGuiUpdateMessage()
@@ -1842,7 +1848,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                     default: Logf(LtDebug, "NO GUI MESSAGE SENT\n")
                 }
             })
-            endProfileEvent(&profile, &profileEventPrepareDataForGui)
+            endProfileEvent(&profile)
         }
 
         ////////////////////////////////////////////////////////////////
@@ -1879,21 +1885,23 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         // PROFILING
         ////////////////////////////////////////////////////////////////
         if false && app.profiling && app.serverGuiIsConnected {
-            type NanosecondProfileEvent struct {
-                Name            string
-                Parent          int
-                Nanoseconds     int64
-            }
-            events := make([]NanosecondProfileEvent, 0, 100)
-            for _, element := range profile.Events {
-                events = append(events, NanosecondProfileEvent{
-                    Name: element.Name,
-                    Parent: element.Parent,
-                    Nanoseconds: element.Duration.Nanoseconds(),
-                })
-            }
-            app.messagesToServerGui <- events
+            //type NanosecondProfileEvent struct {
+            //    Name            string
+            //    Parent          int
+            //    Nanoseconds     int64
+            //}
+            //events := make([]NanosecondProfileEvent, 0, 100)
+            //for _, element := range profile.Events {
+            //    events = append(events, NanosecondProfileEvent{
+            //        Name: element.Name,
+            //        Parent: element.Parent,
+            //        Nanoseconds: element.Duration.Nanoseconds(),
+            //    })
+            //}
+            //app.messagesToServerGui <- events
         }
+        
+        endProfileEvent(&profile)
     }
 }
 
@@ -1904,7 +1912,7 @@ func handleGui(ws *websocket.Conn) {
     messageChannel         := make(chan ServerGuiUpdateMessage, 1000)
     stopServerNotification := make(chan bool, 1)
 
-    waiter := NewConnectionRoutinesWaiter()
+    sendingDone := make(chan bool, 1)
 
     app.guiConnections.Add(guiId, GuiConnection{ ws, true, messageChannel, stopServerNotification })
     defer func() {
@@ -1919,7 +1927,7 @@ func handleGui(ws *websocket.Conn) {
     ////////////////////////////////////////////////////////////////
     go func() {
         defer func() {
-            waiter.SendingDone()
+            sendingDone <- true
             app.guiConnections.Delete(guiId)
             LogfColored(LtDebug, LcYellow, "<=== Gui connection (BotId: %v): Go-routine for sending messages is shutting down.\n", guiId)
         }()
@@ -1976,30 +1984,10 @@ func handleGui(ws *websocket.Conn) {
     }()
 
     ////////////////////////////////////////////////////////////////
-    // RECEIVING
-    ////////////////////////////////////////////////////////////////
-    /*go func () {
-        defer func() {
-            waiter.ReceivingDone()
-            app.guiConnections.Delete(guiId)
-            LogfColored(LtDebug, LcYellow, "<=== Gui connection (GuiId: %v): Go-routine for receiving messages is shutting down.\n", guiId)
-        }()
-
-        // We never receive anything from the gui right now.
-        for {
-            var reply string
-            if err := websocket.Message.Receive(ws, &reply); err != nil {
-                Logf(LtDebug, "Can't receive (%v)\n", err)
-                return
-            }
-        }
-    }()*/
-
-    ////////////////////////////////////////////////////////////////
     // WAITING FOR THE WORKERS
     ////////////////////////////////////////////////////////////////
     select {
-        case <-waiter.Done:
+        case <-sendingDone:
         case <-stopServerNotification:
     }
 }
