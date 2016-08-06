@@ -33,6 +33,16 @@
             .img-center {
                 margin:0 auto;
             }
+            .sponsor {
+                max-width: 128px;
+                max-height: 128px;
+                margin: 32px 8px -32px 0;
+            }
+            .gamebutton {
+                font-weight: bold;
+                font-size: 18px;
+                background: #EAEAEA;
+            }
         </style>
         <script>
             var currentView = "";
@@ -84,9 +94,14 @@
         <div id="mainHTML" class="hidden">
             <div id="jumbotron" class="jumbotron">
                 <h1>Agar.io</h1>
+                <hr>
                 <p>FH Wedel - Programmierwettbewerb Wintersemester 2016</p>
             </div>
-            <a type="button" class="btn btn-success btn-block" href="game.html">Zum Spiel!</a>
+            <a type="button" class="btn btn-default btn-block gamebutton" href="game.html">Zum Spiel!</a>
+            <div class="row">                
+                <img src="images/de-simple.png" class="pull-right sponsor"></src>
+                <img src="images/nm_logo_400dpi.jpg" class="pull-right sponsor"></src>
+            </div>
             <h3>News</h3>
             <hr>
             <!--<div class="media">
