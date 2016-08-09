@@ -34,9 +34,12 @@
                 margin:0 auto;
             }
             .sponsor {
-                max-width: 512px;
                 max-height: 70px;
-                margin: 32px 192px 0px 192px;
+                margin: 32px 0px 0px 0px;
+            }
+            .centerBlock {
+                display: table;
+                margin: 0 auto;
             }
             .gamebutton {
                 font-weight: bold;
@@ -99,12 +102,16 @@
             </div>
             <a type="button" class="btn btn-default btn-block gamebutton" href="game.html">Zum Spiel!</a>
             <div class="row">
-                <a href="https://www.getdigital.de/">
-                    <img src="Images/de-simple.png" class="pull-right sponsor"></src>
-                </a>
-                <a href="https://www.novomind.com/home/">
-                    <img src="Images/nm_logo_400dpi.jpg" class="pull-left sponsor"></src>
-                </a>
+                <div class="col-md-6">
+                    <a href="https://www.novomind.com/home/" class="centerBlock">
+                        <img src="Images/nm_logo_400dpi.jpg" class="sponsor"></src>
+                    </a>
+                </div>
+                <div class="col-md-6">
+                    <a href="https://www.getdigital.de/" class="centerBlock">
+                        <img src="Images/de-simple.png" class="sponsor"></src>
+                    </a>
+                </div>
             </div>
             <h3>News</h3>
             <hr>
