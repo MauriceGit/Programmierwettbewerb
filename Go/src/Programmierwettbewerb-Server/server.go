@@ -91,7 +91,7 @@ func startProfileEvent(profile *Profile, name string) {
         Start:      time.Now(),
         Children:   make([]*ProfileEvent, 0, 10),
     }
-    
+
     if len(profile.stack) > 0 {
         lastEvent := profile.stack[len(profile.stack) - 1]
         lastEvent.Children = append(lastEvent.Children, &profileEvent)
@@ -106,7 +106,7 @@ func endProfileEvent(profile *Profile) {
     if len(profile.stack) <= 0 {
         panic("There is no event to end.")
     }
-    
+
     profileEvent := profile.stack[len(profile.stack) - 1]
     profile.stack = profile.stack[:len(profile.stack) - 1]
 
@@ -126,7 +126,7 @@ func printProfile(profile *Profile) {
         return
     }
 
-    printProfileEvent(profile.root, "", "  ")    
+    printProfileEvent(profile.root, "", "  ")
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -254,9 +254,9 @@ func NewConnectionRoutinesWaiter() ConnectionRoutinesWaiter {
 func (connectionRoutinesWaiter *ConnectionRoutinesWaiter) SendingDone() {
     connectionRoutinesWaiter.mutex.Lock()
     defer connectionRoutinesWaiter.mutex.Unlock()
-    
+
     connectionRoutinesWaiter.sendingDone = true
-    
+
     if connectionRoutinesWaiter.sendingDone && connectionRoutinesWaiter.receivingDone {
         connectionRoutinesWaiter.Done <- true
     }
@@ -265,7 +265,7 @@ func (connectionRoutinesWaiter *ConnectionRoutinesWaiter) SendingDone() {
 func (connectionRoutinesWaiter *ConnectionRoutinesWaiter) ReceivingDone() {
     connectionRoutinesWaiter.mutex.Lock()
     defer connectionRoutinesWaiter.mutex.Unlock()
-    
+
     connectionRoutinesWaiter.receivingDone = true
 
     if connectionRoutinesWaiter.sendingDone && connectionRoutinesWaiter.receivingDone {
@@ -331,13 +331,13 @@ func (ids* Ids) createBotId() BotId {
 func (ids *Ids) createTeamId(gameState *GameState, name string) TeamId {
     ids.mutex.Lock()
     defer ids.mutex.Unlock()
-    
+
     for _, bot := range gameState.bots {
         if bot.Info.Name == name {
             return bot.TeamId
         }
     }
-    
+
     var id = ids.nextTeamId
     ids.nextTeamId = id + 1
     return id
@@ -380,7 +380,7 @@ type Application struct {
     standbyMutex                sync.Mutex
     standby                     *sync.Cond
     standbyActive               bool
-    
+
     runningStateMutex           sync.Mutex
     runningState                bool
 
@@ -391,7 +391,7 @@ type Application struct {
     serverCommandsMutex         sync.Mutex
     serverCommands              []string
     messagesToServerGui         chan interface{}
-    
+
     serverGuiIsConnectedMutex   sync.Mutex
     serverGuiIsConnected        bool
 
@@ -407,13 +407,13 @@ var app Application
 
 func (app* Application) initialize() {
     app.standby                     = sync.NewCond(&app.standbyMutex)
-    
+
     app.middlewareCommands          = make(chan MiddlewareCommand, 100)
     app.middlewareRegistrations     = make(chan MiddlewareRegistration, 100)
     app.middlewareTerminations      = make(chan BotId, 100)
 
-    app.runningState                = true    
-    
+    app.runningState                = true
+
     app.messagesToServerGui         = make(chan interface{}, 10)
     app.serverGuiIsConnected        = false
 
@@ -428,14 +428,14 @@ func (app* Application) initialize() {
 func stopServer() {
     app.runningStateMutex.Lock()
     defer app.runningStateMutex.Unlock()
-    
+
     app.runningState = false
 }
 
 func isServerRunning() bool {
     app.runningStateMutex.Lock()
     defer app.runningStateMutex.Unlock()
-    
+
     return app.runningState
 }
 
@@ -479,7 +479,7 @@ type WaitNotifier func(active bool)
 func waitOnStandbyChangingConnections(waitNotifier WaitNotifier) bool {
     app.standbyMutex.Lock()
     defer app.standbyMutex.Unlock()
-    
+
     result := app.standbyActive
     if !hasStandbyRelevantConnections() {
         waitNotifier(app.standbyActive)
@@ -495,7 +495,7 @@ func waitOnStandbyChangingConnections(waitNotifier WaitNotifier) bool {
 func wakeUpFromStandby() {
     app.standbyMutex.Lock()
     defer app.standbyMutex.Unlock()
-    
+
     if app.standbyActive {
         app.standbyActive = false
         app.middlewareConnections.Foreach(func(botId BotId, middlewareConnection MiddlewareConnection) {
@@ -1442,7 +1442,7 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
                                     deadBots = append(deadBots, NewBotKill(botId2, bot2))
 
                                     bot1.StatisticsThisGame.BotKillCount += 1
-                                    
+
                                     delete(gameState.bots, botId2)
                                     break
                                 }
@@ -1499,7 +1499,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
     for t := range ticker.C {
         profile := NewProfile()
         startProfileEvent(&profile, "Step")
-        
+
         if simulationStepCounter % 300 == 0 {
             Logf(LtDebug, "Frame %v\n", simulationStepCounter)
         }
@@ -1514,7 +1514,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
             })
             return
         }
-        
+
         // Go into Standby when there are no relevant connections.
         waitOnStandbyChangingConnections(func(standbyActive bool) {
             if standbyActive {
@@ -1523,7 +1523,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                 LogfColored(LtDebug, LcBlue, "Entering Standby!\n")
             }
         })
-        
+
         if simulationStepCounter % 900 == 0 {
             Logf(LtDebug, "Number of go-routines: %v\n", runtime.NumGoroutine())
         }
@@ -1721,7 +1721,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         for _, botKill := range deadBots {
             go WriteStatisticToFile(botKill.name, botKill.statisticsThisGame)
         }
-        
+
         ////////////////////////////////////////////////////////////////
         // REMOVE THE CONNECTIONS OF THE DEAD BOTS
         ////////////////////////////////////////////////////////////////
@@ -1872,7 +1872,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         }
 
         app.guiConnections.MakeAllOld()
-        
+
         ////////////////////////////////////////////////////////////////
         // RESETTING BOT COMMANDS
         ////////////////////////////////////////////////////////////////
@@ -1900,7 +1900,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
             //}
             //app.messagesToServerGui <- events
         }
-        
+
         endProfileEvent(&profile)
     }
 }
@@ -1921,7 +1921,7 @@ func handleGui(ws *websocket.Conn) {
     }()
 
     wakeUpFromStandby()
-    
+
     ////////////////////////////////////////////////////////////////
     // SENDING
     ////////////////////////////////////////////////////////////////
@@ -2032,21 +2032,21 @@ func createStartingBot(gameState *GameState, botInfo BotInfo, statistics Statist
 
 func handleServerCommands(ws *websocket.Conn) {
     commandId := app.ids.createServerCommandId()
-    
+
     app.serverGuiIsConnectedMutex.Lock()
     app.serverGuiIsConnected = true
     app.serverGuiIsConnectedMutex.Unlock()
-    
+
     defer func() {
         app.serverGuiIsConnectedMutex.Lock()
         app.serverGuiIsConnected = false
         app.serverGuiIsConnectedMutex.Unlock()
     }()
-    
+
     LogfColored(LtDebug, LcCyan, "===> Starting ServerGui: %v\n", commandId)
 
     waiter := NewConnectionRoutinesWaiter()
-    
+
     stopSending   := make(chan bool, 1)
 
     ////////////////////////////////////////////////////////////////
@@ -2072,7 +2072,7 @@ func handleServerCommands(ws *websocket.Conn) {
             terminate()
             LogfColored(LtDebug, LcCyan, "<=== Server Gui (ServerCommandId: %v): Go-routine for sending messages is shutting down.\n", commandId)
         }()
-        
+
         for {
             select {
                 case message := <-app.messagesToServerGui:
@@ -2097,14 +2097,14 @@ func handleServerCommands(ws *websocket.Conn) {
             terminate()
             LogfColored(LtDebug, LcCyan, "<=== Server Gui (ServerCommandId: %v): Go-routine for receiving messages is shutting down.\n", commandId)
         }()
-        
+
         for {
             var message string
             if err := websocket.Message.Receive(ws, &message); err != nil {
                 LogfColored(LtDebug, LcCyan, "<=== Server Gui (ServerCommandId: %v): Error while Receiving: %v.\n", commandId, err.Error())
                 return
             }
-            
+
             app.serverCommandsMutex.Lock()
             app.serverCommands = append(app.serverCommands, message)
             app.serverCommandsMutex.Unlock()
@@ -2183,7 +2183,7 @@ func handleMiddleware(ws *websocket.Conn) {
                             LogfColored(LtDebug, LcYellow, "<=== JSON could not be sent because of: %v\n", err)
                             return
                         }
-                        
+
                         timeout.Reset(timeoutDuration)
                     }
                 case standbyActive := <-standbyNotification:
@@ -2240,7 +2240,7 @@ func handleMiddleware(ws *websocket.Conn) {
 
                         if message.BotInfo.Name == "dummy" && sourceIP != myIP && sourceIP != "localhost" && sourceIP != "127.0.0.1" {
                             isAllowed = false
-                            LogfColored(LtDebug, LcRed, "The player name 'dummy' is not allowed! Request from: %s\n", sourceIP)
+                            LogfColored(LtDebug, LcRed, "FORBIDDEN. NAME=\"dummy\". IP=\"%s\".\n", sourceIP)
                         }
 
                         if isAllowed {
@@ -2255,9 +2255,9 @@ func handleMiddleware(ws *websocket.Conn) {
 
                             wakeUpFromStandby()
 
-                            LogfColored(LtDebug, LcGreen, "New bot connection: The player \"%v\" can be associated with the svn-repository \"%v\".\n", message.BotInfo.Name, repository)
+                            LogfColored(LtDebug, LcGreen, "NEW_BOT. NAME=\"%v\". SVN=\"%v\". IP=\"%s\".\n", message.BotInfo.Name, repository, sourceIP)
                         } else {
-                            LogfColored(LtDebug, LcMagenta, "New bot connection: The player \"%v\" can not be associated with any svn-repositories!\n", message.BotInfo.Name)
+                            LogfColored(LtDebug, LcMagenta, "WRONG_NAME. NAME=\"%v\". IP=\"%s\".\n", message.BotInfo.Name, sourceIP)
                             return
                         }
                     } else {
@@ -2334,7 +2334,7 @@ func getServerAddress() string {
 func handleServerControl(w http.ResponseWriter, r *http.Request) {
     app.serverGuiIsConnectedMutex.Lock()
     defer app.serverGuiIsConnectedMutex.Unlock()
-    
+
     if app.serverGuiIsConnected {
         fmt.Fprintf(w, "Cannot connect! There is already one server gui connected.")
         return
