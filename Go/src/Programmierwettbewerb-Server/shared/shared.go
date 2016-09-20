@@ -44,26 +44,26 @@ type BotCommand struct {
 
 type Statistics struct {
     // Maximum size achieved
-    MaxSize         float32     `json:"size"`                           // check.
+    MaxSize         float32     `json:"0"`                           // check.
     // Longest survival time achieved
-    MaxSurvivalTime float32     `json:"survivalTime"`                   // check.
+    MaxSurvivalTime float32     `json:"1"`                   // check.
     // How many blobs it killed overall
-    BlobKillCount   int         `json:"blobKillCount"`                  // check.
+    BlobKillCount   int         `json:"2"`                  // check.
     // How many bots it killed overall (No surviving blob of that bot!)
-    BotKillCount    int         `json:"botKillCount"`                   // check.
+    BotKillCount    int         `json:"3"`                   // check.
     // How often it duplicated a toxin
-    ToxinThrow      int         `json:"toxinThrow"`                     // check.
+    ToxinThrow      int         `json:"4"`                     // check.
     // How often the duplicated toxin actually exploded another blob!
-    SuccessfulToxin int         `json:"successfulToxin"`                // check.
+    SuccessfulToxin int         `json:"5"`                // check.
     // How often it has split
-    SplitCount      int         `json:"splitCount"`                     // check.
+    SplitCount      int         `json:"6"`                     // check.
     // How often the splitted blob ate at least one other blob! (Only immediately, not 10s later!)
-    SuccessfulSplit int         `json:"successfulSplit"`                // check.
+    SuccessfulSplit int         `json:"7"`                // check.
     // We have to talk about that one ;)
     // Probably like feeding a team mate, resulting in eating an enemy blob or similar
-    SuccessfulTeam  int         `json:"successfulTeaming"`              //
+    SuccessfulTeam  int         `json:"8"`              //
     // For example eating a complete bot of the own team...
-    BadTeaming      int         `json:"badTeaming"`                     //
+    BadTeaming      int         `json:"9"`                     //
 }
 
 type BotInfo struct {

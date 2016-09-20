@@ -189,6 +189,21 @@
             function makeCSSColor(color) {
                 return "rgb({0}, {1}, {2})".format(color.R, color.G, color.B);
             }
+            
+            function convertStatistics(statistics) {
+                return {
+                    "maxSize":            statistics[0],
+                    "maxSurvivalTime":    statistics[1],
+                    "blobKillCount":      statistics[2],
+                    "botKillCount":       statistics[3],
+                    "toxinThrow":         statistics[4],
+                    "successfulToxin":    statistics[5],
+                    "splitCount":         statistics[6],
+                    "successfulSplit":    statistics[7],
+                    "successfulTeam":     statistics[8],
+                    "badTeaming":         statistics[9],
+                };
+            }
 
             window.onload = function() {
                 //
@@ -233,7 +248,7 @@
                     var binData = new Uint8Array(e.data);
                     var inflated = pako.inflate(binData);
                     var data = String.fromCharCode.apply(null, new Uint16Array(inflated));
-                    
+
                     // Just ignore this message. It's to test, if the
                     // connection is alive at server side.
                     if (data == "alive_test") {
@@ -243,50 +258,61 @@
                     var message = JSON.parse(data);
                     var  guiUpdatedNeeded = false;
 
-                    for (var botId in message.createdOrUpdatedBotInfos) {
-                        botInfos[botId] = message.createdOrUpdatedBotInfos[botId];
+                    var createdOrUpdatedBotInfos    = message[0];
+                    var deletedBotInfos             = message[1];
+                    var createdOrUpdatedBots        = message[2];
+                    var deletedBots                 = message[3];
+                    var createdOrUpdatedFoods       = message[4];
+                    var deletedFoods                = message[5];
+                    var createdOrUpdatedToxins      = message[6];
+                    var deletedToxins               = message[7];
+                    var messageStatisticsThisGame   = message[8];
+                    var messageStatisticsGlobal     = message[9];
+
+                    for (var botId in createdOrUpdatedBotInfos) {
+                        botInfos[botId] = createdOrUpdatedBotInfos[botId];
                         guiUpdatedNeeded = true;
                     }
 
-                    for (var i = 0; i < message.deletedBotInfos.length; i++) {
-                        var botId = message.deletedBotInfos[i];
+                    for (var i = 0; i < deletedBotInfos.length; i++) {
+                        var botId = deletedBotInfos[i];
                         delete botInfos[botId];
                         guiUpdatedNeeded = true;
                     }
 
-                    for (var botId in message.createdOrUpdatedBots) {
-                        bots[botId] = message.createdOrUpdatedBots[botId];
+                    for (var botId in createdOrUpdatedBots) {
+                        bots[botId] = createdOrUpdatedBots[botId];
                     }
 
-                    for (var i = 0; i < message.deletedBots.length; i++) {
-                        var botId = message.deletedBots[i];
+                    for (var i = 0; i < deletedBots.length; i++) {
+                        var botId = deletedBots[i];
                         delete bots[botId];
                     }
 
-                    for (var foodId in message.createdOrUpdatedFoods) {
-                        foods[foodId] = message.createdOrUpdatedFoods[foodId];
+                    for (var foodId in createdOrUpdatedFoods) {
+                        foods[foodId] = createdOrUpdatedFoods[foodId];
                     }
 
-                    for (var i = 0; i < message.deletedFoods.length; i++) {
-                        var foodId = message.deletedFoods[i];
+                    for (var i = 0; i < deletedFoods.length; i++) {
+                        var foodId = deletedFoods[i];
                         delete foods[foodId];
                     }
 
-                    for (var toxinId in message.createdOrUpdatedToxins) {
-                        toxins[toxinId] = message.createdOrUpdatedToxins[toxinId];
+                    for (var toxinId in createdOrUpdatedToxins) {
+                        toxins[toxinId] = createdOrUpdatedToxins[toxinId];
                     }
 
-                    for (var i = 0; i < message.deletedToxins.length; i++) {
-                        var toxinId = message.deletedToxins[i];
+                    for (var i = 0; i < deletedToxins.length; i++) {
+                        var toxinId = deletedToxins[i];
                         delete toxins[toxinId];
                     }
 
-                    for (var botId in message.statisticsLocal) {
-                        statisticsLocal[botId] = message.statisticsLocal[botId]
+                    for (var botId in messageStatisticsThisGame) {
+                        statisticsLocal[botId] = convertStatistics(messageStatisticsThisGame[botId])
                     }
 
-                    for (var botId in message.statisticsGlobal) {
-                        statisticsGlobal[botId] = message.statisticsLocal[botId]
+                    for (var botId in messageStatisticsGlobal) {
+                        statisticsGlobal[botId] = convertStatistics(messageStatisticsGlobal[botId])
                     }
 
                     if (guiUpdatedNeeded) {
@@ -321,7 +347,7 @@
             };
 
             function radius(mass) {
-                return Math.max(1, Math.sqrt(mass / Math.PI)); // TODO(henk): Maybe remove the max(1, ...), when we talked about the sizes of stuff.
+                return Math.max(1, Math.sqrt(mass / Math.PI));
             }
 
             function render() {
@@ -422,7 +448,7 @@
                         context.stroke();
                     }
                 }
-                                window.requestAnimationFrame(render);
+                window.requestAnimationFrame(render);
             }
 
             function calculateHighscore() {
@@ -497,8 +523,8 @@
                 pointsNode.html(pointString);
 
 
-                maxSizeString = unifyLength(stats.size.toFixed(2), 9);
-                survivalString = unifyLength(stats.survivalTime.toFixed(2), 9);
+                maxSizeString = unifyLength(stats.maxSize.toFixed(2), 9);
+                survivalString = unifyLength(stats.maxSurvivalTime.toFixed(2), 9);
                 statsString1 =
                     "---\> " +
                     "Max Size: " + maxSizeString +

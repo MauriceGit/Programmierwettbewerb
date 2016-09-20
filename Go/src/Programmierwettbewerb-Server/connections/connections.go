@@ -211,16 +211,16 @@ func NewServerGuiToxin(toxin Toxin) ServerGuiToxin {
 type ServerGuiUpdateMessage struct {
     // "JSON objects only support strings as keys; to encode a Go map type it must be of the form map[string]T (where T is any Go type supported by the json package)."
     // Source: http://blog.golang.org/json-and-go
-    CreatedOrUpdatedBotInfos    map[string]BotInfo              `json:"createdOrUpdatedBotInfos"`
-    DeletedBotInfos             []BotId                         `json:"deletedBotInfos"`
-    CreatedOrUpdatedBots        map[string]ServerGuiBot         `json:"createdOrUpdatedBots"`
-    DeletedBots                 []BotId                         `json:"deletedBots"`
-    CreatedOrUpdatedFoods       map[string]ServerGuiFood        `json:"createdOrUpdatedFoods"`
-    DeletedFoods                []FoodId                        `json:"deletedFoods"`
-    CreatedOrUpdatedToxins      map[string]ServerGuiToxin       `json:"createdOrUpdatedToxins"`
-    DeletedToxins               []ToxinId                       `json:"deletedToxins"`
-    StatisticsThisGame          map[string]Statistics           `json:"statisticsLocal"`
-    StatisticsGlobal            map[string]Statistics           `json:"statisticsGlobal"`
+    CreatedOrUpdatedBotInfos    map[string]BotInfo              `json:"0"`
+    DeletedBotInfos             []BotId                         `json:"1"`
+    CreatedOrUpdatedBots        map[string]ServerGuiBot         `json:"2"`
+    DeletedBots                 []BotId                         `json:"3"`
+    CreatedOrUpdatedFoods       map[string]ServerGuiFood        `json:"4"`
+    DeletedFoods                []FoodId                        `json:"5"`
+    CreatedOrUpdatedToxins      map[string]ServerGuiToxin       `json:"6"`
+    DeletedToxins               []ToxinId                       `json:"7"`
+    StatisticsThisGame          map[string]Statistics           `json:"8"`
+    StatisticsGlobal            map[string]Statistics           `json:"9"`
 }
 
 func NewServerGuiUpdateMessage() ServerGuiUpdateMessage {
