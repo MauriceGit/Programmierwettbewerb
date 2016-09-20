@@ -26,6 +26,8 @@ import (
     "strings"
     "net"
     "runtime"
+    "compress/gzip"
+    "bytes"
 )
 
 ////////////////////////////////////////////////////////////////////////
@@ -1960,18 +1962,15 @@ func handleGui(ws *websocket.Conn) {
 
                     // Send the messages.
                     var err error
-                    if len(otherMessages) == 0 {
-                        err = websocket.JSON.Send(ws, message)
-                    } else {
-                        allMessages := append([]ServerGuiUpdateMessage{message}, otherMessages...)
-                        for _, m := range(allMessages) {
-                            m.CreatedOrUpdatedBots = make(map[string]ServerGuiBot)
-                            m.StatisticsThisGame   = make(map[string]Statistics)
-                            m.StatisticsGlobal     = make(map[string]Statistics)
-                            err = websocket.JSON.Send(ws, m)
-                        }
-                    }
 
+                    messageBytes, _ := json.Marshal(message)
+                    
+                    var buffer bytes.Buffer
+                    writer := gzip.NewWriter(&buffer)
+                    writer.Write(messageBytes)
+                    writer.Close()
+                    
+                    err = websocket.Message.Send(ws, buffer.Bytes())
                     if err != nil {
                         LogfColored(LtDebug, LcYellow, "<=== ServerGuiUpdateMessage could not be sent because of: %v\n", err)
                         return

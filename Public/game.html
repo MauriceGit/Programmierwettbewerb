@@ -1,6 +1,7 @@
 <html>
     <head>
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.0/jquery.min.js"></script>
+        <script src="pako.js"></script>
         <style>
             canvas {
                 background-color: #222222; // TODO(henk): Remove this
@@ -219,6 +220,7 @@
                 // Connection
                 //
                 sock = new WebSocket(wsuri);
+                sock.binaryType = "arraybuffer";
 
                 sock.onopen = function() {
                     console.log("connected to " + wsuri);
@@ -228,13 +230,17 @@
                     console.log("connection closed (" + e.code + ")");
                 }
                 sock.onmessage = function(e) {
+                    var binData = new Uint8Array(e.data);
+                    var inflated = pako.inflate(binData);
+                    var data = String.fromCharCode.apply(null, new Uint16Array(inflated));
+                    
                     // Just ignore this message. It's to test, if the
                     // connection is alive at server side.
-                    if (e.data == "alive_test") {
+                    if (data == "alive_test") {
                         return
                     }
 
-                    var message = JSON.parse(e.data);
+                    var message = JSON.parse(data);
                     var  guiUpdatedNeeded = false;
 
                     for (var botId in message.createdOrUpdatedBotInfos) {
