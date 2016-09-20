@@ -1506,7 +1506,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
 
         // When we want to shut down the server, we have to notify all the go-routines that server the connections.
         if !isServerRunning() {
-            app.guiConnections.Foreach(func(guiId GuiId, guiConnection GuiConnection) {
+            app.guiConnections.Foreach(func(index int, guiId GuiId, guiConnection GuiConnection) {
                 guiConnection.StopServerNotification <- true
             })
             app.middlewareConnections.Foreach(func(botId BotId, middlewareConnection MiddlewareConnection) {
@@ -1792,7 +1792,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         ////////////////////////////////////////////////////////////////
         {
             startProfileEvent(&profile, "Prepare data to be sent to the middlewares")
-            app.guiConnections.Foreach(func(guiId GuiId, guiConnection GuiConnection) {
+            app.guiConnections.Foreach(func(index int, guiId GuiId, guiConnection GuiConnection) {
                 channel := guiConnection.MessageChannel
                 message := NewServerGuiUpdateMessage()
 
@@ -1806,9 +1806,11 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                         message.CreatedOrUpdatedBots[key] = NewServerGuiBot(bot)
                     }
 
-                    if simulationStepCounter % guiStatisticsMessageEvery == 0 {
+                    if simulationStepCounter % 10 == index {
                         message.StatisticsThisGame[key] = bot.StatisticsThisGame
-                        // @Todo: The global one MUCH more rarely!
+                    }
+
+                    if simulationStepCounter % 60 == index {
                         message.StatisticsGlobal[key] = bot.StatisticsOverall
                     }
                 }

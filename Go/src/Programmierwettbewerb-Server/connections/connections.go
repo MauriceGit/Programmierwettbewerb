@@ -153,6 +153,15 @@ func IsInViewWindow(viewWindow ViewWindow, position Vec2, radius float32) bool {
 //
 ////////////////////////////////////////////////////////////////////////
 
+func toFixed(f float32) float32 {
+    var factor float32 = 10
+    return float32(int(f*factor)) / factor
+}
+
+func toFixedVec2(v Vec2) Vec2 {
+    return Vec2{ X: toFixed(v.X), Y: toFixed(v.Y) }
+}
+
 type ServerGuiBot struct {
     Blobs       map[string]ServerGuiBlob    `json:"blobs"`
     TeamId      TeamId                      `json:"teamId"`
@@ -165,34 +174,38 @@ func NewServerGuiBot(bot Bot) ServerGuiBot {
         key := strconv.Itoa(int(blobId))
         blobs[key] = NewServerGuiBlob(blob)
     }
-    return ServerGuiBot{ blobs, bot.TeamId, bot.ViewWindow }
+    viewWindow := ViewWindow{ 
+        Position: toFixedVec2(bot.ViewWindow.Position),
+        Size: toFixedVec2(bot.ViewWindow.Size),
+    }
+    return ServerGuiBot{ blobs, bot.TeamId, viewWindow }
 }
 
 type ServerGuiBlob struct {
-    Position    Vec2        `json:"pos"`
-    Mass        float32     `json:"mass"`
+    Position    Vec2       `json:"pos"`
+    Mass        int        `json:"mass"`
 }
 
 func NewServerGuiBlob(blob Blob) ServerGuiBlob {
-    return ServerGuiBlob{ blob.Position, blob.Mass }
+    return ServerGuiBlob{ toFixedVec2(blob.Position), int(blob.Mass) }
 }
 
 type ServerGuiFood struct {
     Position    Vec2        `json:"pos"`
-    Mass        float32     `json:"mass"`
+    Mass        int         `json:"mass"`
 }
 
 func NewServerGuiFood(food Food) ServerGuiFood {
-    return ServerGuiFood{ food.Position, food.Mass }
+    return ServerGuiFood{ toFixedVec2(food.Position), int(food.Mass) }
 }
 
 type ServerGuiToxin struct {
     Position    Vec2        `json:"pos"`
-    Mass        float32     `json:"mass"`
+    Mass        int         `json:"mass"`
 }
 
 func NewServerGuiToxin(toxin Toxin) ServerGuiToxin {
-    return ServerGuiToxin{ toxin.Position, toxin.Mass }
+    return ServerGuiToxin{ toFixedVec2(toxin.Position), int(toxin.Mass) }
 }
 
 type ServerGuiUpdateMessage struct {
@@ -290,12 +303,14 @@ func (guiConnections *GuiConnections) Delete(guiId GuiId) {
     }
 }
 
-type GuiConnectionHandler func(GuiId, GuiConnection)
+type GuiConnectionHandler func(int, GuiId, GuiConnection)
 func (guiConnections *GuiConnections) Foreach(connectionHandler GuiConnectionHandler) {
     guiConnections.mutex.Lock()
     defer guiConnections.mutex.Unlock()
     
+    var index int = 0
     for guiId, guiConnection := range guiConnections.connections {
-        connectionHandler(guiId, guiConnection)
+        connectionHandler(index, guiId, guiConnection)
+        index += 1
     }
 }
