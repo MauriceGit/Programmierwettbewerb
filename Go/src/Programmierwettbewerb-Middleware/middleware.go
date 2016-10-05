@@ -22,7 +22,8 @@ import (
     "math/rand"
     //"bytes"
     //"reflect"
-    //"io/ioutil"
+    "io/ioutil"
+    "encoding/json"
     //"os/exec"
     //"bufio"
 )
@@ -272,8 +273,15 @@ func setupServerConnection(address string, botInfo BotInfo, runningState chan(bo
                 break
             }
 
+            var bytes []byte
+            err := websocket.Message.Receive(ws, &bytes)
+            
             var message ServerMiddlewareGameState
-            err := websocket.JSON.Receive(ws, &message)
+            err = json.Unmarshal(bytes, &message)
+
+                    
+            ioutil.WriteFile("incoming.msg", bytes, 0644) // TODO(henk): Remove this
+
 
             if err != nil {
                 Logf(LtDebug, "Receive failed: %v\n", err.Error())

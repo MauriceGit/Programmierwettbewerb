@@ -777,7 +777,7 @@ func makeServerMiddlewareBlob(botId BotId, blobId BlobId, teamId TeamId, blob Bl
         BotId:  uint32(botId),
         TeamId: uint32(teamId),
         Index:  uint32(blobId),
-        Position: blob.Position,
+        Position: ToFixedVec2(blob.Position, 100),
         Mass:   uint32(blob.Mass),
     }
 }
@@ -791,6 +791,20 @@ func makeServerMiddlewareBlobs(gameState *GameState, botId BotId) []ServerMiddle
     }
 
     return blobArray
+}
+
+func makeServerMiddlewareFood(food Food) Food {
+    return Food{
+        Mass:       float32(uint32(food.Mass)),
+        Position:   ToFixedVec2(food.Position, 100),
+    }
+}
+
+func makeServerMiddlewareToxin(toxin Toxin) Toxin {
+    return Toxin{
+        Mass:       float32(uint32(toxin.Mass)),
+        Position:   ToFixedVec2(toxin.Position, 100),
+    }
 }
 
 func limitPosition(settings *ServerSettings, position *Vec2) {
@@ -1753,12 +1767,12 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                                 }
                             }
                         }
-
+                        
                         // Collecting foods
                         var foods []Food
                         for _, food := range gameState.foods {
                             if IsInViewWindow(bot.ViewWindow, food.Position, Radius(food.Mass)) {
-                                foods = append(foods, food)
+                                foods = append(foods, makeServerMiddlewareFood(food))
                             }
                         }
 
@@ -1766,7 +1780,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                         var toxins []Toxin
                         for _, toxin := range gameState.toxins {
                             if IsInViewWindow(bot.ViewWindow, toxin.Position, Radius(toxin.Mass)) {
-                                toxins = append(toxins, toxin)
+                                toxins = append(toxins, makeServerMiddlewareToxin(toxin))
                             }
                         }
 

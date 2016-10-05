@@ -153,14 +153,7 @@ func IsInViewWindow(viewWindow ViewWindow, position Vec2, radius float32) bool {
 //
 ////////////////////////////////////////////////////////////////////////
 
-func toFixed(f float32) float32 {
-    var factor float32 = 10
-    return float32(int(f*factor)) / factor
-}
-
-func toFixedVec2(v Vec2) Vec2 {
-    return Vec2{ X: toFixed(v.X), Y: toFixed(v.Y) }
-}
+var serverGuiDecimalPlaceFactor float32 = 10
 
 type ServerGuiBot struct {
     Blobs       map[string]ServerGuiBlob    `json:"blobs"`
@@ -175,8 +168,8 @@ func NewServerGuiBot(bot Bot) ServerGuiBot {
         blobs[key] = NewServerGuiBlob(blob)
     }
     viewWindow := ViewWindow{ 
-        Position: toFixedVec2(bot.ViewWindow.Position),
-        Size: toFixedVec2(bot.ViewWindow.Size),
+        Position: ToFixedVec2(bot.ViewWindow.Position, serverGuiDecimalPlaceFactor),
+        Size: ToFixedVec2(bot.ViewWindow.Size, serverGuiDecimalPlaceFactor),
     }
     return ServerGuiBot{ blobs, bot.TeamId, viewWindow }
 }
@@ -187,7 +180,7 @@ type ServerGuiBlob struct {
 }
 
 func NewServerGuiBlob(blob Blob) ServerGuiBlob {
-    return ServerGuiBlob{ toFixedVec2(blob.Position), int(blob.Mass) }
+    return ServerGuiBlob{ ToFixedVec2(blob.Position, serverGuiDecimalPlaceFactor), int(blob.Mass) }
 }
 
 type ServerGuiFood struct {
@@ -196,7 +189,7 @@ type ServerGuiFood struct {
 }
 
 func NewServerGuiFood(food Food) ServerGuiFood {
-    return ServerGuiFood{ toFixedVec2(food.Position), int(food.Mass) }
+    return ServerGuiFood{ ToFixedVec2(food.Position, serverGuiDecimalPlaceFactor), int(food.Mass) }
 }
 
 type ServerGuiToxin struct {
@@ -205,7 +198,7 @@ type ServerGuiToxin struct {
 }
 
 func NewServerGuiToxin(toxin Toxin) ServerGuiToxin {
-    return ServerGuiToxin{ toFixedVec2(toxin.Position), int(toxin.Mass) }
+    return ServerGuiToxin{ ToFixedVec2(toxin.Position, serverGuiDecimalPlaceFactor), int(toxin.Mass) }
 }
 
 type ServerGuiUpdateMessage struct {

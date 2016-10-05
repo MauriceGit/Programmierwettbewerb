@@ -79,24 +79,24 @@ type MessageMiddlewareServer struct {
 }
 
 type Food struct {
-    IsNew       bool    `json:"new"`
-    IsMoving    bool    `json:"moving"`
-    IsThrown    bool    `json:"thrown"`
+    IsNew       bool    `json:"-"`
+    IsMoving    bool    `json:"-"`
+    IsThrown    bool    `json:"-"`
     // We need the bot-ID here for statistic reasons
-    IsThrownBy  BotId
+    IsThrownBy  BotId   `json:"-"`
     Mass        float32 `json:"mass"`
     Position    Vec2    `json:"pos"`
-    Velocity    Vec2    `json:"vel"`
+    Velocity    Vec2    `json:"-"`
 }
 
 type Toxin struct {
-    IsNew      bool     `json:"new"`
-    IsMoving   bool     `json:"moving"`
+    IsNew      bool     `json:"-"`
+    IsMoving   bool     `json:"-"`
     Position   Vec2     `json:"pos"`
-    IsSplit    bool
-    IsSplitBy  BotId
+    IsSplit    bool     `json:"-"`
+    IsSplitBy  BotId    `json:"-"`
     Mass       float32  `json:"mass"`
-    Velocity   Vec2     `json:"vel"`
+    Velocity   Vec2     `json:"-"`
 }
 
 type ServerMiddlewareBlob struct {
@@ -240,3 +240,13 @@ func Min(a, b int) int {
     }
     return b
 }
+
+func ToFixed(f float32, factor float32) float32 {
+    return float32(int(f*factor)) / factor
+}
+
+func ToFixedVec2(v Vec2, factor float32) Vec2 {
+    return Vec2{ X: ToFixed(v.X, factor), Y: ToFixed(v.Y, factor) }
+}
+
+
