@@ -279,10 +279,6 @@ func setupServerConnection(address string, botInfo BotInfo, runningState chan(bo
             var message ServerMiddlewareGameState
             err = json.Unmarshal(bytes, &message)
 
-                    
-            ioutil.WriteFile("incoming.msg", bytes, 0644) // TODO(henk): Remove this
-
-
             if err != nil {
                 Logf(LtDebug, "Receive failed: %v\n", err.Error())
                 terminateNonBlocking(runningState, "from Server 2")
