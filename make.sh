@@ -18,6 +18,7 @@ go get "golang.org/x/net/websocket"
 go get "golang.org/x/image/bmp"
 go get "github.com/BurntSushi/toml"
 go get "github.com/fatih/color"
+go get "golang.org/x/crypto/ssh"
 
 echo "Build Quad Tree Debugger"
 go install Programmierwettbewerb-QuadTreeDebugger
@@ -27,3 +28,6 @@ go install Programmierwettbewerb-Server
 
 echo "Build Middleware"
 go install Programmierwettbewerb-Middleware
+
+echo "Build Distribution Server"
+go install Programmierwettbewerb-Distribution
