@@ -1,22 +1,42 @@
 <html>
     <head>
+        <title>Programmierwettbewerb FH-Wedel</title>
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.0/jquery.min.js"></script>
+        <script src="pako.js"></script>
         <style>
             canvas {
                 background-color: #222222; // TODO(henk): Remove this
             }
+            
+            body{
+                -webkit-touch-callout: none;
+                -webkit-user-select: none;
+                -khtml-user-select: none;
+                -moz-user-select: none;
+                -ms-user-select: none;
+                user-select: none;
+            }
+            
             .highscore {
                 position: fixed;
                 color: white;
-                top: 10;
+                top: 60;
                 right: 10;
-                width: 900px;
-                background-color: rgba(150,150,150,0.1);
-                //border: 3px solid #73AD21;
+                width: 50%;
+                max-width: 600px;
             }
+            
             .highscoreEntry {
-                margin:5px;
+                overflow: auto;
+                margin: 4 2 4 2;
+                padding: 4;
+                background-color: rgba(150,150,150,0.2);
             }
+            
+            .highscoreEntry:hover {
+                background-color: rgba(200,200,200,0.3);
+            }
+            
             html, body {
               width:  100%;
               height: 100%;
@@ -24,7 +44,7 @@
             }
 
             .dropbtn {
-                //position: absolute;
+                width: 100;
                 background-color: #4CAF50;
                 color: white;
                 padding: 8px;
@@ -67,12 +87,26 @@
             .hideStats a:hover {background-color: #f1f1f1}
             .hideStats {
                 top: 10;
-                left: 100;
+                right: 10;
                 z-index: 1;
                 position: absolute;
                 display: inline-block;
             }
-
+            
+            .nextStats a:hover {background-color: #f1f1f1}
+            .nextStats {
+                top: 10;
+                right: 120;
+                z-index: 1;
+                position: absolute;
+                display: inline-block;
+            }
+            
+            .half {
+                float:left; 
+                display:inline; 
+            }
+            
             .show {display:block;}
         </style>
     </head>
@@ -84,7 +118,10 @@
             </div>
         </div>
         <div class="hideStats" tabindex="-1" id="hideStatsId">
-            <button onclick="hideStatsHandler()" class="dropbtn">Hide Stats</button>
+            <button onclick="hideStatsHandler()" class="dropbtn">Hide Statistics</button>
+        </div>
+        <div class="nextStats" tabindex="-2" id="NextStatsId">
+            <button onclick="nextStatsHandler()" class="dropbtn">Next Statistics</button>
         </div>
 
         <canvas id="canvas">Sorry, your browser doesn't support canvas.</canvas>
@@ -93,9 +130,7 @@
 
         <script type="text/javascript">
             var sock = null;
-            //var wsuri = "ws:localhost:8080/gui/";
             var wsuri = {{.Address}};
-            //var wsuri = "ws://192.168.2.187:1234";
 
             var bots = {};
             var botInfos = {};
@@ -109,7 +144,7 @@
             var numFrametimes = 10;
             var currentFrametime = 0;
 
-                        var context;
+            var context;
 
             var colors = [
                 "rgba(255,  20, 147, 1)",
@@ -142,13 +177,34 @@
             var cameraBotToFollow = -1;
 
             var showStats = 1;
-
+            
+            var translateX = 0;
+            var translateY = 0;
+            
+            var scale = 1;
+            
+            var isMouseDown = false;
+            var mousePositionX = 0;
+            var mousePositionY = 0;
+            var mouseDownPositionX = 0;
+            var mouseDownPositionY = 0;
+            var mouseDownTranslateX = 0;
+            var mouseDownTranslateY = 0;
+            
+            var parameterSet = 0;
+            
             function cameraDropDownHandler() {
                 document.getElementById("cameraDropDown").classList.toggle("show");
             }
 
             function hideStatsHandler() {
                 showStats = !showStats;
+                updateHighscore();
+            }
+            
+            function nextStatsHandler() {
+                parameterSet = (parameterSet + 1) % 4;
+                updateHighscore();
             }
 
             window.onclick = function(event) {
@@ -163,14 +219,48 @@
                     }
                 }
             }
+            
+            window.onmousemove = function(event) {
+                if (isMouseDown) {
+                    var diffX = event.clientX - mouseDownPositionX;
+                    var diffY = event.clientY - mouseDownPositionY;
+                    translateX = mouseDownTranslateX + diffX;
+                    translateY = mouseDownTranslateY + diffY;
+                }
+                mousePositionX = event.clientX;
+                mousePositionY = event.clientY;
+            }
+            
+            window.onmousedown = function(event) { 
+                isMouseDown = true;
+                mouseDownPositionX = event.clientX;
+                mouseDownPositionY = event.clientY;
+                mouseDownTranslateX = translateX;
+                mouseDownTranslateY = translateY;
+            }
+            
+            window.onmouseup = function() { 
+                isMouseDown = false; 
+            }
+            
+            window.onwheel = function(event) {
+                scale = Math.max(0.1, scale + event.wheelDelta / 1000);
+                
+
+            }
 
             function showAll() {
                 cameraMode = cmShowAll;
+                updateHighscore();
             }
 
             function showBot(id) {
                 cameraMode = cmShowBot;
                 cameraBotToFollow = id;
+                translateX = 0;
+                translateY = 0;
+                scale = 1;
+                updateHighscore();
             }
 
             if (!String.prototype.format) {
@@ -188,6 +278,21 @@
             function makeCSSColor(color) {
                 return "rgb({0}, {1}, {2})".format(color.R, color.G, color.B);
             }
+            
+            function convertStatistics(statistics) {
+                return {
+                    "maxSize":            statistics[0],
+                    "maxSurvivalTime":    statistics[1],
+                    "blobKillCount":      statistics[2],
+                    "botKillCount":       statistics[3],
+                    "toxinThrow":         statistics[4],
+                    "successfulToxin":    statistics[5],
+                    "splitCount":         statistics[6],
+                    "successfulSplit":    statistics[7],
+                    "successfulTeam":     statistics[8],
+                    "badTeaming":         statistics[9],
+                };
+            }
 
             window.onload = function() {
                 //
@@ -204,6 +309,10 @@
                 resizeCanvas();
 
                 context = canvas.getContext('2d');
+                
+                scale = Math.min(
+                    $(document).width()/1000, 
+                    $(document).height()/1000);
 
                 //
                 // Rendering
@@ -219,6 +328,7 @@
                 // Connection
                 //
                 sock = new WebSocket(wsuri);
+                sock.binaryType = "arraybuffer";
 
                 sock.onopen = function() {
                     console.log("connected to " + wsuri);
@@ -228,59 +338,74 @@
                     console.log("connection closed (" + e.code + ")");
                 }
                 sock.onmessage = function(e) {
+                    var binData = new Uint8Array(e.data);
+                    var inflated = pako.inflate(binData);
+                    var data = String.fromCharCode.apply(null, new Uint16Array(inflated));
+
                     // Just ignore this message. It's to test, if the
                     // connection is alive at server side.
-                    if (e.data == "alive_test") {
+                    if (data == "alive_test") {
                         return
                     }
 
-                    var message = JSON.parse(e.data);
+                    var message = JSON.parse(data);
                     var  guiUpdatedNeeded = false;
 
-                    for (var botId in message.createdOrUpdatedBotInfos) {
-                        botInfos[botId] = message.createdOrUpdatedBotInfos[botId];
+                    var createdOrUpdatedBotInfos    = message[0];
+                    var deletedBotInfos             = message[1];
+                    var createdOrUpdatedBots        = message[2];
+                    var deletedBots                 = message[3];
+                    var createdOrUpdatedFoods       = message[4];
+                    var deletedFoods                = message[5];
+                    var createdOrUpdatedToxins      = message[6];
+                    var deletedToxins               = message[7];
+                    var messageStatisticsThisGame   = message[8];
+                    var messageStatisticsGlobal     = message[9];
+
+                    for (var botId in createdOrUpdatedBotInfos) {
+                        botInfos[botId] = createdOrUpdatedBotInfos[botId];
                         guiUpdatedNeeded = true;
                     }
 
-                    for (var i = 0; i < message.deletedBotInfos.length; i++) {
-                        var botId = message.deletedBotInfos[i];
+                    for (var i = 0; i < deletedBotInfos.length; i++) {
+                        var botId = deletedBotInfos[i];
                         delete botInfos[botId];
                         guiUpdatedNeeded = true;
                     }
 
-                    for (var botId in message.createdOrUpdatedBots) {
-                        bots[botId] = message.createdOrUpdatedBots[botId];
+                    for (var botId in createdOrUpdatedBots) {
+                        bots[botId] = createdOrUpdatedBots[botId];
                     }
 
-                    for (var i = 0; i < message.deletedBots.length; i++) {
-                        var botId = message.deletedBots[i];
+                    for (var i = 0; i < deletedBots.length; i++) {
+                        var botId = deletedBots[i];
                         delete bots[botId];
                     }
 
-                    for (var foodId in message.createdOrUpdatedFoods) {
-                        foods[foodId] = message.createdOrUpdatedFoods[foodId];
+                    for (var foodId in createdOrUpdatedFoods) {
+                        foods[foodId] = createdOrUpdatedFoods[foodId];
                     }
 
-                    for (var i = 0; i < message.deletedFoods.length; i++) {
-                        var foodId = message.deletedFoods[i];
+                    for (var i = 0; i < deletedFoods.length; i++) {
+                        var foodId = deletedFoods[i];
                         delete foods[foodId];
                     }
 
-                    for (var toxinId in message.createdOrUpdatedToxins) {
-                        toxins[toxinId] = message.createdOrUpdatedToxins[toxinId];
+                    for (var toxinId in createdOrUpdatedToxins) {
+                        toxins[toxinId] = createdOrUpdatedToxins[toxinId];
                     }
 
-                    for (var i = 0; i < message.deletedToxins.length; i++) {
-                        var toxinId = message.deletedToxins[i];
+                    for (var i = 0; i < deletedToxins.length; i++) {
+                        var toxinId = deletedToxins[i];
                         delete toxins[toxinId];
                     }
 
-                    for (var botId in message.statisticsLocal) {
-                        statisticsLocal[botId] = message.statisticsLocal[botId]
+                    for (var botId in messageStatisticsThisGame) {
+                        statisticsLocal[botId] = convertStatistics(messageStatisticsThisGame[botId])
                     }
 
-                    for (var botId in message.statisticsGlobal) {
-                        statisticsGlobal[botId] = message.statisticsLocal[botId]
+                    for (var botId in messageStatisticsGlobal) {
+                        statisticsGlobal[botId] = convertStatistics(messageStatisticsGlobal[botId])
                     }
 
                     if (guiUpdatedNeeded) {
@@ -315,13 +440,19 @@
             };
 
             function radius(mass) {
-                return Math.max(1, Math.sqrt(mass / Math.PI)); // TODO(henk): Maybe remove the max(1, ...), when we talked about the sizes of stuff.
+                return Math.max(1, Math.sqrt(mass / Math.PI));
             }
 
             function render() {
                 context.setTransform(1, 0, 0, 1, 0, 0);
                 context.clearRect(0, 0, canvas.width, canvas.height);
 
+                context.translate(translateX, translateY);
+                context.translate(500, 500);
+                context.scale(scale, scale);
+                context.translate(-500, -500);
+
+                
                 // Find center of all the blobs
                 if (cameraMode == cmShowBot) {
                     if (cameraBotToFollow in bots) {
@@ -390,9 +521,16 @@
                 context.lineWidth = 0.1;
                 for (var botId in bots) {
                     var bot = bots[botId];
+                    
+                    var centerX = 0;
+                    var centerY = 0;
+                    var numBlobs = 0;
 
                     for (var blobId in bot.blobs) {
                         var blob = bot.blobs[blobId];
+                        
+                        centerX += blob.pos.X;
+                        centerY += blob.pos.Y;                        
 
                         if (botId in botInfos) {
                             context.fillStyle = makeCSSColor(botInfos[botId].color);
@@ -408,15 +546,18 @@
                         context.fill();
 
                         context.stroke();
+                        
+                        numBlobs += 1;
                     }
-
+                    
                     if (cameraMode == cmShowBot) {
                         context.beginPath();
                         context.rect(bot.viewWindow.pos.X, bot.viewWindow.pos.Y, bot.viewWindow.size.X, bot.viewWindow.size.Y);
                         context.stroke();
                     }
                 }
-                                window.requestAnimationFrame(render);
+                
+                window.requestAnimationFrame(render);
             }
 
             function calculateHighscore() {
@@ -452,102 +593,55 @@
                 }
                 return s;
             }
+            
+            function updateHighscoreForBotId(number, name, relativeMass, color, fields) {
+                var makeDiv = function(content) { return $("<div>" + content + "</div>"); }
+                
+                var makeEntry = function(content, width) {
+                    var entry = makeDiv(content);
+                    entry.addClass("half");
+                    entry.css({ "width": width + "%" });
+                    return entry;
+                };
+                
+                var makeBold = function(node) {
+                    node.css("font-weight", "bold");
+                    return node;
+                };
 
-            function updateHighscoreForBotId (botInfoId, botTeamId, mass, maxMass) {
-                //var mass = tuples[i].mass;
-                //var botInfoId = tuples[i].id;
-                var botInfo = botInfos[botInfoId];
-                var stats = statisticsLocal[botInfoId];
-                var paddedName = botInfo.name + "________________________________"
-                var shortName = paddedName.substr(0, 13);
-                var paddedID = " (id: " + botInfoId + "__________________________"
-                var paddedTeamID = " (Team: " + botTeamId + "__________________________"
-                var extendedName = shortName + paddedID.substr(0, 10) + ")" + paddedTeamID.substr(0,12) + ")";
-
-                var containerNode = $("<div></div>");
-                containerNode.css({
-                    position: "relative",
-                    height: 65,
+                var outerBar = makeDiv("");
+                var innerBar = makeDiv("");
+                
+                innerBar.css({ 
+                    "display": "inline-block", 
+                    "width": (100*relativeMass) + "%",
+                    "height": 12,
+                    "background-color": makeCSSColor(color),
+                    "margin": "4 0 0 0",
                 });
-                containerNode.addClass("highscoreEntry");
-
-                var nameNode = $("<span></span>");
-                nameNode.css({
-                    position: "relative",
-                    float: "left", // To position the elements next to each other
-                    fontSize: "14px",
-                    fontFamily: "Courier New"
+                
+                outerBar.css({
+                    "display": "inline-block", 
+                    "width": "100%",
+                    "height": 20,
                 });
-                nameNode.html(extendedName);
-
-                var pointsNode = $("<span></span>");
-                pointsNode.css({
-                    position: "relative",
-                    fontSize: "14px",
-                    fontFamily: "Courier New",
-                    left: 20
-                });
-                pointString = unifyLength(mass.toFixed(2), 6)
-                pointsNode.html(pointString);
-
-
-                maxSizeString = unifyLength(stats.size.toFixed(2), 9);
-                survivalString = unifyLength(stats.survivalTime.toFixed(2), 9);
-                statsString1 =
-                    "---\> " +
-                    "Max Size: " + maxSizeString +
-                    " Survival: " + survivalString +
-                    " Blob Kills: " + String(stats.blobKillCount) +
-                    " Bot Kills: " + String(stats.botKillCount) +
-                    " Toxin throws: " + String(stats.toxinThrow)
-
-                var statsNode1 = $("<div></div>");
-                statsNode1.css({
-                    position: "relative",
-                    left: 0,
-                    fontSize: "14px",
-                    fontFamily: "Courier New"
-                });
-                statsNode1.html(statsString1);
-
-                statsString2 =
-                    "---\> " +
-                    " Successful Toxin throws: " + String(stats.successfulToxin) +
-                    " Splits: " + String(stats.splitCount) +
-                    " Successful Splits: " + String(stats.successfulSplit) +
-                    " Good Teaming: " + String(stats.successfulTeaming) +
-                    " Bad Teaming: " + String(stats.badTeaming)
-
-                var statsNode2 = $("<div></div>");
-                statsNode2.css({
-                    position: "relative",
-                    left: 0,
-                    fontSize: "14px",
-                    fontFamily: "Courier New"
-                });
-                statsNode2.html(statsString2);
-
-                var barNode = $("<div></div>");
-                barNode.css({
-                    position: "relative",
-                    background: makeCSSColor(botInfo.color),
-                    top: 1,
-                    //width: 280 * (mass / maxMass),
-                    width: 888 * (mass / maxMass),
-                    height: 10,
-                    "border-style": "solid",
-                    "border-width": "1px",
-                    "border-color": "black",
-                });
-
-                containerNode.append(nameNode);
-                containerNode.append(pointsNode);
-                containerNode.append(statsNode1);
-                containerNode.append(statsNode2);
-                containerNode.append(barNode);
-
-                return containerNode;
-                //highscore.append(containerNode);
+                outerBar.append(innerBar);
+                                
+                var container = makeDiv("");
+                container.addClass("highscoreEntry");
+                container.append(makeEntry(number, 5));
+                if (name == "dummy") {
+                    container.append(makeEntry(name, 35));
+                } else {
+                    container.append(makeBold(makeEntry(name, 35)));
+                }
+                
+                for (var i = 0; i < fields.length; ++i) {
+                    container.append(makeEntry(fields[i], 60 / fields.length));
+                }
+                container.append(outerBar);
+                                
+                return container;
             }
 
             function updateHighscore() {
@@ -562,7 +656,47 @@
                 var scores = calculateHighscore();
                 var tuples = scores[0];
                 var maxMass = scores[1];
+                
+                
+                var headerContainer = $("<div></div>");
+                headerContainer.addClass("highscoreEntry");
 
+                var makeHeader = function(title, width) {
+                    var header = $("<div>" + title + "</div>");
+                    header.addClass("half");
+                    header.css({ "width": width + "%" });
+                    return header;
+                };
+                
+                headerContainer.append(makeHeader("#", 5));
+                headerContainer.append(makeHeader("Name", 35));
+
+                var headerTitles = [[
+                    "Mass",
+                    "BotId",
+                    "TeamId",
+                ], [
+                    "Max Size",
+                    "Max Survival Time (Sekunden)",
+                ], [
+                    "Blob Kill Count",
+                    "Bot Kill Count",
+                    "Toxin Throws",
+                    "Successful Toxin Throws",
+                ], [
+                    "Split Count",
+                    "Successful Splits",
+                    "Successful Team",
+                    "Bad Team",
+                ]];
+                                
+                var currentHeaderTitles = headerTitles[parameterSet];
+                for (var i = 0; i < currentHeaderTitles.length; ++i) {
+                    headerContainer.append(makeHeader(currentHeaderTitles[i], 60 / currentHeaderTitles.length));
+                }
+                highscore.append(headerContainer);
+                
+                
                 for (var i = 0; i < tuples.length; i++) {
                     var mass = tuples[i].mass;
                     var botInfoId = tuples[i].id;
@@ -573,11 +707,47 @@
                     if (cameraMode == cmShowBot && botInfoId != cameraBotToFollow) {
                         continue;
                     }
-                    containerNode = updateHighscoreForBotId(botInfoId, teamId, mass, maxMass);
+                    
+                    // botInfoId, botTeamId, mass, maxMass
+                    var botInfo = botInfos[botInfoId];
+                    var relativeMass = mass / maxMass;
+                    
+                    var fields;
+                    switch (parameterSet) {
+                    case 0:
+                        fields = [
+                            mass,
+                            botInfoId,
+                            teamId,
+                        ];
+                        break;
+                    case 1:
+                        fields = [
+                            Math.round(statisticsLocal[botInfoId].maxSize),
+                            Math.round(statisticsLocal[botInfoId].maxSurvivalTime),
+                        ];
+                        break;
+                    case 2:
+                        fields = [
+                            statisticsLocal[botInfoId].blobKillCount,
+                            statisticsLocal[botInfoId].botKillCount,
+                            statisticsLocal[botInfoId].toxinThrow,
+                            statisticsLocal[botInfoId].successfulToxin,
+                        ];
+                        break;
+                    case 3:
+                        fields = [
+                            statisticsLocal[botInfoId].splitCount,
+                            statisticsLocal[botInfoId].successfulSplit,
+                            statisticsLocal[botInfoId].successfulTeam,
+                            statisticsLocal[botInfoId].badTeaming,
+                        ];
+                        break;
+                    }
+
+                    containerNode = updateHighscoreForBotId(i + 1, botInfo.name, relativeMass, botInfo.color, fields);
                     highscore.append(containerNode);
                 }
-
-
             }
         </script>
     </body>

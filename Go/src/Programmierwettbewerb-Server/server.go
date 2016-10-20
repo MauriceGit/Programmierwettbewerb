@@ -26,6 +26,8 @@ import (
     "strings"
     "net"
     "runtime"
+    "compress/gzip"
+    "bytes"
 )
 
 ////////////////////////////////////////////////////////////////////////
@@ -775,7 +777,7 @@ func makeServerMiddlewareBlob(botId BotId, blobId BlobId, teamId TeamId, blob Bl
         BotId:  uint32(botId),
         TeamId: uint32(teamId),
         Index:  uint32(blobId),
-        Position: blob.Position,
+        Position: ToFixedVec2(blob.Position, 100),
         Mass:   uint32(blob.Mass),
     }
 }
@@ -789,6 +791,20 @@ func makeServerMiddlewareBlobs(gameState *GameState, botId BotId) []ServerMiddle
     }
 
     return blobArray
+}
+
+func makeServerMiddlewareFood(food Food) Food {
+    return Food{
+        Mass:       float32(uint32(food.Mass)),
+        Position:   ToFixedVec2(food.Position, 100),
+    }
+}
+
+func makeServerMiddlewareToxin(toxin Toxin) Toxin {
+    return Toxin{
+        Mass:       float32(uint32(toxin.Mass)),
+        Position:   ToFixedVec2(toxin.Position, 100),
+    }
 }
 
 func limitPosition(settings *ServerSettings, position *Vec2) {
@@ -1506,7 +1522,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
 
         // When we want to shut down the server, we have to notify all the go-routines that server the connections.
         if !isServerRunning() {
-            app.guiConnections.Foreach(func(guiId GuiId, guiConnection GuiConnection) {
+            app.guiConnections.Foreach(func(index int, guiId GuiId, guiConnection GuiConnection) {
                 guiConnection.StopServerNotification <- true
             })
             app.middlewareConnections.Foreach(func(botId BotId, middlewareConnection MiddlewareConnection) {
@@ -1751,12 +1767,12 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                                 }
                             }
                         }
-
+                        
                         // Collecting foods
                         var foods []Food
                         for _, food := range gameState.foods {
                             if IsInViewWindow(bot.ViewWindow, food.Position, Radius(food.Mass)) {
-                                foods = append(foods, food)
+                                foods = append(foods, makeServerMiddlewareFood(food))
                             }
                         }
 
@@ -1764,7 +1780,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                         var toxins []Toxin
                         for _, toxin := range gameState.toxins {
                             if IsInViewWindow(bot.ViewWindow, toxin.Position, Radius(toxin.Mass)) {
-                                toxins = append(toxins, toxin)
+                                toxins = append(toxins, makeServerMiddlewareToxin(toxin))
                             }
                         }
 
@@ -1792,7 +1808,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         ////////////////////////////////////////////////////////////////
         {
             startProfileEvent(&profile, "Prepare data to be sent to the middlewares")
-            app.guiConnections.Foreach(func(guiId GuiId, guiConnection GuiConnection) {
+            app.guiConnections.Foreach(func(index int, guiId GuiId, guiConnection GuiConnection) {
                 channel := guiConnection.MessageChannel
                 message := NewServerGuiUpdateMessage()
 
@@ -1806,9 +1822,11 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                         message.CreatedOrUpdatedBots[key] = NewServerGuiBot(bot)
                     }
 
-                    if simulationStepCounter % guiStatisticsMessageEvery == 0 {
+                    if simulationStepCounter % 10 == index {
                         message.StatisticsThisGame[key] = bot.StatisticsThisGame
-                        // @Todo: The global one MUCH more rarely!
+                    }
+
+                    if simulationStepCounter % 60 == index {
                         message.StatisticsGlobal[key] = bot.StatisticsOverall
                     }
                 }
@@ -1958,18 +1976,15 @@ func handleGui(ws *websocket.Conn) {
 
                     // Send the messages.
                     var err error
-                    if len(otherMessages) == 0 {
-                        err = websocket.JSON.Send(ws, message)
-                    } else {
-                        allMessages := append([]ServerGuiUpdateMessage{message}, otherMessages...)
-                        for _, m := range(allMessages) {
-                            m.CreatedOrUpdatedBots = make(map[string]ServerGuiBot)
-                            m.StatisticsThisGame   = make(map[string]Statistics)
-                            m.StatisticsGlobal     = make(map[string]Statistics)
-                            err = websocket.JSON.Send(ws, m)
-                        }
-                    }
 
+                    messageBytes, _ := json.Marshal(message)
+                    
+                    var buffer bytes.Buffer
+                    writer := gzip.NewWriter(&buffer)
+                    writer.Write(messageBytes)
+                    writer.Close()
+                    
+                    err = websocket.Message.Send(ws, buffer.Bytes())
                     if err != nil {
                         LogfColored(LtDebug, LcYellow, "<=== ServerGuiUpdateMessage could not be sent because of: %v\n", err)
                         return

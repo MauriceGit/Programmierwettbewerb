@@ -44,26 +44,26 @@ type BotCommand struct {
 
 type Statistics struct {
     // Maximum size achieved
-    MaxSize         float32     `json:"size"`                           // check.
+    MaxSize         float32     `json:"0"`                           // check.
     // Longest survival time achieved
-    MaxSurvivalTime float32     `json:"survivalTime"`                   // check.
+    MaxSurvivalTime float32     `json:"1"`                   // check.
     // How many blobs it killed overall
-    BlobKillCount   int         `json:"blobKillCount"`                  // check.
+    BlobKillCount   int         `json:"2"`                  // check.
     // How many bots it killed overall (No surviving blob of that bot!)
-    BotKillCount    int         `json:"botKillCount"`                   // check.
+    BotKillCount    int         `json:"3"`                   // check.
     // How often it duplicated a toxin
-    ToxinThrow      int         `json:"toxinThrow"`                     // check.
+    ToxinThrow      int         `json:"4"`                     // check.
     // How often the duplicated toxin actually exploded another blob!
-    SuccessfulToxin int         `json:"successfulToxin"`                // check.
+    SuccessfulToxin int         `json:"5"`                // check.
     // How often it has split
-    SplitCount      int         `json:"splitCount"`                     // check.
+    SplitCount      int         `json:"6"`                     // check.
     // How often the splitted blob ate at least one other blob! (Only immediately, not 10s later!)
-    SuccessfulSplit int         `json:"successfulSplit"`                // check.
+    SuccessfulSplit int         `json:"7"`                // check.
     // We have to talk about that one ;)
     // Probably like feeding a team mate, resulting in eating an enemy blob or similar
-    SuccessfulTeam  int         `json:"successfulTeaming"`              //
+    SuccessfulTeam  int         `json:"8"`              //
     // For example eating a complete bot of the own team...
-    BadTeaming      int         `json:"badTeaming"`                     //
+    BadTeaming      int         `json:"9"`                     //
 }
 
 type BotInfo struct {
@@ -79,24 +79,24 @@ type MessageMiddlewareServer struct {
 }
 
 type Food struct {
-    IsNew       bool    `json:"new"`
-    IsMoving    bool    `json:"moving"`
-    IsThrown    bool    `json:"thrown"`
+    IsNew       bool    `json:"-"`
+    IsMoving    bool    `json:"-"`
+    IsThrown    bool    `json:"-"`
     // We need the bot-ID here for statistic reasons
-    IsThrownBy  BotId
+    IsThrownBy  BotId   `json:"-"`
     Mass        float32 `json:"mass"`
     Position    Vec2    `json:"pos"`
-    Velocity    Vec2    `json:"vel"`
+    Velocity    Vec2    `json:"-"`
 }
 
 type Toxin struct {
-    IsNew      bool     `json:"new"`
-    IsMoving   bool     `json:"moving"`
+    IsNew      bool     `json:"-"`
+    IsMoving   bool     `json:"-"`
     Position   Vec2     `json:"pos"`
-    IsSplit    bool
-    IsSplitBy  BotId
+    IsSplit    bool     `json:"-"`
+    IsSplitBy  BotId    `json:"-"`
     Mass       float32  `json:"mass"`
-    Velocity   Vec2     `json:"vel"`
+    Velocity   Vec2     `json:"-"`
 }
 
 type ServerMiddlewareBlob struct {
@@ -240,3 +240,13 @@ func Min(a, b int) int {
     }
     return b
 }
+
+func ToFixed(f float32, factor float32) float32 {
+    return float32(int(f*factor)) / factor
+}
+
+func ToFixedVec2(v Vec2, factor float32) Vec2 {
+    return Vec2{ X: ToFixed(v.X, factor), Y: ToFixed(v.Y, factor) }
+}
+
+

@@ -153,6 +153,8 @@ func IsInViewWindow(viewWindow ViewWindow, position Vec2, radius float32) bool {
 //
 ////////////////////////////////////////////////////////////////////////
 
+var serverGuiDecimalPlaceFactor float32 = 10
+
 type ServerGuiBot struct {
     Blobs       map[string]ServerGuiBlob    `json:"blobs"`
     TeamId      TeamId                      `json:"teamId"`
@@ -165,49 +167,53 @@ func NewServerGuiBot(bot Bot) ServerGuiBot {
         key := strconv.Itoa(int(blobId))
         blobs[key] = NewServerGuiBlob(blob)
     }
-    return ServerGuiBot{ blobs, bot.TeamId, bot.ViewWindow }
+    viewWindow := ViewWindow{ 
+        Position: ToFixedVec2(bot.ViewWindow.Position, serverGuiDecimalPlaceFactor),
+        Size: ToFixedVec2(bot.ViewWindow.Size, serverGuiDecimalPlaceFactor),
+    }
+    return ServerGuiBot{ blobs, bot.TeamId, viewWindow }
 }
 
 type ServerGuiBlob struct {
-    Position    Vec2        `json:"pos"`
-    Mass        float32     `json:"mass"`
+    Position    Vec2       `json:"pos"`
+    Mass        int        `json:"mass"`
 }
 
 func NewServerGuiBlob(blob Blob) ServerGuiBlob {
-    return ServerGuiBlob{ blob.Position, blob.Mass }
+    return ServerGuiBlob{ ToFixedVec2(blob.Position, serverGuiDecimalPlaceFactor), int(blob.Mass) }
 }
 
 type ServerGuiFood struct {
     Position    Vec2        `json:"pos"`
-    Mass        float32     `json:"mass"`
+    Mass        int         `json:"mass"`
 }
 
 func NewServerGuiFood(food Food) ServerGuiFood {
-    return ServerGuiFood{ food.Position, food.Mass }
+    return ServerGuiFood{ ToFixedVec2(food.Position, serverGuiDecimalPlaceFactor), int(food.Mass) }
 }
 
 type ServerGuiToxin struct {
     Position    Vec2        `json:"pos"`
-    Mass        float32     `json:"mass"`
+    Mass        int         `json:"mass"`
 }
 
 func NewServerGuiToxin(toxin Toxin) ServerGuiToxin {
-    return ServerGuiToxin{ toxin.Position, toxin.Mass }
+    return ServerGuiToxin{ ToFixedVec2(toxin.Position, serverGuiDecimalPlaceFactor), int(toxin.Mass) }
 }
 
 type ServerGuiUpdateMessage struct {
     // "JSON objects only support strings as keys; to encode a Go map type it must be of the form map[string]T (where T is any Go type supported by the json package)."
     // Source: http://blog.golang.org/json-and-go
-    CreatedOrUpdatedBotInfos    map[string]BotInfo              `json:"createdOrUpdatedBotInfos"`
-    DeletedBotInfos             []BotId                         `json:"deletedBotInfos"`
-    CreatedOrUpdatedBots        map[string]ServerGuiBot         `json:"createdOrUpdatedBots"`
-    DeletedBots                 []BotId                         `json:"deletedBots"`
-    CreatedOrUpdatedFoods       map[string]ServerGuiFood        `json:"createdOrUpdatedFoods"`
-    DeletedFoods                []FoodId                        `json:"deletedFoods"`
-    CreatedOrUpdatedToxins      map[string]ServerGuiToxin       `json:"createdOrUpdatedToxins"`
-    DeletedToxins               []ToxinId                       `json:"deletedToxins"`
-    StatisticsThisGame          map[string]Statistics           `json:"statisticsLocal"`
-    StatisticsGlobal            map[string]Statistics           `json:"statisticsGlobal"`
+    CreatedOrUpdatedBotInfos    map[string]BotInfo              `json:"0"`
+    DeletedBotInfos             []BotId                         `json:"1"`
+    CreatedOrUpdatedBots        map[string]ServerGuiBot         `json:"2"`
+    DeletedBots                 []BotId                         `json:"3"`
+    CreatedOrUpdatedFoods       map[string]ServerGuiFood        `json:"4"`
+    DeletedFoods                []FoodId                        `json:"5"`
+    CreatedOrUpdatedToxins      map[string]ServerGuiToxin       `json:"6"`
+    DeletedToxins               []ToxinId                       `json:"7"`
+    StatisticsThisGame          map[string]Statistics           `json:"8"`
+    StatisticsGlobal            map[string]Statistics           `json:"9"`
 }
 
 func NewServerGuiUpdateMessage() ServerGuiUpdateMessage {
@@ -290,12 +296,14 @@ func (guiConnections *GuiConnections) Delete(guiId GuiId) {
     }
 }
 
-type GuiConnectionHandler func(GuiId, GuiConnection)
+type GuiConnectionHandler func(int, GuiId, GuiConnection)
 func (guiConnections *GuiConnections) Foreach(connectionHandler GuiConnectionHandler) {
     guiConnections.mutex.Lock()
     defer guiConnections.mutex.Unlock()
     
+    var index int = 0
     for guiId, guiConnection := range guiConnections.connections {
-        connectionHandler(guiId, guiConnection)
+        connectionHandler(index, guiId, guiConnection)
+        index += 1
     }
 }
