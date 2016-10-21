@@ -22,7 +22,7 @@ import (
     "math/rand"
     //"bytes"
     //"reflect"
-    "io/ioutil"
+    //"io/ioutil"
     "encoding/json"
     //"os/exec"
     //"bufio"
@@ -275,7 +275,7 @@ func setupServerConnection(address string, botInfo BotInfo, runningState chan(bo
 
             var bytes []byte
             err := websocket.Message.Receive(ws, &bytes)
-            
+
             var message ServerMiddlewareGameState
             err = json.Unmarshal(bytes, &message)
 

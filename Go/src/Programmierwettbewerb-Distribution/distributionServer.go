@@ -1,15 +1,17 @@
 package main
 
 import (
-    "bytes"
-    "golang.org/x/crypto/ssh"
-    "fmt"
-    "log"
-    "io/ioutil"
-    "os"
-    "time"
     "bufio"
+    "bytes"
+    "fmt"
+    "io/ioutil"
+    "log"
+    "os"
     "strings"
+    "time"
+    "strconv"
+
+    "golang.org/x/crypto/ssh"
 )
 
 func executeCmd(cmd, hostname string, config *ssh.ClientConfig) string {
@@ -56,27 +58,103 @@ func privateKeyAuth() *ssh.ClientConfig {
     }
 }
 
+func printHelp() {
+    fmt.Println("The following commands are recognised:")
+    fmt.Println("go PWB COUNT")
+    fmt.Println("   PWB: 'all'")
+    fmt.Println("        svn")
+    fmt.Println("        [svn]")
+    fmt.Println("   COUNT: Number of bots to start. For >1 bot, how often each one is started.")
+}
+
+func isValidSVN(v string, svns []string) bool {
+    for _, svn := range svns {
+        if v == svn {
+            return true
+        }
+    }
+    return false
+}
+
+func parseCommand(commandSlice, svns []string) []string {
+
+    botCount := 1
+    var svnList []string
+
+    if len(commandSlice) > 1 {
+        if v, err := strconv.Atoi(commandSlice[1]); err == nil {
+            botCount = v
+        }
+    }
+
+    fmt.Println(commandSlice)
+    if len(commandSlice) > 0 {
+        switch commandSlice[0] {
+            case "all":
+                svnList = svns
+            default:
+                if isValidSVN(commandSlice[0], svns) {
+                    svnList = []string{commandSlice[0]}
+                } else {
+                    // I completely ignore, that something different then "[svn1, svn2, ...]" can get here! No error handling, careful!
+                    f := func(c rune) bool {
+                        return c == ',' || c == '[' || c == ']' || c == ' '
+                    }
+                    fmt.Println(commandSlice[0])
+                    svnList = strings.FieldsFunc(strings.Trim(commandSlice[0], "[]"), f)
+                    fmt.Println(svnList)
+                }
+        }
+
+        var finalSvnList []string
+        for _, svn := range svnList {
+            cleanSvn := strings.Trim(svn, " ")
+            fmt.Println(cleanSvn)
+            if isValidSVN(cleanSvn, svns) {
+                for i:=0; i < botCount; i++ {
+                    finalSvnList = append(finalSvnList, cleanSvn)
+                }
+            }
+        }
+        return finalSvnList
+    }
+
+    return []string{}
+}
+
 func main() {
     cmd := "ls"
-    hosts := [...]string{"192.168.2.187"}
+    hosts := []string{"192.168.2.187"}
+    svns  := []string{"4", "36", "37"}
 
     config := userPassAuth()
     reader := bufio.NewReader(os.Stdin)
 
     for {
-        repeat:
+    repeat:
+        var botsToStart []string
         fmt.Print("Enter command shortcut: ")
         text, _ := reader.ReadString('\n')
 
-        switch strings.ToLower(strings.Trim(text, " \t\n")) {
-            case "h", "help", "":
-                fmt.Println("You can basically only type help, HA!")
-                goto repeat
-            case "exit":
-                return
-            default:
-                fmt.Println("Default")
-                cmd = "ls -l"
+        result := strings.Split(strings.ToLower(strings.Trim(text, " \t\n")), " ")
+        fmt.Println(result, len(result))
+        switch result[0] {
+        case "go":
+
+            botsToStart = parseCommand(result[1:], svns)
+
+            fmt.Println(botsToStart)
+
+            //fmt.Println("go")
+            goto repeat
+        case "h", "help", "":
+            printHelp()
+            goto repeat
+        case "exit":
+            return
+        default:
+            printHelp()
+            goto repeat
         }
 
         results := make(chan string, len(hosts))
