@@ -275,7 +275,7 @@ func setupServerConnection(address string, botInfo BotInfo, runningState chan(bo
 
             var bytes []byte
             err := websocket.Message.Receive(ws, &bytes)
-            
+
             var message ServerMiddlewareGameState
             err = json.Unmarshal(bytes, &message)
 
