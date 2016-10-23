@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>Statistics</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.2/jquery.min.js"></script>
+        <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"></script>
+        <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+        <style>
+            body {
+                margin: 8px;
+            }
+        </style>
+        <script>
+            var g_games = {{.Games}};
+            
+            function makeDropDownEntry(text) {
+                return $("<li><a href=\"#\">" + text + "</a></li>");
+            }
+            
+            function initializeGames(games) {
+                var gamesDropDown = $("#games");
+                var createHandler = function(name) {
+                    return function() {
+                        drawCharts(gameName, g_games[name].svnReposMap);
+                    };
+                };
+                for (var gameName in games) {
+                    var entry = makeDropDownEntry(gameName);
+                    entry.click(createHandler(gameName));
+                    //entry.click(function() {
+                    //    drawCharts(gameName, g_games[gameName].svnReposMap);
+                    //});
+                    gamesDropDown.append(entry);
+                }
+            }
+
+            function convertStatistics(statistics) {
+                return {
+                    "maxSize":            statistics[0],
+                    "maxSurvivalTime":    statistics[1],
+                    "blobKillCount":      statistics[2],
+                    "botKillCount":       statistics[3],
+                    "toxinThrow":         statistics[4],
+                    "successfulToxin":    statistics[5],
+                    "splitCount":         statistics[6],
+                    "successfulSplit":    statistics[7],
+                    //"successfulTeam":     statistics[8],
+                    //"badTeaming":         statistics[9],
+                };
+            }
+            
+            function mapSize(map) {
+                return Object.keys(map).length;
+            }
+            
+            function appendChart(container, chartData) {
+                var options = { 
+                    'title': chartData.title,
+                    'width': "100%",
+                    showRowNumber: true,
+                    sortAscending: false,
+                    sortColumn: 1
+                };
+                if (chartData.type != "Table") {
+                    options.height = 40*chartData.data.Tf.length;
+                }
+
+                var section = $("<div class='chart'></div>");
+                $(container).append(section);
+
+                var chart = null;
+                if (chartData.type == "Pie") {
+                    chart = new google.visualization.PieChart(section[0]);
+                } else if (chartData.type == "Bar") {
+                    chart = new google.visualization.BarChart(section[0]);
+                } else if (chartData.type == "Column") {
+                    chart = new google.visualization.ColumnChart(section[0]);
+                } else if (chartData.type == "Table") {
+                    chart = new google.visualization.Table(section[0]);
+                }
+                chart.draw(chartData.data, options);
+            }
+            
+            function calculateOverallRating(stats) {
+                return stats.maxSize + 
+                       stats.maxSurvivalTime +
+                       stats.blobKillCount + 
+                       stats.botKillCount +
+                       stats.toxinThrow + 
+                       stats.successfulToxin + 
+                       stats.splitCount +
+                       stats.successfulSplit;
+            }
+            
+            function makeTableData(game) {
+                var data = new google.visualization.DataTable();
+                data.addColumn('string', 'Name');
+                data.addColumn('number', 'Gesamtwertung');
+                data.addColumn('number', 'Maximale Größe');
+                data.addColumn('number', 'Überlebenszeit');
+                data.addColumn('number', 'Gefressene Blobs');
+                data.addColumn('number', 'Gefressene Bots');
+                data.addColumn('number', 'Gift-Würfe');
+                data.addColumn('number', 'Erfolgreiche Gift-Würfe');
+                data.addColumn('number', 'Teilungen');
+                data.addColumn('number', 'Gefressene Blobs durch Teilungen');
+                for (var svn in game) {
+                    var nick  = game[svn].nicknames[0];
+                    data.addRow([
+                        nick,
+                        calculateOverallRating(game[svn].statistics),
+                        game[svn].statistics.maxSize,
+                        game[svn].statistics.maxSurvivalTime,
+                        game[svn].statistics.blobKillCount,
+                        game[svn].statistics.botKillCount,
+                        game[svn].statistics.toxinThrow,
+                        game[svn].statistics.successfulToxin,
+                        game[svn].statistics.splitCount,
+                        game[svn].statistics.successfulSplit
+                    ]);
+                }
+                return data;
+            }
+            
+            function makeChartData(game, selector) {
+                var values = [];
+                for (var svn in game) {
+                    var nick  = game[svn].nicknames[0];
+                    var value = selector(game[svn].statistics);
+                    values.push([nick, value]);
+                }
+                
+                values.sort(function(a, b) { return b[1] - a[1]; });
+                
+                var data = new google.visualization.DataTable();
+                data.addColumn('string', '');
+                data.addColumn('number', '');
+                for (var i = 0; i < values.length; ++i) {
+                    data.addRow(values[i]);
+                }
+                return data;
+            }
+            
+            function drawCharts(gameName, game) {
+                $(document.getElementById("table")).empty();
+                $(document.getElementById("overall")).empty();
+                $(document.getElementById("maxSize")).empty();
+                $(document.getElementById("maxSurvivalTime")).empty();
+                $(document.getElementById("blobKills")).empty();
+                $(document.getElementById("botKills")).empty();
+                $(document.getElementById("toxinThrows")).empty();
+                $(document.getElementById("successfulToxinThrows")).empty();
+                $(document.getElementById("splits")).empty();
+                $(document.getElementById("successfulSplits")).empty();
+                
+                function insertInner(container) {
+                    var inner = $("<div></div>");
+                    $(container).append(inner);
+                    return inner[0];
+                }
+                
+                appendChart(insertInner(document.getElementById("table")), 
+                    { title: "Plätze", type: "Table", data: makeTableData(game) });
+                appendChart(insertInner(document.getElementById("overall")),
+                    { title: "Gesamtwertung", type: "Bar", data: makeChartData(game, calculateOverallRating) });
+                appendChart(insertInner(document.getElementById("maxSize")),
+                    { title: "Maximale Größe", type: "Bar", data: makeChartData(game, function(stats) { return stats.maxSize; }) });
+                appendChart(insertInner(document.getElementById("maxSurvivalTime")),
+                    { title: "Überlebenszeit", type: "Bar", data: makeChartData(game, function(stats) { return stats.maxSurvivalTime; }) });
+                appendChart(insertInner(document.getElementById("blobKills")),
+                    { title: "Gefressene Blobs", type: "Bar", data: makeChartData(game, function(stats) { return stats.blobKillCount; }) });
+                appendChart(insertInner(document.getElementById("botKills")),
+                    { title: "Gefressene Bots", type: "Bar", data: makeChartData(game, function(stats) { return stats.botKillCount; }) });
+                appendChart(insertInner(document.getElementById("toxinThrows")),
+                    { title: "Gift-Würfe", type: "Bar", data: makeChartData(game, function(stats) { return stats.toxinThrow; }) });
+                appendChart(insertInner(document.getElementById("successfulToxinThrows")), 
+                    { title: "Erfolgreiche Gift-Würfe", type: "Bar", data: makeChartData(game, function(stats) { return stats.successfulToxin; }) });
+                appendChart(insertInner(document.getElementById("splits")), 
+                    { title: "Teilungen", type: "Bar", data: makeChartData(game, function(stats) { return stats.splitCount; }) });
+                appendChart(insertInner(document.getElementById("successfulSplits")), 
+                    { title: "Gefressene Blobs durch Teilungen", type: "Bar", data: makeChartData(game, function(stats) { return stats.successfulSplit; }) });
+            }
+            
+            function body_onload() {
+                for (var gameName in g_games) { 
+                    var game = g_games[gameName].svnReposMap;
+                    for (var svn in game) {
+                        // The statistics are converted to a human readable format
+                        var stats = convertStatistics(game[svn].statistics);
+                        var allNull = true;
+                        for (var stat in stats) {
+                            if (stats[stat] > 0) {
+                                allNull = false;
+                            }
+                        }
+                        // Only statistics that contain values unequal to 0 are shown.
+                        if (!allNull) {
+                            game[svn].statistics = stats;
+                        } else {
+                            delete game[svn];
+                        }
+                    }
+                }
+                
+                initializeGames(g_games);
+                
+                google.charts.load('current', {'packages':['corechart', 'table']});
+            }
+        </script>
+    </head>
+    <body onload="body_onload()">
+        <div class="dropdown">
+            <button class="btn btn-primary dropdown-toggle" type="button" data-toggle="dropdown">
+                Games
+                <span class="caret"></span>
+            </button>
+            <ul id="games" class="dropdown-menu">
+            </ul>            
+        </div>
+        
+        <hr>
+        
+        <div class="row">
+            <div id="table" class="col-md-12"></div>
+        </div>
+        <div class="row">
+            <div id="overall"class="col-md-12"></div>
+        </div>
+
+        <hr>
+        
+        <div class="row">
+            <div id="maxSize" class="col-md-12"></div>
+        </div>
+        <div class="row">
+            <div id="maxSurvivalTime" class="col-md-12"></div>
+        </div>
+        
+        <hr>
+        
+        <div class="row">
+            <div id="blobKills" class="col-md-6"></div>
+            <div id="botKills" class="col-md-6"></div>
+        </div>
+        <div class="row">
+            <div id="toxinThrows" class="col-md-6"></div>
+            <div id="successfulToxinThrows"class="col-md-6"></div>
+        </div>
+        <div class="row">
+            <div id="splits" class="col-md-6"></div>
+            <div id="successfulSplits" class="col-md-6"></div>
+        </div>
+    </body>
+</html>
