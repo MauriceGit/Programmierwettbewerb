@@ -63,6 +63,7 @@ const (
     guiStatisticsMessageEvery = 1
     serverGuiPasswordFile = "../server_gui_password"
     allocatorLogFile = "../allocator_log"
+    statisticsDirectory = "../Statistics/"
 )
 
 ////////////////////////////////////////////////////////////////////////
@@ -2399,6 +2400,38 @@ func handleServerControlFinal(w http.ResponseWriter, r *http.Request) {
     }
 }
 
+func handleStatistics(w http.ResponseWriter, r *http.Request) {
+    t := template.New("Statistics")
+    page, _ := ioutil.ReadFile("../Public/statistics.html")
+    t, _ = t.Parse(string(page))
+    
+    
+    type Games map[string]SvnPlayerData
+    var games Games = make(Games)
+
+    files, err := ioutil.ReadDir(statisticsDirectory)
+    if err != nil {
+        Logln(LtDebug, "Could not find statistic files")
+    }
+
+    for _, file := range files {
+        Logf(LtDebug, "%v\n", file.Name())
+        svnPlayerData, err := LoadSvnPlayerData(statisticsDirectory + file.Name())
+        if err != nil {
+            Logln(LtDebug, "Could not read the statistics file")
+        } else {
+            games[file.Name()] = svnPlayerData
+        }
+    }
+    
+    data := struct{
+        Games Games
+    }{ 
+        Games: games,
+    }
+    t.Execute(w, data)
+}
+
 func handleGameHTML(w http.ResponseWriter, r *http.Request) {
     data := struct {
         Address string
@@ -2460,6 +2493,7 @@ func main() {
     http.HandleFunc("/game.html", handleGameHTML)
     http.HandleFunc("/server/", handleServerControl)
     http.HandleFunc("/server2/", handleServerControlFinal)
+    http.HandleFunc("/stats/", handleStatistics)
 
     // Websocket connections
 

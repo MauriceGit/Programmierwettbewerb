@@ -11,6 +11,12 @@ import (
     "bufio"
 )
 
+////////////////////////////////////////////////////////////////////////
+//
+// SvnPlayerData
+//
+////////////////////////////////////////////////////////////////////////
+
 type PlayerData struct {
     Nicknames   []string    `json:"nicknames"`
     Statistics  Statistics  `json:"statistics"`
@@ -20,6 +26,18 @@ type PlayerData struct {
 type SvnPlayerData struct {
     SvnReposInformation map[string]PlayerData `json:"svnReposMap"`
 }
+
+func LoadSvnPlayerData(filename string) (svnPlayerData SvnPlayerData, err error) {
+    bytes, err := ioutil.ReadFile(filename)
+    json.Unmarshal(bytes, &svnPlayerData)
+    return
+}
+
+////////////////////////////////////////////////////////////////////////
+//
+// Variables
+//
+////////////////////////////////////////////////////////////////////////
 
 var botNames = "bot.names"
 var statisticsPath = "../Statistics/"
