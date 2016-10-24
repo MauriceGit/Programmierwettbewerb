@@ -12,6 +12,7 @@ import (
     "strconv"
     "github.com/BurntSushi/toml"
     "golang.org/x/crypto/ssh"
+    //"reflect"
 )
 
 // Info from config file
@@ -103,14 +104,14 @@ func readConfig(name string) (Config, error) {
     var configfile = name
     _, err := os.Stat(configfile)
     if err != nil {
-        fmt.Println("Config file is missing: %v\n", configfile)
+        fmt.Printf("Config file is missing: %v\n", configfile)
         //os.Exit(1)
         return Config{}, err
     }
 
     var config Config
     if _, err := toml.DecodeFile(configfile, &config); err != nil {
-        fmt.Println("%v\n", err)
+        fmt.Printf("%v\n", err)
         return Config{}, err
         //os.Exit(1)
     }
@@ -119,9 +120,10 @@ func readConfig(name string) (Config, error) {
 }
 
 // Parses the command that was given on stdin (one line)
-func parseRunCommand(commandSlice, svns []string) []string {
+func parseRunCommand(commandSlice []string) []string {
 
     botCount := 1
+    svns := config.SVNs
     var svnList []string
 
     if len(commandSlice) > 1 {
@@ -161,13 +163,14 @@ func parseRunCommand(commandSlice, svns []string) []string {
     return []string{}
 }
 
-func startBots(botsToStart, hosts []string) {
+func startBots(botsToStart, hosts []string) int {
 
     auth := userPassAuth()
 
     // One bot per host!
     if len(botsToStart) > len(hosts) {
-        fmt.Println("Not enough hosts (%v) to start all bots (%v)\n", len(botsToStart), len(hosts))
+        fmt.Printf("Not enough hosts (%v) to start all bots (%v)\n", len(botsToStart), len(hosts))
+        return 0
     }
 
     executeOnHost := 0
@@ -196,6 +199,8 @@ func startBots(botsToStart, hosts []string) {
             fmt.Println("started.")
         }
     }
+
+    return len(botsToStart)
 }
 
 func killBots(hosts []string) {
@@ -227,25 +232,35 @@ func killBots(hosts []string) {
     }
 }
 
-func main() {
+// Has to be executed before runs/kills!
+// Returns Error. So has to be nil.
+func initRemoteDistribution () error {
     var err error = nil
     config, err = readConfig("../distribution.conf")
 
     if err != nil {
-        fmt.Println("Error on reading the config file. %v\n", err)
-        return
+        fmt.Printf("Error on reading the config file. %v\n", err)
     }
 
-    //hosts := []string{"192.168.2.187"}
-    hosts := config.Hosts
-    svns  := config.SVNs
+    return err
+}
 
-    fmt.Println(config)
+// starts all given bots (if possible) on remote machines, specified in the
+// config file.
+// Returns Number of bots started.
+func remoteStartBots(botsToStart []string) int {
+    count := startBots(botsToStart, config.Hosts)
+    fmt.Printf("%v bots started.\n", count)
+    return count
+}
 
+// kill all possibly started bots on all machines!
+func remoteKillBots() {
+    killBots(config.Hosts)
+}
 
+func interactiveRemoteInterface() {
     reader := bufio.NewReader(os.Stdin)
-
-
 
     for {
 
@@ -260,7 +275,7 @@ func main() {
         case "kill":
             status = Kill
         case "go":
-            botsToStart = parseRunCommand(result[1:], svns)
+            botsToStart = parseRunCommand(result[1:])
             status = Execute
         case "exit":
             return
@@ -272,13 +287,23 @@ func main() {
 
         switch status {
             case Execute:
-                startBots(botsToStart, hosts)
+                remoteStartBots(botsToStart)
             case Kill:
-                killBots(hosts)
+                killBots(config.Hosts)
             case Help:
                 printHelp()
             case Nothing:
         }
 
     }
+}
+
+func main() {
+
+    if initRemoteDistribution() != nil {
+        return
+    }
+
+    interactiveRemoteInterface()
+
 }
