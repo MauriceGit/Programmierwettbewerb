@@ -1,4 +1,4 @@
-package main
+package distribution
 
 import (
     "bufio"
@@ -12,6 +12,7 @@ import (
     "strconv"
     "github.com/BurntSushi/toml"
     "golang.org/x/crypto/ssh"
+    "net"
     //"reflect"
 )
 
@@ -163,7 +164,7 @@ func parseRunCommand(commandSlice []string) []string {
     return []string{}
 }
 
-func startBots(botsToStart, hosts []string) int {
+func startBots(botsToStart, hosts []string, serverIP string) int {
 
     auth := userPassAuth()
 
@@ -182,7 +183,7 @@ func startBots(botsToStart, hosts []string) int {
         hostname := hosts[executeOnHost]
         go func(hostname, botName string) {
             // Issue command as nohup, to be sure, it continues executing after ssh disconnect.
-            command := "nohup $(cd pwb_" + botName + "; ./Programmierwettbewerb-Middleware) &"
+            command := "nohup $(cd pwb_" + botName + "; ./Programmierwettbewerb-Middleware -connection ws://" + serverIP + "/middleware/) &"
 
             results <- executeCmd(command, hostname, auth)
         }(hostname, bot)
@@ -234,7 +235,7 @@ func killBots(hosts []string) {
 
 // Has to be executed before runs/kills!
 // Returns Error. So has to be nil.
-func initRemoteDistribution () error {
+func InitRemoteDistribution () error {
     var err error = nil
     config, err = readConfig("../distribution.conf")
 
@@ -248,15 +249,32 @@ func initRemoteDistribution () error {
 // starts all given bots (if possible) on remote machines, specified in the
 // config file.
 // Returns Number of bots started.
-func remoteStartBots(botsToStart []string) int {
-    count := startBots(botsToStart, config.Hosts)
+func RemoteStartBots(botsToStart []string, serverIP string) int {
+    count := startBots(botsToStart, config.Hosts, serverIP)
     fmt.Printf("%v bots started.\n", count)
     return count
 }
 
 // kill all possibly started bots on all machines!
-func remoteKillBots() {
+func RemoteKillBots() {
     killBots(config.Hosts)
+}
+
+func getIP() string {
+    addrs, err := net.InterfaceAddrs()
+    if err != nil {
+        os.Stderr.WriteString("Oops: " + err.Error() + "\n")
+        return "localhost"
+    }
+
+    for _, a := range addrs {
+        if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+            if ipnet.IP.To4() != nil {
+                return ipnet.IP.String()
+            }
+        }
+    }
+    return "localhost"
 }
 
 func interactiveRemoteInterface() {
@@ -287,9 +305,9 @@ func interactiveRemoteInterface() {
 
         switch status {
             case Execute:
-                remoteStartBots(botsToStart)
+                RemoteStartBots(botsToStart, getIP())
             case Kill:
-                killBots(config.Hosts)
+                RemoteKillBots()
             case Help:
                 printHelp()
             case Nothing:
@@ -300,7 +318,7 @@ func interactiveRemoteInterface() {
 
 func main() {
 
-    if initRemoteDistribution() != nil {
+    if InitRemoteDistribution() != nil {
         return
     }
 

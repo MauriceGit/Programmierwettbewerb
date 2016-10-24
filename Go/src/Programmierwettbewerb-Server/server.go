@@ -6,6 +6,7 @@ import (
     . "Programmierwettbewerb-Server/organisation"
     . "Programmierwettbewerb-Server/data"
     . "Programmierwettbewerb-Server/connections"
+    . "Programmierwettbewerb-Server/distribution"
 
     "golang.org/x/net/websocket"
     "fmt"
@@ -169,6 +170,8 @@ type ServerSettings struct {
     MaxNumberOfFoods            int
     MaxNumberOfToxins           int
 
+    BotToStart                  string
+
     foodDistributionName        string
     toxinDistributionName       string
     botDistributionName         string
@@ -189,6 +192,8 @@ func NewSettings() ServerSettings {
         MaxNumberOfBots:        30,
         MaxNumberOfFoods:       1000,
         MaxNumberOfToxins:      30,
+
+        BotToStart:             "",
 
         foodDistributionName:   defaultDistributionName,
         toxinDistributionName:  defaultDistributionName,
@@ -1572,12 +1577,22 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                         Type    string  `json:"type"`
                         Value   int     `json:"value,string,omitempty"`
                         Image   string  `json:"image"`
+                        Botname string  `json:"string"`
                     }
 
                     var command Command
                     err := json.Unmarshal([]byte(commandString), &command)
                     if err == nil {
                         switch command.Type {
+                        case "BotToStart":
+                            app.settings.BotToStart = command.Botname
+
+                            Logf(LtDebug, "Got a new bot to start: %v\n", command.Botname)
+                        case "KillAllRemoteBots":
+
+                            Logf(LtDebug, "KILL ALL REMOTE BOTS\n")
+                            go RemoteKillBots()
+
                         case "MinNumberOfBots":
                             app.settings.MinNumberOfBots = command.Value
                         case "MaxNumberOfBots":
@@ -1706,6 +1721,21 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         }
 
         ////////////////////////////////////////////////////////////////
+        // START SPECIFIED BOT ON A HOST
+        ////////////////////////////////////////////////////////////////
+        {
+            startProfileEvent(&profile, "Add Interface Bot")
+
+            if app.settings.BotToStart != "" {
+                count := RemoteStartBots([]string{app.settings.BotToStart}, getServerAddress())
+                Logf(LtDebug, "Started remote bot: %v\n", count)
+            }
+
+            app.settings.BotToStart = ""
+            endProfileEvent(&profile)
+        }
+
+        ////////////////////////////////////////////////////////////////
         // ADD SOME MIDDLEWARES/BOTS IF NEEDED
         ////////////////////////////////////////////////////////////////
         {
@@ -1768,7 +1798,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                                 }
                             }
                         }
-                        
+
                         // Collecting foods
                         var foods []Food
                         for _, food := range gameState.foods {
@@ -1979,12 +2009,12 @@ func handleGui(ws *websocket.Conn) {
                     var err error
 
                     messageBytes, _ := json.Marshal(message)
-                    
+
                     var buffer bytes.Buffer
                     writer := gzip.NewWriter(&buffer)
                     writer.Write(messageBytes)
                     writer.Close()
-                    
+
                     err = websocket.Message.Send(ws, buffer.Bytes())
                     if err != nil {
                         LogfColored(LtDebug, LcYellow, "<=== ServerGuiUpdateMessage could not be sent because of: %v\n", err)
@@ -2404,8 +2434,8 @@ func handleStatistics(w http.ResponseWriter, r *http.Request) {
     t := template.New("Statistics")
     page, _ := ioutil.ReadFile("../Public/statistics.html")
     t, _ = t.Parse(string(page))
-    
-    
+
+
     type Games map[string]SvnPlayerData
     var games Games = make(Games)
 
@@ -2423,10 +2453,10 @@ func handleStatistics(w http.ResponseWriter, r *http.Request) {
             games[file.Name()] = svnPlayerData
         }
     }
-    
+
     data := struct{
         Games Games
-    }{ 
+    }{
         Games: games,
     }
     t.Execute(w, data)
@@ -2483,6 +2513,7 @@ func main() {
     app.initialize()
 
     InitOrganisation()
+    InitRemoteDistribution()
     UpdateAllSVN()
 
     gameState := NewGameState(app.settings)
