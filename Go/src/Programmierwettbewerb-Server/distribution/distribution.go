@@ -250,7 +250,19 @@ func InitRemoteDistribution () error {
 // config file.
 // Returns Number of bots started.
 func RemoteStartBots(botsToStart []string, serverIP string) int {
-    count := startBots(botsToStart, config.Hosts, serverIP)
+
+    var svns []string
+
+    for _,svn := range botsToStart {
+        if svn == "all" {
+            svns = append(svns, config.SVNs...)
+        } else {
+            svns = append(svns, svn)
+        }
+    }
+    fmt.Printf("trying to start the following svns: %v\n", svns)
+
+    count := startBots(svns, config.Hosts, serverIP)
     fmt.Printf("%v bots started.\n", count)
     return count
 }
