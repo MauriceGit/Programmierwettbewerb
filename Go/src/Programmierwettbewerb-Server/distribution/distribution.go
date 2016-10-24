@@ -170,7 +170,7 @@ func startBots(botsToStart, hosts []string, serverIP string) int {
 
     // One bot per host!
     if len(botsToStart) > len(hosts) {
-        fmt.Printf("Not enough hosts (%v) to start all bots (%v)\n", len(botsToStart), len(hosts))
+        fmt.Printf("Not enough hosts (%v) to start all bots (%v)\n", len(hosts), len(botsToStart))
         return 0
     }
 

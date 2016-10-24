@@ -170,7 +170,8 @@ type ServerSettings struct {
     MaxNumberOfFoods            int
     MaxNumberOfToxins           int
 
-    BotToStart                  string
+    BotsToStart                 []string
+    BotCount                    int
 
     foodDistributionName        string
     toxinDistributionName       string
@@ -193,7 +194,8 @@ func NewSettings() ServerSettings {
         MaxNumberOfFoods:       1000,
         MaxNumberOfToxins:      30,
 
-        BotToStart:             "",
+        BotsToStart:             []string{},
+        BotCount:               0,
 
         foodDistributionName:   defaultDistributionName,
         toxinDistributionName:  defaultDistributionName,
@@ -1577,17 +1579,17 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                         Type    string  `json:"type"`
                         Value   int     `json:"value,string,omitempty"`
                         Image   string  `json:"image"`
-                        Botname string  `json:"string"`
+                        Bots    string  `json:"string"`
                     }
 
                     var command Command
                     err := json.Unmarshal([]byte(commandString), &command)
                     if err == nil {
                         switch command.Type {
-                        case "BotToStart":
-                            app.settings.BotToStart = command.Botname
-
-                            Logf(LtDebug, "Got a new bot to start: %v\n", command.Botname)
+                        case "BotCount":
+                            app.settings.BotCount = command.Value
+                        case "BotsToStart":
+                            app.settings.BotsToStart = strings.Split(command.Bots, ",")
                         case "KillAllRemoteBots":
 
                             Logf(LtDebug, "KILL ALL REMOTE BOTS\n")
@@ -1721,17 +1723,27 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         }
 
         ////////////////////////////////////////////////////////////////
-        // START SPECIFIED BOT ON A HOST
+        // START SPECIFIC REMOTE BOTS
         ////////////////////////////////////////////////////////////////
         {
             startProfileEvent(&profile, "Add Interface Bot")
 
-            if app.settings.BotToStart != "" {
-                count := RemoteStartBots([]string{app.settings.BotToStart}, getServerAddress())
-                Logf(LtDebug, "Started remote bot: %v\n", count)
+            if app.settings.BotCount > 0 {
+                // To create a list with all svns multiple times. They all start together.
+                var finalSvnList []string
+                for i:=0; i < app.settings.BotCount; i++ {
+                    for _, svn := range app.settings.BotsToStart {
+                        finalSvnList = append(finalSvnList, svn)
+                    }
+                }
+
+                count := RemoteStartBots(finalSvnList, getServerAddress())
+                Logf(LtDebug, "Started remote bots: %v\n", count)
+
+                app.settings.BotsToStart = []string{}
+                app.settings.BotCount = 0
             }
 
-            app.settings.BotToStart = ""
             endProfileEvent(&profile)
         }
 
