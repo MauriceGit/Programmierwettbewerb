@@ -95,9 +95,12 @@
                 });
 
                 $("#sendBotCommand").on('click', function() {
-                    var value = $("#runBot").val()
+                    var value = $("#runBots").val()
+                    var run = $("#runCount").val()
                     console.log(value)
-                    sock.send(JSON.stringify({ type:"BotToStart", string:value }));
+                    console.log(run)
+                    sock.send(JSON.stringify({ type:"BotCount", value:run }));
+                    sock.send(JSON.stringify({ type:"BotsToStart", string:value }));
                 });
 
                 $("#killRemoteBots").on('click', function() {
@@ -201,11 +204,15 @@
                             <h4>Execute Bots</h3>
                             <div class="row">
                                 <div class="col-md-4">
-                                    <h5>Bot to start</h5>
-                                    <input id="runBot" type="string" value="04">
+                                    <h5>Bots to start (comma-separated! Example: 04,35 OR all OR 04,all,46)</h5>
+                                    <input id="runBots" type="string" value="04">
+                                </div>
+                                <div class="col-md-4">
+                                    <h5>Count/Each</h5>
+                                    <input id="runCount" type="number" value="1">
                                 </div>
                             </div>
-                            <button id="sendBotCommand" type="button" class="btn btn-success pull-right">StartBot</button>
+                            <button id="sendBotCommand" type="button" class="btn btn-success pull-right">Start Bots</button>
                         </div>
                     </div>
                     <div class = "panel-body">

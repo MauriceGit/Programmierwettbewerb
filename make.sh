@@ -30,4 +30,4 @@ echo "Build Middleware"
 go install Programmierwettbewerb-Middleware
 
 echo "Build Distribution Server"
-go install Programmierwettbewerb-Distribution
+#go install Programmierwettbewerb-Distribution
