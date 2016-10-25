@@ -209,6 +209,19 @@ func NewSettings() ServerSettings {
 
 ////////////////////////////////////////////////////////////////////////
 //
+// Command
+//
+////////////////////////////////////////////////////////////////////////
+
+type Command struct {
+    Type    string  `json:"type"`
+    Value   int     `json:"value,string,omitempty"`
+    Image   string  `json:"image"`
+    Bots    string  `json:"string"`
+}
+
+////////////////////////////////////////////////////////////////////////
+//
 // GameState
 //
 ////////////////////////////////////////////////////////////////////////
@@ -390,6 +403,7 @@ type Application struct {
     standbyMutex                sync.Mutex
     standby                     *sync.Cond
     standbyActive               bool
+    standbyForced               bool
 
     runningStateMutex           sync.Mutex
     runningState                bool
@@ -399,7 +413,7 @@ type Application struct {
     middlewareTerminations      chan BotId
 
     serverCommandsMutex         sync.Mutex
-    serverCommands              []string
+    serverCommands              []Command
     messagesToServerGui         chan interface{}
 
     serverGuiIsConnectedMutex   sync.Mutex
@@ -417,6 +431,7 @@ var app Application
 
 func (app* Application) initialize() {
     app.standby                     = sync.NewCond(&app.standbyMutex)
+    app.standbyForced               = false
 
     app.middlewareCommands          = make(chan MiddlewareCommand, 100)
     app.middlewareRegistrations     = make(chan MiddlewareRegistration, 100)
@@ -491,12 +506,18 @@ func waitOnStandbyChangingConnections(waitNotifier WaitNotifier) bool {
     defer app.standbyMutex.Unlock()
 
     result := app.standbyActive
-    if !hasStandbyRelevantConnections() {
+    if !hasStandbyRelevantConnections() || app.standbyForced {
         waitNotifier(app.standbyActive)
         app.standbyActive = true
         app.middlewareConnections.Foreach(func(botId BotId, middlewareConnection MiddlewareConnection) {
+            // The middleware connections have to be notified because there is a timeout that has to be stopped
             middlewareConnection.StandbyNotification <- true
         })
+        /*
+        app.guiConnections.Foreach(func(guiId GuiId, guiConnection GuiConnection) {
+            
+        })
+        */
         app.standby.Wait()
     }
     return result
@@ -506,7 +527,7 @@ func wakeUpFromStandby() {
     app.standbyMutex.Lock()
     defer app.standbyMutex.Unlock()
 
-    if app.standbyActive {
+    if app.standbyActive && !app.standbyForced {
         app.standbyActive = false
         app.middlewareConnections.Foreach(func(botId BotId, middlewareConnection MiddlewareConnection) {
             middlewareConnection.StandbyNotification <- false
@@ -1574,91 +1595,74 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         {
             startProfileEvent(&profile, "Handle Events")
             if len(app.serverCommands) > 0 {
-                for _, commandString := range app.serverCommands {
-                    type Command struct {
-                        Type    string  `json:"type"`
-                        Value   int     `json:"value,string,omitempty"`
-                        Image   string  `json:"image"`
-                        Bots    string  `json:"string"`
-                    }
-
-                    var command Command
-                    err := json.Unmarshal([]byte(commandString), &command)
-                    if err == nil {
-                        switch command.Type {
-                        case "BotCount":
-                            app.settings.BotCount = command.Value
-                        case "BotsToStart":
-                            app.settings.BotsToStart = strings.Split(command.Bots, ",")
-                        case "KillAllRemoteBots":
-
-                            Logf(LtDebug, "KILL ALL REMOTE BOTS\n")
-                            go RemoteKillBots()
-
-                        case "MinNumberOfBots":
-                            app.settings.MinNumberOfBots = command.Value
-                        case "MaxNumberOfBots":
-                            app.settings.MaxNumberOfBots = command.Value
-                        case "MaxNumberOfFoods":
-                            app.settings.MaxNumberOfFoods = command.Value
-                        case "MaxNumberOfToxins":
-                            app.settings.MaxNumberOfToxins = command.Value
-                        case "UpdateServer":
-                            Logf(LtDebug, "Updating the server\n")
-                            go startBashScript("./updateServer.sh")
-                        case "RestartServer":
-                            Logf(LtDebug, "Updating the server\n")
-                            go startBashScript("./updateServer.sh")
-                            time.Sleep(2000 * time.Millisecond)
-                            Logf(LtDebug, "Restarting the server\n")
-                            go startBashScript("./restartServer.sh")
-                            stopServer()
-                            Logf(LtDebug, "Server is shutting down.\n")
-                            // We give the other go routines a few seconds to gracefully shut down!
-                            time.Sleep(3000 * time.Millisecond)
-                            Logf(LtDebug, "Sleep finished\n")
-                            os.Exit(1)
-                        case "ToggleProfiling":
-                            Logf(LtDebug, "Toggle Profiling\n");
-                            app.profiling = !app.profiling
-                        case "KillAllBots":
-                            for botId, bot := range gameState.bots {
+                for _, command := range app.serverCommands {
+                    switch command.Type {
+                    case "BotCount":
+                        app.settings.BotCount = command.Value
+                    case "BotsToStart":
+                        app.settings.BotsToStart = strings.Split(command.Bots, ",")
+                    case "KillAllRemoteBots":
+                        Logf(LtDebug, "KILL ALL REMOTE BOTS\n")
+                        go RemoteKillBots()
+                    case "MinNumberOfBots":
+                        app.settings.MinNumberOfBots = command.Value
+                    case "MaxNumberOfBots":
+                        app.settings.MaxNumberOfBots = command.Value
+                    case "MaxNumberOfFoods":
+                        app.settings.MaxNumberOfFoods = command.Value
+                    case "MaxNumberOfToxins":
+                        app.settings.MaxNumberOfToxins = command.Value
+                    case "UpdateServer":
+                        Logf(LtDebug, "Updating the server\n")
+                        go startBashScript("./updateServer.sh")
+                    case "RestartServer":
+                        Logf(LtDebug, "Updating the server\n")
+                        go startBashScript("./updateServer.sh")
+                        time.Sleep(2000 * time.Millisecond)
+                        Logf(LtDebug, "Restarting the server\n")
+                        go startBashScript("./restartServer.sh")
+                        stopServer()
+                        Logf(LtDebug, "Server is shutting down.\n")
+                        // We give the other go routines a few seconds to gracefully shut down!
+                        time.Sleep(3000 * time.Millisecond)
+                        Logf(LtDebug, "Sleep finished\n")
+                        os.Exit(1)
+                    case "ToggleProfiling":
+                        Logf(LtDebug, "Toggle Profiling\n");
+                        app.profiling = !app.profiling
+                    case "KillAllBots":
+                        for botId, bot := range gameState.bots {
+                            delete(gameState.bots, botId)
+                            botsKilledByServerGui = append(botsKilledByServerGui, NewBotKill(botId, bot))
+                        }
+                        Logf(LtDebug, "Killed all bots\n")
+                    case "KillBotsWithoutConnection":
+                        Logf(LtDebug, "The server does not support the command \"KillBotsWithoutConnection\" anylonger.\n")
+                    case "KillBotsAboveMassThreshold":
+                        for botId, bot := range gameState.bots {
+                            var mass float32 = 0
+                            for _, blob := range bot.Blobs {
+                                mass += blob.Mass
+                            }
+                            if mass > float32(command.Value) {
                                 delete(gameState.bots, botId)
                                 botsKilledByServerGui = append(botsKilledByServerGui, NewBotKill(botId, bot))
                             }
-                            Logf(LtDebug, "Killed all bots\n")
-                        case "KillBotsWithoutConnection":
-                            Logf(LtDebug, "The server does not support the command \"KillBotsWithoutConnection\" anylonger.\n")
-                        case "KillBotsAboveMassThreshold":
-                            for botId, bot := range gameState.bots {
-                                var mass float32 = 0
-                                for _, blob := range bot.Blobs {
-                                    mass += blob.Mass
-                                }
-                                if mass > float32(command.Value) {
-                                    delete(gameState.bots, botId)
-                                    botsKilledByServerGui = append(botsKilledByServerGui, NewBotKill(botId, bot))
-                                }
-                            }
-                            Logf(LtDebug, "Killed bots above mass threshold\n")
-                        case "FoodSpawnImage":
-                            app.settings.foodDistribution     = loadSpawnImage(app.settings.fieldSize, command.Image, 10)
-                            app.settings.foodDistributionName = command.Image
-                        case "ToxinSpawnImage":
-                            app.settings.toxinDistribution     = loadSpawnImage(app.settings.fieldSize, command.Image, 10)
-                            app.settings.toxinDistributionName = command.Image
-                        case "BotSpawnImage":
-                            app.settings.botDistribution     = loadSpawnImage(app.settings.fieldSize, command.Image, 10)
-                            app.settings.botDistributionName = command.Image
                         }
-                    } else {
-                        if err != nil {
-                            Logf(LtDebug, "Err: %v\n", err.Error())
-                        }
+                        Logf(LtDebug, "Killed bots above mass threshold\n")
+                    case "FoodSpawnImage":
+                        app.settings.foodDistribution     = loadSpawnImage(app.settings.fieldSize, command.Image, 10)
+                        app.settings.foodDistributionName = command.Image
+                    case "ToxinSpawnImage":
+                        app.settings.toxinDistribution     = loadSpawnImage(app.settings.fieldSize, command.Image, 10)
+                        app.settings.toxinDistributionName = command.Image
+                    case "BotSpawnImage":
+                        app.settings.botDistribution     = loadSpawnImage(app.settings.fieldSize, command.Image, 10)
+                        app.settings.botDistributionName = command.Image
                     }
                 }
 
-                app.serverCommands = make([]string, 0)
+                app.serverCommands = make([]Command, 0)
             }
             endProfileEvent(&profile)
         }
@@ -2163,9 +2167,31 @@ func handleServerCommands(ws *websocket.Conn) {
                 return
             }
 
-            app.serverCommandsMutex.Lock()
-            app.serverCommands = append(app.serverCommands, message)
-            app.serverCommandsMutex.Unlock()
+            var command Command
+            err := json.Unmarshal([]byte(message), &command)
+            if err == nil {
+                switch command.Type {
+                    case "StartSimulation":
+                        app.standbyMutex.Lock()
+                        app.standbyForced = false
+                        app.standbyMutex.Unlock()
+                        LogfColored(LtDebug, LcBlue, "Simulation is started!\n")
+                        wakeUpFromStandby()
+                    case "StopSimulation":
+                        app.standbyMutex.Lock()
+                        app.standbyForced = true
+                        app.standbyMutex.Unlock()
+                        LogfColored(LtDebug, LcBlue, "Simulation is stopped!\n")
+                    default:
+                        app.serverCommandsMutex.Lock()
+                        app.serverCommands = append(app.serverCommands, command)
+                        app.serverCommandsMutex.Unlock()
+                }
+            } else {
+                if err != nil {
+                    Logf(LtDebug, "Err: %v\n", err.Error())
+                }
+            }
         }
     }()
 

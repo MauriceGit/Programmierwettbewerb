@@ -115,6 +115,14 @@
                 $("#toggleProfile").on('click', function() {
                    sock.send(JSON.stringify({ type:"ToggleProfiling" }));
                 });
+                
+                $("#startSimulation").on('click', function() {
+                    sock.send(JSON.stringify({ type:"StartSimulation" }));
+                });
+                
+                $("#stopSimulation").on('click', function() {
+                    sock.send(JSON.stringify({ type:"StopSimulation" }));
+                });
 
                 var foodImageHandlerMaker = function(imageName) {
                     return function() {
@@ -218,14 +226,18 @@
                     <div class = "panel-body">
                         <button id="killRemoteBots" type="button" class="btn btn-success">Kill all remote Bots</button>
                     </div>
-
                 </div>
-
 
                 <div class = "panel panel-default">
                    <div class = "panel-body">
                         <div class="caption">
                             <h4>Events</h4>
+                            <p>Simulation</p>
+                            <div class="btn-group" role="group" aria-label="...">
+                              <button id="startSimulation" type="button" class="btn btn-success">Start</button>
+                              <button id="stopSimulation" type="button" class="btn btn-success">Stop</button>
+                            </div>
+                            <hr>
                             <p>Kill Bots</p>
                             <div class="btn-group" role="group" aria-label="...">
                               <button id="killAllBots" type="button" class="btn btn-success">All</button>
@@ -234,7 +246,7 @@
                             <hr>
                             <p>Kill all bots with a mass above the given value</p>
                             <input id="massThreshold" type="number" value="1000">
-                            <button id="killBotsAboveMassThreshold" type="button" class="btn btn-success">Kill</button>
+                            <button id="killBotsAboveMassThreshold" type="button" class="btn btn-success">Kill</button>                            
                             <hr>
                             <div class="row">
                                 <div class="col-md-4">
