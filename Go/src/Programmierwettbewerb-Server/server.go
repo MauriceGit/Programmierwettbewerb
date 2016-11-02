@@ -2319,10 +2319,17 @@ func handleMiddleware(ws *websocket.Conn) {
                         // in the main game loop (so adding, say, 100 bots, doesn't affect the other, normal computations!)
                         isAllowed, repository, statisticsOverall := CheckPotentialPlayer(message.BotInfo.Name)
 
-                        sourceIP := strings.Split(ws.Request().RemoteAddr, ":")[0]
+			var sourceIP string
+			remoteAddr := ws.Request().RemoteAddr
+			if strings.Contains(remoteAddr, "::1") {
+				sourceIP = "::1"
+			} else {
+				sourceIP = strings.Split( ws.Request().RemoteAddr, ":")[0]
+			}
+			Logf(LtDebug, "%s\n", ws.Request().RemoteAddr)
                         myIP := getIP()
 
-                        if message.BotInfo.Name == "dummy" && sourceIP != myIP && sourceIP != "localhost" && sourceIP != "127.0.0.1" {
+                        if message.BotInfo.Name == "dummy" && sourceIP != myIP && sourceIP != "localhost" && sourceIP != "127.0.0.1" && sourceIP != "::1" {
                             isAllowed = false
                             LogfColored(LtDebug, LcRed, "FORBIDDEN. NAME=\"dummy\". IP=\"%s\".\n", sourceIP)
                         }
