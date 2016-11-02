@@ -5,6 +5,7 @@ import (
     . "Programmierwettbewerb-Server/shared"
     
     "fmt"
+    "encoding/json"
 )
 
 var EPSILON float32 = 0.00000001
@@ -47,6 +48,14 @@ func NewQuad(origin Vec2, size float32) Quad {
 type quadTreeEntry struct {
     position    Vec2
     value       interface{}
+}
+
+func (entry *quadTreeEntry) MarshalJSON() ([]byte, error) {
+    return json.Marshal(&struct {
+        Position    Vec2            `json:"pos"`
+    }{
+        Position:   entry.position,
+    })
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -114,6 +123,10 @@ func (quadTree *QuadTree) FindValuesInQuad(quad Quad, buffer ValueBuffer) {
 
 func (quadTree *QuadTree) Print() {
     quadTree.root.Print("")
+}
+
+func (quadTree *QuadTree) ToJson() ([]byte, error) {
+    return json.MarshalIndent(quadTree.root, "", "  ")
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -527,4 +540,52 @@ func (equal *equalNode) FindValuesInQuad(quad Quad, buffer ValueBuffer) {
         buffer.Append(equal.entry.value)
         equal.next.FindValuesInQuad(quad, buffer)
     }
+}
+
+////////////////////////////////////////////////////////////////////////
+//
+// ToJson
+//
+////////////////////////////////////////////////////////////////////////
+
+func (empty *emptyNode) MarshalJSON() ([]byte, error) {
+    return json.Marshal(empty.quad)
+}
+
+func (leaf *leafNode) MarshalJSON() ([]byte, error) {
+    return json.Marshal(&struct {
+        Quad                Quad            `json:"quad"`
+        Entry               quadTreeEntry   `json:"entry"`
+    }{
+        Quad:               leaf.quad,
+        Entry:              leaf.entry,
+    })
+}
+
+func (inner *innerNode) MarshalJSON() ([]byte, error) {
+    return json.Marshal(&struct {
+        Quad                Quad            `json:"quad"`
+        ChildLeftLower      quadTreeNode    `json:"leftlower"`
+        ChildRightLower     quadTreeNode    `json:"rightlower"`
+        ChildRightUpper     quadTreeNode    `json:"rightupper"`
+        ChildLeftUpper      quadTreeNode    `json:"leftupper"`
+    }{
+        Quad:               inner.quad,
+        ChildLeftLower:     inner.childLeftLower,
+        ChildRightLower:    inner.childRightLower,
+        ChildRightUpper:    inner.childRightUpper,
+        ChildLeftUpper:     inner.childLeftUpper,
+    })
+}
+
+func (equal *equalNode) MarshalJSON() ([]byte, error) {
+    return json.Marshal(&struct {
+        Quad                Quad            `json:"quad"`
+        Entry               quadTreeEntry   `json:"entry"`
+        Next                quadTreeNode    `json:"next"`
+    }{
+        Quad:               equal.quad,
+        Entry:              equal.entry,
+        Next:               equal.next,
+    })
 }
