@@ -403,7 +403,9 @@ type Application struct {
     standbyMutex                sync.Mutex
     standby                     *sync.Cond
     standbyActive               bool
-    standbyForced               bool
+    
+	stoppedMutex 		sync.Mutex
+    stopped			bool
 
     runningStateMutex           sync.Mutex
     runningState                bool
@@ -431,7 +433,7 @@ var app Application
 
 func (app* Application) initialize() {
     app.standby                     = sync.NewCond(&app.standbyMutex)
-    app.standbyForced               = false
+    app.stopped                     = false
 
     app.middlewareCommands          = make(chan MiddlewareCommand, 100)
     app.middlewareRegistrations     = make(chan MiddlewareRegistration, 100)
@@ -506,7 +508,7 @@ func waitOnStandbyChangingConnections(waitNotifier WaitNotifier) bool {
     defer app.standbyMutex.Unlock()
 
     result := app.standbyActive
-    if !hasStandbyRelevantConnections() || app.standbyForced {
+    if !hasStandbyRelevantConnections() {
         waitNotifier(app.standbyActive)
         app.standbyActive = true
         app.middlewareConnections.Foreach(func(botId BotId, middlewareConnection MiddlewareConnection) {
@@ -527,7 +529,7 @@ func wakeUpFromStandby() {
     app.standbyMutex.Lock()
     defer app.standbyMutex.Unlock()
 
-    if app.standbyActive && !app.standbyForced {
+    if app.standbyActive {
         app.standbyActive = false
         app.middlewareConnections.Foreach(func(botId BotId, middlewareConnection MiddlewareConnection) {
             middlewareConnection.StandbyNotification <- false
@@ -1769,9 +1771,17 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         ////////////////////////////////////////////////////////////////
         // UPDATE THE GAME STATE
         ////////////////////////////////////////////////////////////////
-        deadBots, eatenFoods, eatenToxins := update(gameState, &app.settings, &app.ids, &profile, dt, simulationStepCounter)
-        deadBots = append(deadBots, botsKilledByServerGui...)
-        deadBots = append(deadBots, terminatedBots...)
+	app.stoppedMutex.Lock()
+	stopped :=  app.stopped
+	app.stoppedMutex.Unlock()
+        deadBots := make([]BotKill, 0)
+        eatenFoods := make([]FoodId, 0)
+        eatenToxins := make([]ToxinId, 0)
+	if !stopped {
+            deadBots, eatenFoods, eatenToxins = update(gameState, &app.settings, &app.ids, &profile, dt, simulationStepCounter)
+            deadBots = append(deadBots, botsKilledByServerGui...)
+            deadBots = append(deadBots, terminatedBots...)
+        }
 
         ////////////////////////////////////////////////////////////////
         // CHECK ANYTHING ON NaN VALUES
@@ -2172,15 +2182,14 @@ func handleServerCommands(ws *websocket.Conn) {
             if err == nil {
                 switch command.Type {
                     case "StartSimulation":
-                        app.standbyMutex.Lock()
-                        app.standbyForced = false
-                        app.standbyMutex.Unlock()
+                        app.stoppedMutex.Lock()
+                        app.stopped = false
+                        app.stoppedMutex.Unlock()
                         LogfColored(LtDebug, LcBlue, "Simulation is started!\n")
-                        wakeUpFromStandby()
                     case "StopSimulation":
-                        app.standbyMutex.Lock()
-                        app.standbyForced = true
-                        app.standbyMutex.Unlock()
+                        app.stoppedMutex.Lock()
+                        app.stopped = true
+                        app.stoppedMutex.Unlock()
                         LogfColored(LtDebug, LcBlue, "Simulation is stopped!\n")
                     default:
                         app.serverCommandsMutex.Lock()
