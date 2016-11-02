@@ -165,6 +165,8 @@ func parseRunCommand(commandSlice []string) []string {
 }
 
 func startBots(botsToStart, hosts []string, serverIP string) int {
+	fmt.Println("BotsToStart: ", botsToStart)
+	fmt.Println("Hosts: ", hosts)
 
     auth := userPassAuth()
 
@@ -175,8 +177,6 @@ func startBots(botsToStart, hosts []string, serverIP string) int {
     }
 
     executeOnHost := 0
-    results := make(chan string, len(hosts))
-    timeout := time.After(500 * time.Millisecond)
 
     // Execute Run-Middleware command parallel on all hosts
     for _, bot := range botsToStart {
@@ -184,21 +184,11 @@ func startBots(botsToStart, hosts []string, serverIP string) int {
         go func(hostname, botName string) {
             // Issue command as nohup, to be sure, it continues executing after ssh disconnect.
             command := "nohup $(cd pwb_" + botName + "; ./Programmierwettbewerb-Middleware -connection ws://" + serverIP + "/middleware/) &"
+            
+		executeCmd(command, hostname, auth)
 
-            results <- executeCmd(command, hostname, auth)
         }(hostname, bot)
         executeOnHost += 1
-    }
-
-    // Don't really wait for anything to finish. If something comes back, it is
-    // very likely a network error of sorts. The timeout is expected behaviour!
-    for i := 0; i < len(hosts); i++ {
-        select {
-        case res := <-results:
-            fmt.Print(res + "\n")
-        case <-timeout:
-            fmt.Println("started.")
-        }
     }
 
     return len(botsToStart)
