@@ -467,8 +467,21 @@ func (leaf *leafNode) Insert(allocator *Allocator, position Vec2, value interfac
 }
 
 func (equal *equalNode) Insert(allocator *Allocator, position Vec2, value interface{}) quadTreeNode {
-    head, _ := newEqualNode(allocator, equal.quad, quadTreeEntry{ position, value }, equal)
-    return head
+    if floatEquals(equal.entry.position.X, position.X) &&
+       floatEquals(equal.entry.position.Y, position.Y) {
+        newEqual, _ := newEqualNode(allocator, equal.quad, quadTreeEntry{ position, value }, equal)
+        return newEqual
+    }
+    
+    otherEntry := equal.entry
+    node, success := newInnerNode(allocator, equal.quad)
+    if success {
+        node = node.Insert(allocator, position, value)
+        node = node.Insert(allocator, otherEntry.position, otherEntry.value)
+    }
+    return node
+    //head, _ := newEqualNode(allocator, equal.quad, quadTreeEntry{ position, value }, equal)
+    //return head
 }
 
 
