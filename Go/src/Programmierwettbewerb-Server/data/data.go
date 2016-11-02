@@ -69,6 +69,7 @@ type QuadTreeInfo struct {
     InnerNodeCount  int 
     LeafNodeCount   int 
     EqualNodeCount  int 
+    BagNodeCount    int
 }
 
 func addQuadTreeInfos(i1 QuadTreeInfo, i2 QuadTreeInfo) QuadTreeInfo {
@@ -77,6 +78,7 @@ func addQuadTreeInfos(i1 QuadTreeInfo, i2 QuadTreeInfo) QuadTreeInfo {
         InnerNodeCount: i1.InnerNodeCount + i2.InnerNodeCount,
         LeafNodeCount: i1.LeafNodeCount + i2.LeafNodeCount,
         EqualNodeCount: i1.EqualNodeCount + i2.EqualNodeCount,
+        BagNodeCount: i1.BagNodeCount + i2.BagNodeCount,
     }
 }
 
@@ -85,6 +87,7 @@ func PrintQuadTreeInfo(info QuadTreeInfo) {
     fmt.Printf("InnerNodes: %v\n", info.InnerNodeCount)
     fmt.Printf("LeafNodes: %v\n", info.LeafNodeCount)
     fmt.Printf("EqualNodes: %v\n", info.EqualNodeCount)
+    fmt.Printf("BagNodes: %v\n", info.BagNodeCount)
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -106,7 +109,7 @@ func NewQuadTree(quad Quad, allocator *Allocator) QuadTree {
 }
 
 func (quadTree *QuadTree) Insert(position Vec2, value interface{}) {
-    quadTree.root = quadTree.root.Insert(quadTree.allocator, position, value)
+    quadTree.root = quadTree.root.Insert(quadTree.allocator, position, value, 1)
 }
 
 func (quadTree *QuadTree) CountElements() int {
@@ -136,7 +139,7 @@ func (quadTree *QuadTree) ToJson() ([]byte, error) {
 ////////////////////////////////////////////////////////////////////////
 
 type quadTreeNode interface { 
-    Insert(allocator *Allocator, position Vec2, value interface{}) quadTreeNode
+    Insert(allocator *Allocator, position Vec2, value interface{}, depth int) quadTreeNode
     CountElements() int
     GetInfo() QuadTreeInfo
     FindValuesInQuad(quad Quad, buffer ValueBuffer)
@@ -166,6 +169,11 @@ type leafNode struct {
     entry           quadTreeEntry
 }
 
+type bagNode struct {
+    quad            Quad
+    entries         []quadTreeEntry
+}
+
 type equalNode struct {
     quad            Quad
     entry           quadTreeEntry
@@ -190,6 +198,9 @@ type Allocator struct {
     leafNodes               []leafNode
     numUsedLeafNodes        int
     
+    bagNodes                []bagNode
+    numUsedBagNodes         int
+    
     LimitWasHit             bool
 }
 
@@ -205,7 +216,7 @@ func NewEmptyNodeAllocatorBatch(numEmptyNodesPerBatch int) EmptyNodeAllocatorBat
     }
 }
 
-func NewAllocator(numEmptyNodesPerBatch, numEqualNodes, numInnerNodes, numLeafNodes int) Allocator {
+func NewAllocator(numEmptyNodesPerBatch, numEqualNodes, numInnerNodes, numLeafNodes, numBagNodes int) Allocator {
     allocator := Allocator{
         emptyNodeBatches:       make([]EmptyNodeAllocatorBatch, 0, 2),
         
@@ -217,6 +228,9 @@ func NewAllocator(numEmptyNodesPerBatch, numEqualNodes, numInnerNodes, numLeafNo
         
         leafNodes:              make([]leafNode, numLeafNodes, numLeafNodes),
         numUsedLeafNodes:       0,
+        
+        bagNodes:               make([]bagNode, numBagNodes, numBagNodes),
+        numUsedBagNodes:        0,
     }
     
     allocator.emptyNodeBatches = append(allocator.emptyNodeBatches, NewEmptyNodeAllocatorBatch(numEmptyNodesPerBatch))
@@ -274,6 +288,15 @@ func (allocator *Allocator) allocLeafNode() (*leafNode, bool) {
     return &allocator.leafNodes[allocator.numUsedLeafNodes], true
 }
 
+func (allocator *Allocator) allocBagNode() (*bagNode, bool) {
+    if allocator.numUsedBagNodes + 1 > cap(allocator.bagNodes) {
+        allocator.LimitWasHit = true
+        return nil, false
+    }
+    defer func() { allocator.numUsedBagNodes += 1 }()
+    return &allocator.bagNodes[allocator.numUsedBagNodes], true
+}
+
 func (allocator *Allocator) Report() {
     numEmptyNodes := 0
     for _, batch := range allocator.emptyNodeBatches {
@@ -283,6 +306,7 @@ func (allocator *Allocator) Report() {
     Logf(LtDebug, "NumEqualNodes: %v\n", allocator.numUsedEqualNodes)
     Logf(LtDebug, "NumInnerNodes: %v\n", allocator.numUsedInnerNodes)
     Logf(LtDebug, "NumLeafNodes: %v\n", allocator.numUsedLeafNodes)
+    Logf(LtDebug, "NumBagNodes: %v\n", allocator.numUsedBagNodes)
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -331,6 +355,15 @@ func newEqualNode(allocator *Allocator, quad Quad, entry quadTreeEntry, next qua
     return equal, true
 }
 
+func newBagNode(allocator *Allocator, quad Quad) (quadTreeNode, bool) {
+    bag, success := allocator.allocBagNode()
+    if !success {
+        return allocator.allocEmptyNode(), false
+    }
+    bag.quad = quad
+    return bag, true
+}
+
 ////////////////////////////////////////////////////////////////////////
 //
 // CountElements
@@ -349,11 +382,15 @@ func (equal *equalNode) CountElements() int {
     return 1 + equal.next.CountElements()
 }
 
+func (bag *bagNode) CountElements() int {
+    return 1
+}
+
 func (inner *innerNode) CountElements() int {
     return inner.childLeftLower.CountElements() +
            inner.childRightLower.CountElements() +
            inner.childRightUpper.CountElements() +
-           inner.childLeftUpper.CountElements();
+           inner.childLeftUpper.CountElements()
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -372,6 +409,10 @@ func (leaf *leafNode) GetInfo() QuadTreeInfo {
 
 func (equal *equalNode) GetInfo() QuadTreeInfo {
     return addQuadTreeInfos(QuadTreeInfo{ EqualNodeCount: 1 }, equal.next.GetInfo())
+}
+
+func (bag *bagNode) GetInfo() QuadTreeInfo {
+    return QuadTreeInfo{ BagNodeCount: 1 }
 }
 
 func (inner *innerNode) GetInfo() QuadTreeInfo {    
@@ -427,46 +468,56 @@ func leftUpperSpace(inner *innerNode) Quad {
 //
 ////////////////////////////////////////////////////////////////////////
 
-func (inner *innerNode) Insert(allocator *Allocator, position Vec2, value interface{}) quadTreeNode {
+func (inner *innerNode) Insert(allocator *Allocator, position Vec2, value interface{}, depth int) quadTreeNode {
     halfSize := inner.quad.Size/2
     if position.X < inner.quad.Origin.X + halfSize {
         if position.Y < inner.quad.Origin.Y + halfSize {
-            inner.childLeftLower = inner.childLeftLower.Insert(allocator, position, value)
+            inner.childLeftLower = inner.childLeftLower.Insert(allocator, position, value, depth + 1)
         } else {
-            inner.childLeftUpper = inner.childLeftUpper.Insert(allocator, position, value)
+            inner.childLeftUpper = inner.childLeftUpper.Insert(allocator, position, value, depth + 1)
         }
     } else {
         if position.Y < inner.quad.Origin.Y + halfSize {
-            inner.childRightLower = inner.childRightLower.Insert(allocator, position, value)
+            inner.childRightLower = inner.childRightLower.Insert(allocator, position, value, depth + 1)
         } else {
-            inner.childRightUpper = inner.childRightUpper.Insert(allocator, position, value)
+            inner.childRightUpper = inner.childRightUpper.Insert(allocator, position, value, depth + 1)
         }
     }
     return inner
 }
 
-func (empty *emptyNode) Insert(allocator *Allocator, position Vec2, value interface{}) quadTreeNode {
+func (empty *emptyNode) Insert(allocator *Allocator, position Vec2, value interface{}, depth int) quadTreeNode {
     leaf, _ := newLeafNode(allocator, empty.quad, quadTreeEntry{ position, value })
     return leaf
 }
 
-func (leaf *leafNode) Insert(allocator *Allocator, position Vec2, value interface{}) quadTreeNode {
+func (leaf *leafNode) Insert(allocator *Allocator, position Vec2, value interface{}, depth int) quadTreeNode {
+    if depth > 10 {
+        bag, success := newBagNode(allocator, leaf.quad)
+        if success {
+            bag.Insert(allocator, leaf.entry.position, leaf.entry.value, depth)
+            bag.Insert(allocator, position, value, depth)
+            return bag
+        }
+    }
+    /*
     if floatEquals(leaf.entry.position.X, position.X) && 
        floatEquals(leaf.entry.position.Y, position.Y) {
         equal, _ := newEqualNode(allocator, leaf.quad, quadTreeEntry{ position, value }, leaf)
         return equal
     }
+    * */
     
     otherEntry := leaf.entry
     node, success := newInnerNode(allocator, leaf.quad)
     if success {
-        node = node.Insert(allocator, position, value)
-        node = node.Insert(allocator, otherEntry.position, otherEntry.value)
+        node = node.Insert(allocator, position, value, depth + 1)
+        node = node.Insert(allocator, otherEntry.position, otherEntry.value, depth + 1)
     }
     return node
 }
 
-func (equal *equalNode) Insert(allocator *Allocator, position Vec2, value interface{}) quadTreeNode {
+func (equal *equalNode) Insert(allocator *Allocator, position Vec2, value interface{}, depth int) quadTreeNode {
     if floatEquals(equal.entry.position.X, position.X) &&
        floatEquals(equal.entry.position.Y, position.Y) {
         newEqual, _ := newEqualNode(allocator, equal.quad, quadTreeEntry{ position, value }, equal)
@@ -476,14 +527,16 @@ func (equal *equalNode) Insert(allocator *Allocator, position Vec2, value interf
     otherEntry := equal.entry
     node, success := newInnerNode(allocator, equal.quad)
     if success {
-        node = node.Insert(allocator, position, value)
-        node = node.Insert(allocator, otherEntry.position, otherEntry.value)
+        node = node.Insert(allocator, position, value, depth + 1)
+        node = node.Insert(allocator, otherEntry.position, otherEntry.value, depth + 1)
     }
     return node
-    //head, _ := newEqualNode(allocator, equal.quad, quadTreeEntry{ position, value }, equal)
-    //return head
 }
 
+func (bag *bagNode) Insert(allocator *Allocator, position Vec2, value interface{}, depth int) quadTreeNode {
+    bag.entries = append(bag.entries, quadTreeEntry{ position, value })
+    return bag
+}
 
 func intervalsOverlap(x1 float32, x2 float32, y1 float32, y2 float32) bool {
     return x1 <= y2 && y1 <= x2
@@ -523,6 +576,10 @@ func (equal *equalNode) Print(indentation string) {
     equal.next.Print(indentation + " ")
 }
 
+func (bag *bagNode) Print(indentation string) {
+    fmt.Printf("%sBag (%v)\n", indentation, bag.quad)
+}
+
 ////////////////////////////////////////////////////////////////////////
 //
 // FindValuesInQuad
@@ -552,6 +609,14 @@ func (equal *equalNode) FindValuesInQuad(quad Quad, buffer ValueBuffer) {
     if quadsOverlap(quad, equal.quad) {
         buffer.Append(equal.entry.value)
         equal.next.FindValuesInQuad(quad, buffer)
+    }
+}
+
+func (bag *bagNode) FindValuesInQuad(quad Quad, buffer ValueBuffer) {
+    if quadsOverlap(quad, bag.quad) {
+        for _, entry := range bag.entries {
+            buffer.Append(entry.value)
+        }
     }
 }
 
