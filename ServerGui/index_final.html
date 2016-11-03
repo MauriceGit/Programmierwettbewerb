@@ -115,13 +115,17 @@
                 $("#toggleProfile").on('click', function() {
                    sock.send(JSON.stringify({ type:"ToggleProfiling" }));
                 });
-                
+
                 $("#startSimulation").on('click', function() {
                     sock.send(JSON.stringify({ type:"StartSimulation" }));
                 });
-                
+
                 $("#stopSimulation").on('click', function() {
                     sock.send(JSON.stringify({ type:"StopSimulation" }));
+                });
+
+                $("#reloadConfig").on('click', function() {
+                    sock.send(JSON.stringify({ type:"ReloadConfig" }));
                 });
 
                 var foodImageHandlerMaker = function(imageName) {
@@ -236,6 +240,7 @@
                             <div class="btn-group" role="group" aria-label="...">
                               <button id="startSimulation" type="button" class="btn btn-success">Start</button>
                               <button id="stopSimulation" type="button" class="btn btn-success">Stop</button>
+                              <button id="reloadConfig" type="button" class="btn btn-success">Reload Running Config</button>
                             </div>
                             <hr>
                             <p>Kill Bots</p>
@@ -246,7 +251,7 @@
                             <hr>
                             <p>Kill all bots with a mass above the given value</p>
                             <input id="massThreshold" type="number" value="1000">
-                            <button id="killBotsAboveMassThreshold" type="button" class="btn btn-success">Kill</button>                            
+                            <button id="killBotsAboveMassThreshold" type="button" class="btn btn-success">Kill</button>
                             <hr>
                             <div class="row">
                                 <div class="col-md-4">

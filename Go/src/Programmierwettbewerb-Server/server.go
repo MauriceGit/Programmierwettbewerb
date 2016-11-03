@@ -8,6 +8,7 @@ import (
     . "Programmierwettbewerb-Server/connections"
     . "Programmierwettbewerb-Server/distribution"
 
+    "github.com/BurntSushi/toml"
     "golang.org/x/net/websocket"
     "fmt"
     "log"
@@ -63,6 +64,7 @@ const (
     guiMessageEvery = 1
     guiStatisticsMessageEvery = 1
     serverGuiPasswordFile = "../server_gui_password"
+    runningConfFile = "../server_running.conf"
     allocatorLogFile = "../allocator_log"
     statisticsDirectory = "../Statistics/"
 )
@@ -399,13 +401,19 @@ func (ids* Ids) createToxinId() ToxinId {
 //
 ////////////////////////////////////////////////////////////////////////
 
+type RunningConfig struct {
+    UpdateSVN       bool
+    DummyBots       int
+    Password        string
+}
+
 type Application struct {
     standbyMutex                sync.Mutex
     standby                     *sync.Cond
     standbyActive               bool
-    
-	stoppedMutex 		sync.Mutex
-    stopped			bool
+
+    stoppedMutex                sync.Mutex
+    stopped                     bool
 
     runningStateMutex           sync.Mutex
     runningState                bool
@@ -422,6 +430,8 @@ type Application struct {
     serverGuiIsConnected        bool
 
     profiling                   bool
+
+    runningConfig               RunningConfig
 
     guiConnections              GuiConnections
     middlewareConnections       MiddlewareConnections
@@ -445,6 +455,8 @@ func (app* Application) initialize() {
     app.serverGuiIsConnected        = false
 
     app.profiling                   = false
+
+    app.runningConfig               = RunningConfig{}
 
     app.guiConnections              = NewGuiConnections()
     app.middlewareConnections       = NewMiddlewareConnections()
@@ -517,7 +529,7 @@ func waitOnStandbyChangingConnections(waitNotifier WaitNotifier) bool {
         })
         /*
         app.guiConnections.Foreach(func(guiId GuiId, guiConnection GuiConnection) {
-            
+
         })
         */
         app.standby.Wait()
@@ -885,15 +897,17 @@ func checkAllValuesOnNaN(gameState *GameState, prefix string) {
     }
 }
 
-func checkPasswordAgainstFile(password string) bool {
+func readServerPassword() (bool, string) {
     pw, err := ioutil.ReadFile(serverGuiPasswordFile)
     if err != nil {
         Logf(LtDebug, "Error while trying to load the password file %v. err: %v\n", serverGuiPasswordFile, err)
-        return false
+        return false, ""
     }
-    pwString := strings.Trim(string(pw), "\n \t")
+    return true, strings.Trim(string(pw), "\n \t")
+}
 
-    return pwString == password
+func checkPassword(password string) bool {
+    return app.runningConfig.Password == password
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -1771,13 +1785,13 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         ////////////////////////////////////////////////////////////////
         // UPDATE THE GAME STATE
         ////////////////////////////////////////////////////////////////
-	app.stoppedMutex.Lock()
-	stopped :=  app.stopped
-	app.stoppedMutex.Unlock()
+    app.stoppedMutex.Lock()
+    stopped :=  app.stopped
+    app.stoppedMutex.Unlock()
         deadBots := make([]BotKill, 0)
         eatenFoods := make([]FoodId, 0)
         eatenToxins := make([]ToxinId, 0)
-	if !stopped {
+    if !stopped {
             deadBots, eatenFoods, eatenToxins = update(gameState, &app.settings, &app.ids, &profile, dt, simulationStepCounter)
             deadBots = append(deadBots, botsKilledByServerGui...)
             deadBots = append(deadBots, terminatedBots...)
@@ -2181,6 +2195,13 @@ func handleServerCommands(ws *websocket.Conn) {
             err := json.Unmarshal([]byte(message), &command)
             if err == nil {
                 switch command.Type {
+                    case "ReloadConfig":
+                        Logf(LtDebug, "Reloading Config!\n")
+                        conf, err := readConfig(runningConfFile)
+                        if err == nil {
+                            app.runningConfig = conf
+                            app.settings.MinNumberOfBots = app.runningConfig.DummyBots
+                        }
                     case "StartSimulation":
                         app.stoppedMutex.Lock()
                         app.stopped = false
@@ -2326,16 +2347,16 @@ func handleMiddleware(ws *websocket.Conn) {
                         // Check, if a player with this name is actually allowed to play
                         // So we take the time to sort out old statistics from files here and not
                         // in the main game loop (so adding, say, 100 bots, doesn't affect the other, normal computations!)
-                        isAllowed, repository, statisticsOverall := CheckPotentialPlayer(message.BotInfo.Name)
+                        isAllowed, repository, statisticsOverall := CheckPotentialPlayer(message.BotInfo.Name, app.runningConfig.UpdateSVN)
 
-			var sourceIP string
-			remoteAddr := ws.Request().RemoteAddr
-			if strings.Contains(remoteAddr, "::1") {
-				sourceIP = "::1"
-			} else {
-				sourceIP = strings.Split( ws.Request().RemoteAddr, ":")[0]
-			}
-			Logf(LtDebug, "%s\n", ws.Request().RemoteAddr)
+            var sourceIP string
+            remoteAddr := ws.Request().RemoteAddr
+            if strings.Contains(remoteAddr, "::1") {
+                sourceIP = "::1"
+            } else {
+                sourceIP = strings.Split( ws.Request().RemoteAddr, ":")[0]
+            }
+            Logf(LtDebug, "%s\n", ws.Request().RemoteAddr)
                         myIP := getIP()
 
                         if message.BotInfo.Name == "dummy" && sourceIP != myIP && sourceIP != "localhost" && sourceIP != "127.0.0.1" && sourceIP != "::1" {
@@ -2453,7 +2474,7 @@ func handleServerControlFinal(w http.ResponseWriter, r *http.Request) {
 
     Logf(LtDebug, "Request for Password: %v\n", r.PostFormValue("Password"))
 
-    if checkPasswordAgainstFile(r.PostFormValue("Password")) {
+    if checkPassword(r.PostFormValue("Password")) {
         entries, _ := ioutil.ReadDir("../Public/spawns")
         for _, entry := range entries {
             if filepath.Ext(makeLocalSpawnName(entry.Name())) == ".bmp" {
@@ -2556,6 +2577,25 @@ func createConfigFile() {
     f.Sync()
 }
 
+// Reads info from config file
+func readConfig(configfile string) (RunningConfig, error) {
+    _, err := os.Stat(configfile)
+    if err != nil {
+        fmt.Printf("Config file is missing: %v\n", configfile)
+        //os.Exit(1)
+        return RunningConfig{}, err
+    }
+
+    var config RunningConfig
+    if _, err := toml.DecodeFile(configfile, &config); err != nil {
+        fmt.Printf("%v\n", err)
+        return RunningConfig{}, err
+        //os.Exit(1)
+    }
+
+    return config, nil
+}
+
 func main() {
     runtime.GOMAXPROCS(32)
 
@@ -2565,6 +2605,20 @@ func main() {
     createConfigFile()
 
     app.initialize()
+
+    var err error = nil
+    app.runningConfig, err = readConfig(runningConfFile)
+    if err != nil {
+        fmt.Printf("Error on reading the config file. %v\n", err)
+        _, pw := readServerPassword()
+        app.runningConfig = RunningConfig{
+                UpdateSVN:  true,
+                DummyBots:  8,
+                Password:   pw,
+            }
+    }
+    app.settings.MinNumberOfBots = app.runningConfig.DummyBots
+
 
     InitOrganisation()
     InitRemoteDistribution()
