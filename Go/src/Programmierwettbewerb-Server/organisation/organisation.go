@@ -263,9 +263,9 @@ func WriteStatisticToFile(botName string, stats Statistics) {
 //
 // This function checks, if the given nickname is a valid one, (from at least one bot.names).
 // Right now, it updates itself automatically (svn update, file update, data update) every 1 minutes (maximum but only when this function is called).
-func CheckPotentialPlayer(playerNickname string) (bool, string, Statistics) {
+func CheckPotentialPlayer(playerNickname string, updateSVN bool) (bool, string, Statistics) {
 
-    if time.Now().Sub(lastUpdate).Minutes() > 1 {
+    if time.Now().Sub(lastUpdate).Minutes() > 1 && updateSVN {
         UpdateAllSVN()
     }
 
