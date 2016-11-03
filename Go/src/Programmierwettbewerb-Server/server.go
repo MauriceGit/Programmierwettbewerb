@@ -67,6 +67,7 @@ const (
     runningConfFile = "../server_running.conf"
     allocatorLogFile = "../allocator_log"
     statisticsDirectory = "../Statistics/"
+    gamesFile = "../games.json"
 )
 
 ////////////////////////////////////////////////////////////////////////
@@ -137,6 +138,43 @@ func printProfile(profile *Profile) {
 
 ////////////////////////////////////////////////////////////////////////
 //
+// Games
+//
+////////////////////////////////////////////////////////////////////////
+
+type Games map[string]Game
+
+type Game struct {
+    BotsToStart     []string
+    BotCount        int
+    Foods           int
+    Toxins          int
+    FoodSpawn       string
+    ToxinSpawn      string
+    BotSpawn        string
+}
+
+var games Games
+
+func readGames() {
+    if _, err := os.Stat(gamesFile); os.IsNotExist(err) {
+        Logf(LtDebug, "There is no games file!\n")
+        return
+    }
+
+    file, err := ioutil.ReadFile(gamesFile)
+    if err != nil {
+        Logln(LtDebug, "Could not read the games files")
+        return
+    }
+    
+    json.Unmarshal(file, &games)
+    
+    LogfColored(LtDebug, LcGreen, "GamesFile:\n%v\n", games)
+}
+
+////////////////////////////////////////////////////////////////////////
+//
 // MiddlewareRegistration
 //
 ////////////////////////////////////////////////////////////////////////
@@ -196,7 +234,7 @@ func NewSettings() ServerSettings {
         MaxNumberOfFoods:       1000,
         MaxNumberOfToxins:      30,
 
-        BotsToStart:             []string{},
+        BotsToStart:            []string{},
         BotCount:               0,
 
         foodDistributionName:   defaultDistributionName,
@@ -216,10 +254,11 @@ func NewSettings() ServerSettings {
 ////////////////////////////////////////////////////////////////////////
 
 type Command struct {
-    Type    string  `json:"type"`
-    Value   int     `json:"value,string,omitempty"`
-    Image   string  `json:"image"`
-    Bots    string  `json:"string"`
+    Type        string  `json:"type"`
+    Value       int     `json:"value,string,omitempty"`
+    Image       string  `json:"image"`
+    GameName    string  `json:"gameName"`
+    Bots        string  `json:"string"`
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -393,6 +432,17 @@ func (ids* Ids) createToxinId() ToxinId {
     var id = ids.nextToxinId
     ids.nextToxinId = id + 1
     return id
+}
+
+////////////////////////////////////////////////////////////////////////
+//
+// ServerGuiCommands
+//
+////////////////////////////////////////////////////////////////////////
+
+type ServerGuiCommand struct {
+    Type        string
+    Data        interface{}
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -1610,6 +1660,28 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         ////////////////////////////////////////////////////////////////
         botsKilledByServerGui := make([]BotKill, 0)
         {
+            setFoodSpawn := func(image string) {
+                app.settings.foodDistribution     = loadSpawnImage(app.settings.fieldSize, image, 10)
+                app.settings.foodDistributionName = image
+            }
+            
+            setToxinSpawn := func(image string) {
+                app.settings.toxinDistribution     = loadSpawnImage(app.settings.fieldSize, image, 10)
+                app.settings.toxinDistributionName = image
+            }
+            
+            setBotSpawn := func(image string) {
+                app.settings.botDistribution     = loadSpawnImage(app.settings.fieldSize, image, 10)
+                app.settings.botDistributionName = image
+            }
+            
+            killAllBots := func() {
+                for botId, bot := range gameState.bots {
+                    delete(gameState.bots, botId)
+                    botsKilledByServerGui = append(botsKilledByServerGui, NewBotKill(botId, bot))
+                }
+            }
+            
             startProfileEvent(&profile, "Handle Events")
             if len(app.serverCommands) > 0 {
                 for _, command := range app.serverCommands {
@@ -1648,10 +1720,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                         Logf(LtDebug, "Toggle Profiling\n");
                         app.profiling = !app.profiling
                     case "KillAllBots":
-                        for botId, bot := range gameState.bots {
-                            delete(gameState.bots, botId)
-                            botsKilledByServerGui = append(botsKilledByServerGui, NewBotKill(botId, bot))
-                        }
+                        killAllBots()
                         Logf(LtDebug, "Killed all bots\n")
                     case "KillBotsWithoutConnection":
                         Logf(LtDebug, "The server does not support the command \"KillBotsWithoutConnection\" anylonger.\n")
@@ -1668,14 +1737,39 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                         }
                         Logf(LtDebug, "Killed bots above mass threshold\n")
                     case "FoodSpawnImage":
-                        app.settings.foodDistribution     = loadSpawnImage(app.settings.fieldSize, command.Image, 10)
-                        app.settings.foodDistributionName = command.Image
+                        setFoodSpawn(command.Image)
                     case "ToxinSpawnImage":
-                        app.settings.toxinDistribution     = loadSpawnImage(app.settings.fieldSize, command.Image, 10)
-                        app.settings.toxinDistributionName = command.Image
-                    case "BotSpawnImage":
-                        app.settings.botDistribution     = loadSpawnImage(app.settings.fieldSize, command.Image, 10)
-                        app.settings.botDistributionName = command.Image
+                        setToxinSpawn(command.Image)
+                    case "BotSpawnImage": 
+                        setBotSpawn(command.Image)
+                    case "GameName":
+                        game := games[command.GameName]
+                        LogfColored(LtDebug, LcGreen, "Changing game to: %v\n", command.GameName)
+                        
+                        app.settings.MaxNumberOfFoods = game.Foods
+                        app.settings.MaxNumberOfToxins = game.Toxins
+                        setFoodSpawn(game.FoodSpawn)
+                        setToxinSpawn(game.ToxinSpawn)
+                        setBotSpawn(game.BotSpawn)
+                        
+                        app.settings.MinNumberOfBots = 0
+                        
+                        killAllBots()
+                        go RemoteKillBots()
+                        
+                        app.settings.BotsToStart = game.BotsToStart
+                        app.settings.BotCount = game.BotCount
+                        
+                        app.messagesToServerGui <- ServerGuiCommand{ Type: "MinNumberOfBots", Data: app.settings.MinNumberOfBots }
+                        app.messagesToServerGui <- ServerGuiCommand{ Type: "MaxNumberOfFoods", Data: app.settings.MaxNumberOfFoods }
+                        app.messagesToServerGui <- ServerGuiCommand{ Type: "MaxNumberOfToxins", Data: app.settings.MaxNumberOfToxins }
+                        app.messagesToServerGui <- ServerGuiCommand{ Type: "FoodSpawn", Data: app.settings.foodDistributionName }
+                        app.messagesToServerGui <- ServerGuiCommand{ Type: "ToxinSpawn", Data: app.settings.toxinDistributionName }
+                        app.messagesToServerGui <- ServerGuiCommand{ Type: "BotSpawn", Data: app.settings.botDistributionName }
+                        
+                        app.stoppedMutex.Lock()
+                        app.stopped = true
+                        app.stoppedMutex.Unlock()
                     }
                 }
 
@@ -1786,13 +1880,13 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         ////////////////////////////////////////////////////////////////
         // UPDATE THE GAME STATE
         ////////////////////////////////////////////////////////////////
-    app.stoppedMutex.Lock()
-    stopped :=  app.stopped
-    app.stoppedMutex.Unlock()
+        app.stoppedMutex.Lock()
+        stopped :=  app.stopped
+        app.stoppedMutex.Unlock()
         deadBots := make([]BotKill, 0)
         eatenFoods := make([]FoodId, 0)
         eatenToxins := make([]ToxinId, 0)
-    if !stopped {
+        if !stopped {
             deadBots, eatenFoods, eatenToxins = update(gameState, &app.settings, &app.ids, &profile, dt, simulationStepCounter)
             deadBots = append(deadBots, botsKilledByServerGui...)
             deadBots = append(deadBots, terminatedBots...)
@@ -1905,6 +1999,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
 
                 deadBotIds := make([]BotId, 0, 10)
                 for _, botKill := range deadBots {
+                    Logf(LtDebug, "Dead Bot: %v\n", botKill.botId)
                     deadBotIds = append(deadBotIds, botKill.botId)
                 }
 
@@ -2482,19 +2577,34 @@ func handleServerControlFinal(w http.ResponseWriter, r *http.Request) {
                 imageNames = append(imageNames, entry.Name())
             }
         }
+                
+        gameNames := make([]string, len(games))
+        for gameName := range games {
+            gameNames = append(gameNames, gameName)
+        }
 
         data := struct {
-            Address string
-            ImageNames []string
-            FoodSpawnImage string
-            ToxinSpawnImage string
-            BotSpawnImage string
+            Address             string
+            ImageNames          []string
+            FoodSpawnImage      string
+            ToxinSpawnImage     string
+            BotSpawnImage       string
+            GameNames           []string
+            MinNumberOfBots     int
+            MaxNumberOfBots     int
+            MaxNumberOfFoods    int
+            MaxNumberOfToxins   int
         }{
             Address:            "ws://" + getServerAddress() + "/servercommand/",
             ImageNames:         imageNames,
             FoodSpawnImage:     makeURLSpawnName(app.settings.foodDistributionName),
             ToxinSpawnImage:    makeURLSpawnName(app.settings.toxinDistributionName),
             BotSpawnImage:      makeURLSpawnName(app.settings.botDistributionName),
+            GameNames:          gameNames,
+            MinNumberOfBots:    app.settings.MinNumberOfBots,
+            MaxNumberOfBots:    app.settings.MaxNumberOfBots,
+            MaxNumberOfFoods:   app.settings.MaxNumberOfFoods,
+            MaxNumberOfToxins:  app.settings.MaxNumberOfToxins,
         }
 
         t := template.New("Server Control")
@@ -2604,6 +2714,8 @@ func main() {
     SetLoggingVerbose(false)
 
     createConfigFile()
+    
+    readGames()
 
     app.initialize()
 

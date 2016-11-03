@@ -23,6 +23,7 @@
             var wsuri = {{.Address}};
 
             var imageNames = {{.ImageNames}};
+            var gameNames = {{.GameNames}};
 
             window.onload = function() {
                 sock = new WebSocket(wsuri);
@@ -35,7 +36,21 @@
                     console.log("connection closed (" + e.code + ")");
                 }
                 sock.onmessage = function(e) {
-
+                    
+                    var serverGuiCommand = JSON.parse(e.data);
+                    if (serverGuiCommand.Type == "MinNumberOfBots") {
+                        $("#minNumberOfBots").val(serverGuiCommand.Data);
+                    } else if (serverGuiCommand.Type == "MaxNumberOfFoods") {
+                        $("#maxNumberOfFoods").val(serverGuiCommand.Data);
+                    } else if (serverGuiCommand.Type == "MaxNumberOfToxins") {
+                        $("#maxNumberOfToxins").val(serverGuiCommand.Data);
+                    } else if (serverGuiCommand.Type == "FoodSpawn") {
+                        $("#foodSpawnImage").attr("src", "/spawns/" + serverGuiCommand.Data);
+                    } else if (serverGuiCommand.Type == "ToxinSpawn") {
+                        $("#toxinSpawnImage").attr("src", "/spawns/" + serverGuiCommand.Data);
+                    } else if (serverGuiCommand.Type == "BotSpawn") {
+                        $("#botSpawnImage").attr("src", "/spawns/" + serverGuiCommand.Data);
+                    }
                     var profile = $("#profile");
                     profile.empty();
                     var profileData = JSON.parse(e.data);
@@ -107,7 +122,6 @@
                    sock.send(JSON.stringify({ type:"KillAllRemoteBots" }));
                 });
 
-
                 $("#restart").on('click', function() {
                     sock.send(JSON.stringify({ type:"RestartServer" }));
                 });
@@ -149,7 +163,7 @@
                     }
                 }
 
-                var makeEntry = function(handlerMaker, imageName) {
+                var makeImageEntry = function(handlerMaker, imageName) {
                     var link = $("<a href=\"\" onClick=\"return false;\"></a>");
                     link.html(imageName);
                     link.on('click', handlerMaker(imageName));
@@ -167,9 +181,29 @@
                 for (var i = 0; i < imageNames.length; ++i) {
                     var imageName = imageNames[i];
 
-                    $("#foodImageDropdown").append(makeEntry(foodImageHandlerMaker, imageName));
-                    $("#toxinImageDropdown").append(makeEntry(toxinImageHandlerMaker, imageName));
-                    $("#botImageDropdown").append(makeEntry(botImageHandlerMaker, imageName));
+                    $("#foodImageDropdown").append(makeImageEntry(foodImageHandlerMaker, imageName));
+                    $("#toxinImageDropdown").append(makeImageEntry(toxinImageHandlerMaker, imageName));
+                    $("#botImageDropdown").append(makeImageEntry(botImageHandlerMaker, imageName));
+                }
+                
+                var gameNameHandlerMaker = function(gameName) {
+                    return function() {
+                        sock.send(JSON.stringify({ type:"GameName", gameName:gameName }));
+                        $("#gameDropdownCaption").html(gameName + "<span class='caret'></span>");
+                    }
+                }
+                
+                for (var i = 0; i < gameNames.length; ++i) {
+                    var gameName = gameNames[i];
+
+                    var link = $("<a href=\"\" onClick=\"return false;\"></a>");
+                    link.html(gameName);
+                    link.on('click', gameNameHandlerMaker(gameName));
+
+                    var item = $("<li></li>");
+                    item.append(link);
+                    
+                    $("#gamesDropdown").append(item);
                 }
             };
         </script>
@@ -191,24 +225,38 @@
                             <div class="row">
                                 <div class="col-md-4">
                                     <h5>Minimum number of Bots</h5>
-                                    <input id="minNumberOfBots" type="number" value="10">
+                                    <input id="minNumberOfBots" type="number" value="{{.MinNumberOfBots}}">
                                 </div>
                                 <div class="col-md-4">
                                     <h5>Maximum number of Bots</h5>
-                                    <input id="maxNumberOfBots" type="number" value="100">
+                                    <input id="maxNumberOfBots" type="number" value="{{.MaxNumberOfBots}}">
                                 </div>
                             </div>
                             <hr>
                             <h5>Foods</h5>
-                            <input id="maxNumberOfFoods" type="number" value="1000">
+                            <input id="maxNumberOfFoods" type="number" value="{{.MaxNumberOfFoods}}">
                             <h5>Toxins</h5>
-                            <input id="maxNumberOfToxins" type="number" value="50">
+                            <input id="maxNumberOfToxins" type="number" value="{{.MaxNumberOfToxins}}">
                             <br>
                             <button id="sendSettings" type="button" class="btn btn-success pull-right">Update</button>
                         </div>
                     </div>
                 </div>
 
+                <div class = "panel panel-default">
+                   <div class = "panel-body">
+                        <div class="caption">
+                            <h4>Games</h3>
+                            <div class="row">
+                                <div class="dropdown">
+                                    <button id="gameDropdownCaption" class="btn btn-default dropdown-toggle" type="button" data-toggle="dropdown">Game<span class="caret"></span></button>
+                                    <ul id="gamesDropdown" class="dropdown-menu">
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
                 <div class = "panel panel-default">
                    <div class = "panel-body">

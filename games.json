@@ -1,0 +1,20 @@
+{
+    "game1":{
+        "BotsToStart":"all",
+        "BotCount":"1",
+        "Foods":1550,
+        "Toxins" : 0,
+        "FoodSpawn" : "black.bmp",
+        "ToxinSpawn" : "black.bmp",
+        "BotSpawn" : "black.bmp"
+    },
+    "game2":{
+        "BotsToStart":"all",
+        "BotCount":"1",
+        "Foods":1200,
+        "Toxins" : 50,
+        "FoodSpawn" : "circular_gradient.bmp",
+        "ToxinSpawn" : "black.bmp",
+        "BotSpawn" : "black.bmp"
+    }
+}
