@@ -1330,7 +1330,7 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
     ////////////////////////////////////////////////////////////////
     // BUILD QUAD TREE FOR FOODS
     ////////////////////////////////////////////////////////////////
-    allocator := NewAllocator(10000, 100, 5000, 10000, 5000)
+    allocator := NewAllocator(10000, 5000, 10000, 5000)
     quadTree := NewQuadTree(NewQuad(Vec2{0,0}, 1000), &allocator)
     {
         startProfileEvent(profile, "QuadTree Building for Foods")
