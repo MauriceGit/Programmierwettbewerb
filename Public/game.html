@@ -309,6 +309,7 @@
                 resizeCanvas();
 
                 context = canvas.getContext('2d');
+                context.font="14px Arial";
                 
                 scale = Math.min(
                     $(document).width()/1000, 
@@ -442,7 +443,7 @@
             function radius(mass) {
                 return Math.max(1, Math.sqrt(mass / Math.PI));
             }
-
+            
             function render() {
                 context.setTransform(1, 0, 0, 1, 0, 0);
                 context.clearRect(0, 0, canvas.width, canvas.height);
@@ -524,20 +525,25 @@
                     
                     var centerX = 0;
                     var centerY = 0;
+                    var minY = 10000;
+                    var minRadius;
                     var numBlobs = 0;
 
                     for (var blobId in bot.blobs) {
                         var blob = bot.blobs[blobId];
                         
                         centerX += blob.pos.X;
-                        centerY += blob.pos.Y;                        
+                        centerY += blob.pos.Y;
+                        if (blob.pos.Y < minY) {
+                            minRadius = radius(blob.mass);
+                            minY = blob.pos.Y;
+                        }
 
                         if (botId in botInfos) {
                             context.fillStyle = makeCSSColor(botInfos[botId].color);
                         } else {
                             // Render Error
-                            context.fillStyle = "rgb(255, 0, 0)";
-                            context.font="12px Courir";
+                            context.fillStyle = "rgb(255, 0, 0)";                            
                             context.fillText("Couldn't find the BotInfo", blob.pos.X, blob.pos.Y + 20);
                         }
 
@@ -548,6 +554,13 @@
                         context.stroke();
                         
                         numBlobs += 1;
+                    }
+                    
+                    var text = botInfos[botId].name;
+                    if (text != "dummy") {
+                        centerX /= numBlobs;
+                        centerY /= numBlobs;
+                                                context.fillText(text, centerX - context.measureText(text).width/2, minY - minRadius - 10);
                     }
                     
                     if (cameraMode == cmShowBot) {
