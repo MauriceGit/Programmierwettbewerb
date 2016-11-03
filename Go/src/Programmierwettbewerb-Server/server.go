@@ -53,7 +53,7 @@ const (
     toxinMassMax = 69
     windowMin = 100
     windowMax = 400
-    massLossFactor = 10.0
+    massLossFactor = 20.0
     minBlobMassToExplode = 400.0
     maxBlobCountToExplode = 10
     minBlobMass = 10
@@ -405,6 +405,7 @@ type RunningConfig struct {
     UpdateSVN       bool
     DummyBots       int
     Password        string
+    MassLoss        float64
 }
 
 type Application struct {
@@ -665,7 +666,7 @@ func calcBlobVelocity(blob *Blob, targetPos Vec2) Vec2 {
 
 func calcBlobbMassLoss(mass float32, dt float32) float32 {
     if mass > botMinMass {
-        return mass - (mass/botMaxMass)*dt*massLossFactor
+        return mass - (mass/botMaxMass)*dt*float32(app.runningConfig.MassLoss)
     }
 
     return mass
@@ -2615,10 +2616,10 @@ func main() {
                 UpdateSVN:  true,
                 DummyBots:  8,
                 Password:   pw,
+                MassLoss:   float64(massLossFactor),
             }
     }
     app.settings.MinNumberOfBots = app.runningConfig.DummyBots
-
 
     InitOrganisation()
     InitRemoteDistribution()
