@@ -21,7 +21,7 @@ go get "github.com/fatih/color"
 go get "golang.org/x/crypto/ssh"
 
 echo "Build Quad Tree Debugger"
-go install Programmierwettbewerb-QuadTreeDebugger
+#go install Programmierwettbewerb-QuadTreeDebugger
 
 echo "Build Server"
 go install Programmierwettbewerb-Server
