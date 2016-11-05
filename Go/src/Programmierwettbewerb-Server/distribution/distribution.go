@@ -218,7 +218,7 @@ func killBots(hosts []string) {
         case res := <-results:
             fmt.Print(res + "\n")
         case <-timeout:
-            fmt.Println("killed.")
+            fmt.Println("Remote bots killed.")
         }
     }
 }

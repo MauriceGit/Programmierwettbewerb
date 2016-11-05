@@ -170,7 +170,10 @@ func readGames() {
 
     json.Unmarshal(file, &games)
 
-    LogfColored(LtDebug, LcGreen, "GamesFile:\n%v\n", games)
+    LogfColored(LtDebug, LcGreen, "Games\n")
+    for gameName := range games {
+        LogfColored(LtDebug, LcGreen, "  - %v: %v\n", gameName, games[gameName])
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -1098,27 +1101,6 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
     }
 
     ////////////////////////////////////////////////////////////////
-    // POSSIBLY ADD A FOOD OR TOXIN
-    ////////////////////////////////////////////////////////////////
-    {
-        startProfileEvent(profile, "Add Food Or Toxin")
-        for len(gameState.toxins) < settings.MaxNumberOfToxins {
-            if pos, ok := newToxinPos(); ok {
-                newToxinId := ids.createToxinId()
-                gameState.toxins[newToxinId] = Toxin{true, false, pos, false, 0, toxinMassMin, RandomVec2()}
-            }
-        }
-        for len(gameState.foods) < settings.MaxNumberOfFoods {
-            mass := foodMassMin + rand.Float32() * (foodMassMax - foodMassMin)
-            if pos, ok := newFoodPos(); ok {
-                newFoodId := ids.createFoodId()
-                gameState.foods[newFoodId] = Food{ true, false, false, 0, mass, pos, RandomVec2() }
-            }
-        }
-        endProfileEvent(profile)
-    }
-
-    ////////////////////////////////////////////////////////////////
     // UPDATE FOOD POSITION
     ////////////////////////////////////////////////////////////////
     {
@@ -1153,36 +1135,6 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
                 }
             }
             gameState.toxins[toxinId] = toxin
-        }
-        endProfileEvent(profile)
-    }
-
-    ////////////////////////////////////////////////////////////////
-    // DELETE RANDOM TOXIN IF THERE ARE TOO MANY
-    ////////////////////////////////////////////////////////////////
-    {
-        startProfileEvent(profile, "Delete Toxins")
-        for toxinId,_ := range gameState.toxins {
-            if len(gameState.toxins) <= settings.MaxNumberOfToxins {
-                break;
-            }
-            eatenToxins = append(eatenToxins, toxinId)
-            delete(gameState.toxins, toxinId)
-        }
-        endProfileEvent(profile)
-    }
-
-    ////////////////////////////////////////////////////////////////
-    // DELETE RANDOM FOOD IF THERE ARE TOO MANY
-    ////////////////////////////////////////////////////////////////
-    {
-        startProfileEvent(profile, "Delete Foods")
-        for foodId,_ := range gameState.foods {
-            if len(gameState.foods) <= settings.MaxNumberOfFoods {
-                break;
-            }
-            eatenFoods = append(eatenFoods, foodId)
-            delete(gameState.foods, foodId)
         }
         endProfileEvent(profile)
     }
@@ -1659,6 +1611,8 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         // HANDLE EVENTS
         ////////////////////////////////////////////////////////////////
         botsKilledByServerGui := make([]BotKill, 0)
+        foodsEatenByServerGui := make([]FoodId, 0)
+        toxinsEatenByServerGui := make([]ToxinId, 0)
         {
             setFoodSpawn := func(image string) {
                 app.settings.foodDistribution     = loadSpawnImage(app.settings.fieldSize, image, 10)
@@ -1746,19 +1700,39 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                         game := games[command.GameName]
                         LogfColored(LtDebug, LcGreen, "Changing game to: %v\n", command.GameName)
 
+                        app.settings.MinNumberOfBots = 0
                         app.settings.MaxNumberOfFoods = game.Foods
                         app.settings.MaxNumberOfToxins = game.Toxins
+                        app.settings.BotsToStart = game.BotsToStart
+                        app.settings.BotCount = game.BotCount
                         setFoodSpawn(game.FoodSpawn)
                         setToxinSpawn(game.ToxinSpawn)
                         setBotSpawn(game.BotSpawn)
 
-                        app.settings.MinNumberOfBots = 0
+                        LogfColored(LtDebug, LcGreen, "Settings changed\n")
+                        
+                        for foodId,_ := range gameState.foods {
+                            foodsEatenByServerGui = append(foodsEatenByServerGui, foodId)
+                            delete(gameState.foods, foodId)
+                        }
+                        
+                        for toxinId, _ := range gameState.toxins {
+                            toxinsEatenByServerGui = append(toxinsEatenByServerGui, toxinId)
+                            delete(gameState.toxins, toxinId)
+                        }
 
-                        killAllBots()
+                        LogfColored(LtDebug, LcGreen, "Removed foods\n")
+
                         go RemoteKillBots()
+                        killAllBots()
+                        
+                        LogfColored(LtDebug, LcGreen, "Bots killed: %v\n", botsKilledByServerGui)
 
-                        app.settings.BotsToStart = game.BotsToStart
-                        app.settings.BotCount = game.BotCount
+                        app.stoppedMutex.Lock()
+                        app.stopped = true
+                        app.stoppedMutex.Unlock()
+
+                        LogfColored(LtDebug, LcGreen, "Stopped\n")
 
                         app.messagesToServerGui <- ServerGuiCommand{ Type: "MinNumberOfBots", Data: app.settings.MinNumberOfBots }
                         app.messagesToServerGui <- ServerGuiCommand{ Type: "MaxNumberOfFoods", Data: app.settings.MaxNumberOfFoods }
@@ -1766,10 +1740,6 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                         app.messagesToServerGui <- ServerGuiCommand{ Type: "FoodSpawn", Data: app.settings.foodDistributionName }
                         app.messagesToServerGui <- ServerGuiCommand{ Type: "ToxinSpawn", Data: app.settings.toxinDistributionName }
                         app.messagesToServerGui <- ServerGuiCommand{ Type: "BotSpawn", Data: app.settings.botDistributionName }
-
-                        app.stoppedMutex.Lock()
-                        app.stopped = true
-                        app.stoppedMutex.Unlock()
                     }
                 }
 
@@ -1880,16 +1850,63 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         ////////////////////////////////////////////////////////////////
         // UPDATE THE GAME STATE
         ////////////////////////////////////////////////////////////////
-        app.stoppedMutex.Lock()
-        stopped :=  app.stopped
-        app.stoppedMutex.Unlock()
         deadBots := make([]BotKill, 0)
         eatenFoods := make([]FoodId, 0)
         eatenToxins := make([]ToxinId, 0)
+
+        app.stoppedMutex.Lock()
+        stopped :=  app.stopped
+        app.stoppedMutex.Unlock()        
         if !stopped {
             deadBots, eatenFoods, eatenToxins = update(gameState, &app.settings, &app.ids, &profile, dt, simulationStepCounter)
-            deadBots = append(deadBots, botsKilledByServerGui...)
-            deadBots = append(deadBots, terminatedBots...)
+        }
+        deadBots = append(deadBots, botsKilledByServerGui...)
+        deadBots = append(deadBots, terminatedBots...)
+        
+        eatenFoods = append(eatenFoods, foodsEatenByServerGui...)
+        eatenToxins = append(eatenToxins, toxinsEatenByServerGui...)
+        
+        ////////////////////////////////////////////////////////////////
+        // DELETE RANDOM TOXIN IF THERE ARE TOO MANY
+        ////////////////////////////////////////////////////////////////
+        for toxinId,_ := range gameState.toxins {
+            if len(gameState.toxins) <= app.settings.MaxNumberOfToxins {
+                break;
+            }
+            eatenToxins = append(eatenToxins, toxinId)
+            delete(gameState.toxins, toxinId)
+        }
+
+        ////////////////////////////////////////////////////////////////
+        // DELETE RANDOM FOOD IF THERE ARE TOO MANY
+        ////////////////////////////////////////////////////////////////
+        for foodId,_ := range gameState.foods {
+            if len(gameState.foods) <= app.settings.MaxNumberOfFoods {
+                break;
+            }
+            eatenFoods = append(eatenFoods, foodId)
+            delete(gameState.foods, foodId)
+        }
+        
+        ////////////////////////////////////////////////////////////////
+        // POSSIBLY ADD A TOXIN
+        ////////////////////////////////////////////////////////////////
+        for len(gameState.toxins) < app.settings.MaxNumberOfToxins {
+            if pos, ok := newToxinPos(); ok {
+                newToxinId := app.ids.createToxinId()
+                gameState.toxins[newToxinId] = Toxin{true, false, pos, false, 0, toxinMassMin, RandomVec2()}
+            }
+        }
+        
+        ////////////////////////////////////////////////////////////////
+        // POSSIBLY ADD A FOOD
+        ////////////////////////////////////////////////////////////////
+        for len(gameState.foods) < app.settings.MaxNumberOfFoods {
+            mass := foodMassMin + rand.Float32() * (foodMassMax - foodMassMin)
+            if pos, ok := newFoodPos(); ok {
+                newFoodId := app.ids.createFoodId()
+                gameState.foods[newFoodId] = Food{ true, false, false, 0, mass, pos, RandomVec2() }
+            }
         }
 
         ////////////////////////////////////////////////////////////////
@@ -1910,7 +1927,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         for _, botKill := range deadBots {
             app.middlewareConnections.Delete(botKill.botId)
         }
-
+        
         ////////////////////////////////////////////////////////////////
         // PREPARE DATA TO BE SENT TO THE MIDDLEWARES
         ////////////////////////////////////////////////////////////////

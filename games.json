@@ -1,6 +1,6 @@
 {
     "game1":{
-        "BotsToStart":"all",
+        "BotsToStart": ["all"],
         "BotCount":"1",
         "Foods":1550,
         "Toxins" : 0,
@@ -9,7 +9,7 @@
         "BotSpawn" : "black.bmp"
     },
     "game2":{
-        "BotsToStart":"all",
+        "BotsToStart": ["all"],
         "BotCount":"1",
         "Foods":1200,
         "Toxins" : 50,
@@ -18,7 +18,7 @@
         "BotSpawn" : "black.bmp"
     },
     "nerdGame01":{
-        "BotsToStart":"all",
+        "BotsToStart":["all"],
         "BotCount":"1",
         "Foods":2000,
         "Toxins" : 50,
@@ -27,7 +27,7 @@
         "BotSpawn" : "black.bmp"
     },
     "nerdGame02":{
-        "BotsToStart":"all",
+        "BotsToStart":["all"],
         "BotCount":"1",
         "Foods":2000,
         "Toxins" : 50,
@@ -36,7 +36,7 @@
         "BotSpawn" : "black.bmp"
     },
     "nerdGame03":{
-        "BotsToStart":"all",
+        "BotsToStart":["all"],
         "BotCount":"1",
         "Foods":2000,
         "Toxins" : 50,
@@ -45,7 +45,7 @@
         "BotSpawn" : "black.bmp"
     },
     "nerdGame04":{
-        "BotsToStart":"all",
+        "BotsToStart":["all"],
         "BotCount":"1",
         "Foods":2000,
         "Toxins" : 50,
@@ -54,7 +54,7 @@
         "BotSpawn" : "black.bmp"
     },
     "nerdGame05":{
-        "BotsToStart":"all",
+        "BotsToStart":["all"],
         "BotCount":"1",
         "Foods":2000,
         "Toxins" : 50,
@@ -63,7 +63,7 @@
         "BotSpawn" : "black.bmp"
     },
     "nerdGame06":{
-        "BotsToStart":"all",
+        "BotsToStart":["all"],
         "BotCount":"1",
         "Foods":2000,
         "Toxins" : 50,
@@ -72,7 +72,7 @@
         "BotSpawn" : "black.bmp"
     },
     "nerdGame07":{
-        "BotsToStart":"all",
+        "BotsToStart":["all"],
         "BotCount":"1",
         "Foods":2000,
         "Toxins" : 50,
@@ -81,7 +81,7 @@
         "BotSpawn" : "black.bmp"
     },
     "nerdGame08":{
-        "BotsToStart":"all",
+        "BotsToStart":["all"],
         "BotCount":"1",
         "Foods":2000,
         "Toxins" : 50,
@@ -90,7 +90,7 @@
         "BotSpawn" : "black.bmp"
     },
     "nerdGame09":{
-        "BotsToStart":"all",
+        "BotsToStart":["all"],
         "BotCount":"1",
         "Foods":2000,
         "Toxins" : 50,
@@ -99,7 +99,7 @@
         "BotSpawn" : "black.bmp"
     },
     "nerdGame10":{
-        "BotsToStart":"all",
+        "BotsToStart":["all"],
         "BotCount":"1",
         "Foods":2000,
         "Toxins" : 50,
@@ -108,7 +108,7 @@
         "BotSpawn" : "black.bmp"
     },
     "nerdGame11":{
-        "BotsToStart":"all",
+        "BotsToStart":["all"],
         "BotCount":"1",
         "Foods":2000,
         "Toxins" : 50,
@@ -117,7 +117,7 @@
         "BotSpawn" : "black.bmp"
     },
     "nerdGame12":{
-        "BotsToStart":"all",
+        "BotsToStart":["all"],
         "BotCount":"1",
         "Foods":2000,
         "Toxins" : 50,
@@ -126,7 +126,7 @@
         "BotSpawn" : "black.bmp"
     },
     "nerdGame13":{
-        "BotsToStart":"all",
+        "BotsToStart":["all"],
         "BotCount":"1",
         "Foods":2000,
         "Toxins" : 50,
@@ -135,7 +135,7 @@
         "BotSpawn" : "black.bmp"
     },
     "nerdGame14":{
-        "BotsToStart":"all",
+        "BotsToStart":["all"],
         "BotCount":"1",
         "Foods":2000,
         "Toxins" : 50,
@@ -144,7 +144,7 @@
         "BotSpawn" : "black.bmp"
     },
     "nerdGame15":{
-        "BotsToStart":"all",
+        "BotsToStart":["all"],
         "BotCount":"1",
         "Foods":2000,
         "Toxins" : 50,
@@ -153,7 +153,7 @@
         "BotSpawn" : "black.bmp"
     },
     "nerdGame16":{
-        "BotsToStart":"all",
+        "BotsToStart":["all"],
         "BotCount":"1",
         "Foods":2000,
         "Toxins" : 50,
