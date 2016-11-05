@@ -167,9 +167,9 @@ func readGames() {
         Logln(LtDebug, "Could not read the games files")
         return
     }
-    
+
     json.Unmarshal(file, &games)
-    
+
     LogfColored(LtDebug, LcGreen, "GamesFile:\n%v\n", games)
 }
 
@@ -1664,24 +1664,24 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                 app.settings.foodDistribution     = loadSpawnImage(app.settings.fieldSize, image, 10)
                 app.settings.foodDistributionName = image
             }
-            
+
             setToxinSpawn := func(image string) {
                 app.settings.toxinDistribution     = loadSpawnImage(app.settings.fieldSize, image, 10)
                 app.settings.toxinDistributionName = image
             }
-            
+
             setBotSpawn := func(image string) {
                 app.settings.botDistribution     = loadSpawnImage(app.settings.fieldSize, image, 10)
                 app.settings.botDistributionName = image
             }
-            
+
             killAllBots := func() {
                 for botId, bot := range gameState.bots {
                     delete(gameState.bots, botId)
                     botsKilledByServerGui = append(botsKilledByServerGui, NewBotKill(botId, bot))
                 }
             }
-            
+
             startProfileEvent(&profile, "Handle Events")
             if len(app.serverCommands) > 0 {
                 for _, command := range app.serverCommands {
@@ -1740,33 +1740,33 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                         setFoodSpawn(command.Image)
                     case "ToxinSpawnImage":
                         setToxinSpawn(command.Image)
-                    case "BotSpawnImage": 
+                    case "BotSpawnImage":
                         setBotSpawn(command.Image)
                     case "GameName":
                         game := games[command.GameName]
                         LogfColored(LtDebug, LcGreen, "Changing game to: %v\n", command.GameName)
-                        
+
                         app.settings.MaxNumberOfFoods = game.Foods
                         app.settings.MaxNumberOfToxins = game.Toxins
                         setFoodSpawn(game.FoodSpawn)
                         setToxinSpawn(game.ToxinSpawn)
                         setBotSpawn(game.BotSpawn)
-                        
+
                         app.settings.MinNumberOfBots = 0
-                        
+
                         killAllBots()
                         go RemoteKillBots()
-                        
+
                         app.settings.BotsToStart = game.BotsToStart
                         app.settings.BotCount = game.BotCount
-                        
+
                         app.messagesToServerGui <- ServerGuiCommand{ Type: "MinNumberOfBots", Data: app.settings.MinNumberOfBots }
                         app.messagesToServerGui <- ServerGuiCommand{ Type: "MaxNumberOfFoods", Data: app.settings.MaxNumberOfFoods }
                         app.messagesToServerGui <- ServerGuiCommand{ Type: "MaxNumberOfToxins", Data: app.settings.MaxNumberOfToxins }
                         app.messagesToServerGui <- ServerGuiCommand{ Type: "FoodSpawn", Data: app.settings.foodDistributionName }
                         app.messagesToServerGui <- ServerGuiCommand{ Type: "ToxinSpawn", Data: app.settings.toxinDistributionName }
                         app.messagesToServerGui <- ServerGuiCommand{ Type: "BotSpawn", Data: app.settings.botDistributionName }
-                        
+
                         app.stoppedMutex.Lock()
                         app.stopped = true
                         app.stoppedMutex.Unlock()
@@ -2577,7 +2577,7 @@ func handleServerControlFinal(w http.ResponseWriter, r *http.Request) {
                 imageNames = append(imageNames, entry.Name())
             }
         }
-                
+
         gameNames := make([]string, len(games))
         for gameName := range games {
             gameNames = append(gameNames, gameName)
@@ -2714,7 +2714,7 @@ func main() {
     SetLoggingVerbose(false)
 
     createConfigFile()
-    
+
     readGames()
 
     app.initialize()
