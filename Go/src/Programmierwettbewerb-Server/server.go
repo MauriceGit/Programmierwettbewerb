@@ -2752,9 +2752,7 @@ func main() {
 
     InitOrganisation()
     InitRemoteDistribution()
-    if app.runningConfig.UpdateSVN {
-        UpdateAllSVN()
-    }
+    UpdateAllSVN(app.runningConfig.UpdateSVN)
 
     gameState := NewGameState(app.settings)
     go app.startUpdateLoop(&gameState)

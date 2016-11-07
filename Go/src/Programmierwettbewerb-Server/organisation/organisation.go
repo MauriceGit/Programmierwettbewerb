@@ -188,18 +188,21 @@ func updateJsonFile(pathToSvn string, repos string) {
     f.Sync()
 }
 
-func UpdateAllSVN() {
+func UpdateAllSVN(svnUpdate bool) {
 
     <- fileNotInUse
-    files, _ := ioutil.ReadDir(svnBasePath)
-    for _, f := range files {
-        if f.IsDir() {
-            pullSVN(svnBasePath + "/" + f.Name())
-            updateJsonFile(svnBasePath + "/" + f.Name(), f.Name())
+    
+    if svnUpdate {
+        files, _ := ioutil.ReadDir(svnBasePath)
+        for _, f := range files {
+            if f.IsDir() {
+                pullSVN(svnBasePath + "/" + f.Name())
+                updateJsonFile(svnBasePath + "/" + f.Name(), f.Name())
 
+            }
         }
     }
-
+    
     updateAllData()
     fileNotInUse <- true
     lastUpdate = time.Now()
