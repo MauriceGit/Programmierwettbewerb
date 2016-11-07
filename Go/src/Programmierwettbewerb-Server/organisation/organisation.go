@@ -188,21 +188,43 @@ func updateJsonFile(pathToSvn string, repos string) {
     f.Sync()
 }
 
-func UpdateAllSVN(svnUpdate bool) {
+func StartNewGame(name string) {
+    playerStatsFile = name + ".json"
+    var tmpData SvnPlayerData
+    tmpData.SvnReposInformation = map[string]PlayerData{}
+
+    b, err := json.Marshal(tmpData)
+
+    f, err := os.Create(statisticsPath + playerStatsFile)
+    if err != nil {
+        Logf(LtDebug, "Something went wront when creating the new file...: %v\n", err)
+    }
+    defer f.Close()
+
+    f.Write(b)
+    f.Sync()
+
+    UpdateAllSVN(true, false)
+
+}
+
+func UpdateAllSVN(svnUpdate, svnPull bool) {
 
     <- fileNotInUse
-    
+
     if svnUpdate {
         files, _ := ioutil.ReadDir(svnBasePath)
         for _, f := range files {
             if f.IsDir() {
-                pullSVN(svnBasePath + "/" + f.Name())
+                if svnPull {
+                    pullSVN(svnBasePath + "/" + f.Name())
+                }
                 updateJsonFile(svnBasePath + "/" + f.Name(), f.Name())
 
             }
         }
     }
-    
+
     updateAllData()
     fileNotInUse <- true
     lastUpdate = time.Now()
@@ -269,7 +291,7 @@ func WriteStatisticToFile(botName string, stats Statistics) {
 func CheckPotentialPlayer(playerNickname string, updateSVN bool) (bool, string, Statistics) {
 
     if time.Now().Sub(lastUpdate).Minutes() > 1 && updateSVN {
-        UpdateAllSVN(true)
+        UpdateAllSVN(updateSVN, updateSVN)
     }
 
     for i,svn := range playerData.SvnReposInformation {
