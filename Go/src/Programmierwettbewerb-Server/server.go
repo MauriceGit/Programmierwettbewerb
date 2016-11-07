@@ -259,6 +259,7 @@ func NewSettings() ServerSettings {
 type Command struct {
     Type        string  `json:"type"`
     Value       int     `json:"value,string,omitempty"`
+    State       bool    `json:"state"`
     Image       string  `json:"image"`
     GameName    string  `json:"gameName"`
     Bots        string  `json:"string"`
@@ -493,6 +494,7 @@ type Application struct {
     ids                         Ids
 
     gameTime                    float32
+    gameMode                    bool
 }
 
 var app Application
@@ -520,6 +522,7 @@ func (app* Application) initialize() {
     app.ids                         = NewIds(app.settings)
 
     app.gameTime                    = 300.0
+    app.gameMode                    = false
 }
 
 func stopServer() {
@@ -1017,6 +1020,8 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
     deadBots    := make([]BotKill, 0)
     eatenFoods  := make([]FoodId,  0)
     eatenToxins := make([]ToxinId, 0)
+    
+    app.gameTime -= dt
 
     ////////////////////////////////////////////////////////////////
     // UPDATE BOT POSITION
@@ -1539,8 +1544,6 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
     ticker := time.NewTicker(time.Millisecond * 30)
     var lastTime = time.Now()
 
-
-
     type MessageCounters struct {
         guiMessageCounter           int
         mWMessageCounter            int
@@ -1568,8 +1571,6 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
     for t := range ticker.C {
         profile := NewProfile()
         startProfileEvent(&profile, "Step")
-
-
 
         if simulationStepCounter % 300 == 0 {
             Logf(LtDebug, "Frame %v\n", simulationStepCounter)
@@ -1603,13 +1604,21 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         lastTime = t
 
         if dt >= 0.03 { dt = 0.03 }
-
-        app.gameTime += dt
+        
+        gameFinished := app.gameMode && app.gameTime <= 0
+        
+        if gameFinished {
+            if !app.stopped {
+                LogfColored(LtDebug, LcGreen, "Game finished\n")
+            }
+            app.stopped = true
+            
+        }
 
         ////////////////////////////////////////////////////////////////
         // Save statistics
         ////////////////////////////////////////////////////////////////
-        if simulationStepCounter % 300 == 0 {
+        if simulationStepCounter % 300 == 0 || gameFinished {
             for _,bot := range gameState.bots {
                 go WriteStatisticToFile(bot.Info.Name, bot.StatisticsThisGame)
             }
@@ -1705,8 +1714,12 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                         setToxinSpawn(command.Image)
                     case "BotSpawnImage":
                         setBotSpawn(command.Image)
+                    case "GameMode":
+                        app.gameMode = command.State
+                        LogfColored(LtDebug, LcGreen, "GameMode: %v\n", app.gameMode)
                     case "GameName":
-                        app.gameTime = 300.0
+                        app.gameTime = 10.0
+                        app.gameMode = true
                         game := games[command.GameName]
                         LogfColored(LtDebug, LcGreen, "Changing game to: %v\n", command.GameName)
 
