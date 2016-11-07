@@ -85,14 +85,14 @@
             }
             
             function calculateOverallRating(stats) {
-                return stats.maxSize + 
-                       stats.maxSurvivalTime +
-                       stats.blobKillCount + 
-                       stats.botKillCount +
-                       stats.toxinThrow + 
-                       stats.successfulToxin + 
-                       stats.splitCount +
-                       stats.successfulSplit;
+                return stats.maxSize/5000 + 
+                       stats.maxSurvivalTime/300 +
+                       2*stats.blobKillCount/50 + 
+                       3*stats.botKillCount/10 +
+                       4*stats.toxinThrow/10 + 
+                       10*stats.successfulToxin/5 + 
+                       2*stats.splitCount/10 +
+                       4*stats.successfulSplit/30;
             }
             
             function makeTableData(game) {
