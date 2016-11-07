@@ -269,7 +269,7 @@ func WriteStatisticToFile(botName string, stats Statistics) {
 func CheckPotentialPlayer(playerNickname string, updateSVN bool) (bool, string, Statistics) {
 
     if time.Now().Sub(lastUpdate).Minutes() > 1 && updateSVN {
-        UpdateAllSVN()
+        UpdateAllSVN(true)
     }
 
     for i,svn := range playerData.SvnReposInformation {
