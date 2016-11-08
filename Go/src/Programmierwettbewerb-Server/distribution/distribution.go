@@ -183,8 +183,9 @@ func startBots(botsToStart, hosts []string, serverIP string) int {
         hostname := hosts[executeOnHost]
         go func(hostname, botName string) {
             // Issue command as nohup, to be sure, it continues executing after ssh disconnect.
-            command := "nohup $(cd pwb_" + botName + "; ./Programmierwettbewerb-Middleware -connection ws://" + serverIP + "/middleware/) &"
+            //command := "nohup $(cd pwb_" + botName + "; ./Programmierwettbewerb-Middleware -connection ws://" + serverIP + "/middleware/) &"
         
+command := "nohup ./bot.sh" + botName + " " + serverIP + " &"
 		executeCmd(command, hostname, auth)
 
         }(hostname, bot)
