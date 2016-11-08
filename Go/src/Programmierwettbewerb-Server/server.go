@@ -145,6 +145,7 @@ func printProfile(profile *Profile) {
 type Games map[string]Game
 
 type Game struct {
+    GameTime        float32
     BotsToStart     []string
     BotCount        int
     Foods           int
@@ -1718,10 +1719,11 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                         app.gameMode = command.State
                         LogfColored(LtDebug, LcGreen, "GameMode: %v\n", app.gameMode)
                     case "GameName":
-                        app.gameTime = 10.0
-                        app.gameMode = true
                         game := games[command.GameName]
                         LogfColored(LtDebug, LcGreen, "Changing game to: %v\n", command.GameName)
+
+                        app.gameMode = true
+                        app.gameTime = game.GameTime
 
                         app.settings.MinNumberOfBots = 0
                         app.settings.MaxNumberOfFoods = game.Foods
