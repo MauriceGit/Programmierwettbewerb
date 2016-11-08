@@ -461,8 +461,10 @@
                 context.scale(scale, scale);
                 context.translate(-500, -500);
 
-                context.fillText("Repositories sind geschlossen! Ihr könnt trotzdem noch testen.", 210, 480);
-                context.fillText("Dies hat keinerlei Auswirkungen auf den Wettbewerb!", 260, 500);
+                if ({{.UpdateSVN}}) {
+                    context.fillText("Repositories sind geschlossen! Ihr könnt trotzdem noch testen.", 210, 480);
+                    context.fillText("Dies hat keinerlei Auswirkungen auf den Wettbewerb!", 260, 500);
+                }
                
                 context.font="14px Arial";
                 

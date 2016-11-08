@@ -2699,8 +2699,10 @@ func handleStatistics(w http.ResponseWriter, r *http.Request) {
 func handleGameHTML(w http.ResponseWriter, r *http.Request) {
     data := struct {
         Address string
+        UpdateSVN bool
     }{
         Address: strings.Replace("ws://" + getServerAddress() + "/gui/", "\n", "", -1),
+        UpdateSVN: app.runningConfig.UpdateSVN,
     }
     t := template.New("Index")
     page, _ := ioutil.ReadFile("../Public/game.html")
