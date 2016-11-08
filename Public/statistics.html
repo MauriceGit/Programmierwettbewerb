@@ -111,7 +111,7 @@
                     var nick  = game[svn].nicknames[0];
                     data.addRow([
                         nick,
-                        calculateOverallRating(game[svn].statistics),
+                        game[svn].statistics.overall,
                         game[svn].statistics.maxSize,
                         game[svn].statistics.maxSurvivalTime,
                         game[svn].statistics.blobKillCount,
@@ -165,7 +165,7 @@
                 appendChart(insertInner(document.getElementById("table")), 
                     { title: "Plätze", type: "Table", data: makeTableData(game) });
                 appendChart(insertInner(document.getElementById("overall")),
-                    { title: "Gesamtwertung", type: "Bar", data: makeChartData(game, calculateOverallRating) });
+                    { title: "Gesamtwertung", type: "Bar", data: makeChartData(game, function(stats) { return stats.overall; }) });
                 appendChart(insertInner(document.getElementById("maxSize")),
                     { title: "Maximale Größe", type: "Bar", data: makeChartData(game, function(stats) { return stats.maxSize; }) });
                 appendChart(insertInner(document.getElementById("maxSurvivalTime")),
@@ -184,12 +184,78 @@
                     { title: "Gefressene Blobs durch Teilungen", type: "Bar", data: makeChartData(game, function(stats) { return stats.successfulSplit; }) });
             }
             
+            function addStatistics(stat1, stat2) {
+                var result = {};
+                result.overall = stat1.overall + stat2.overall;
+                result.maxSize = stat1.maxSize + stat2.maxSize;
+                result.maxSurvivalTime = stat1.maxSurvivalTime + stat2.maxSurvivalTime;
+                result.blobKillCount = stat1.blobKillCount + stat2.blobKillCount;
+                result.botKillCount = stat1.botKillCount + stat2.botKillCount;
+                result.toxinThrow = stat1.toxinThrow + stat2.toxinThrow;
+                result.successfulToxin = stat1.successfulToxin + stat2.successfulToxin;
+                result.splitCount = stat1.splitCount + stat2.splitCount;
+                result.successfulSplit = stat1.successfulSplit + stat2.successfulSplit;
+                return result;
+            }
+            
+            function makeEmptyStatistic() {
+                var result = {};
+                result.overall = 0;
+                result.maxSize = 0;
+                result.maxSurvivalTime = 0;
+                result.blobKillCount = 0;
+                result.botKillCount = 0;
+                result.toxinThrow = 0;
+                result.successfulToxinThrows = 0;
+                result.splitCount = 0;
+                result.successfulSplits = 0;
+                return result;
+            }
+            
+            function showHighscore() {
+                // Find all unique svns in all games and map them to their first nickname
+                var svns = {};
+                for (var gameName in g_games) {
+                    var game = g_games[gameName];
+                    for (var svn in game.svnReposMap) {
+                        if (!(svn in svns)) {
+                            svns[svn] = game.svnReposMap[svn].nicknames[0];
+                        }
+                    }
+                }
+                
+                var highscoreGame = {};
+                
+                for (svn in svns) {
+                    highscoreGame[svn] = { 
+                        nicknames: [svns[svn]],
+                        statistics: makeEmptyStatistic()
+                    };
+                }
+            
+                // Merge statistics
+                for (var gameName in g_games) {
+                    var game = g_games[gameName];
+                    for (var svn in game.svnReposMap) {
+                        highscoreGame[svn].nicknames = game.svnReposMap[svn].nicknames;
+                        highscoreGame[svn].statistics = addStatistics(highscoreGame[svn].statistics, game.svnReposMap[svn].statistics);
+                    }
+                }
+                
+                drawCharts("Highscore", highscoreGame);
+            }
+            
             function body_onload() {
+                $("#highscore").on('click', function() {
+                    showHighscore();
+                });
+                
                 for (var gameName in g_games) { 
                     var game = g_games[gameName].svnReposMap;
                     for (var svn in game) {
                         // The statistics are converted to a human readable format
                         var stats = convertStatistics(game[svn].statistics);
+                        stats.overall = calculateOverallRating(stats);
                         var allNull = true;
                         for (var stat in stats) {
                             if (stats[stat] > 0) {
@@ -212,13 +278,15 @@
         </script>
     </head>
     <body onload="body_onload()">
-        <div class="dropdown">
-            <button class="btn btn-primary dropdown-toggle" type="button" data-toggle="dropdown">
-                Games
-                <span class="caret"></span>
-            </button>
-            <ul id="games" class="dropdown-menu">
-            </ul>            
+        <div class="btn-group">
+          <button id="highscore" type="button" class="btn btn-primary">Highscore</button>
+          <div class="btn-group">
+            <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown">
+            Games<span class="caret"></span></button>
+            <ul id="games" class="dropdown-menu" role="menu">
+              <!--<li><a href="#">Tablet</a></li>-->
+            </ul>
+          </div>
         </div>
         
         <hr>
