@@ -136,6 +136,8 @@
             var botInfos = {};
             var toxins = {};
             var foods = {};
+            
+            var gameTime = -1;
 
             var statisticsLocal  = {};
             var statisticsGlobal = {};
@@ -308,8 +310,7 @@
                 };
                 resizeCanvas();
 
-                context = canvas.getContext('2d');
-                context.font="14px Arial";
+                context = canvas.getContext('2d');                
                 
                 scale = Math.min(
                     $(document).width()/1000, 
@@ -362,6 +363,7 @@
                     var deletedToxins               = message[7];
                     var messageStatisticsThisGame   = message[8];
                     var messageStatisticsGlobal     = message[9];
+                    gameTime                        = message[10];
 
                     for (var botId in createdOrUpdatedBotInfos) {
                         botInfos[botId] = createdOrUpdatedBotInfos[botId];
@@ -448,14 +450,21 @@
                 context.setTransform(1, 0, 0, 1, 0, 0);
                 context.clearRect(0, 0, canvas.width, canvas.height);
 
+                context.font="22px Arial";
+                context.fillStyle = "rgb(255, 255, 255)";
+                if (gameTime > 0) {
+                    context.fillText("Zeit: " + gameTime.toFixed(2) + " s", 120, 32);
+                }
+
                 context.translate(translateX, translateY);
                 context.translate(500, 500);
                 context.scale(scale, scale);
                 context.translate(-500, -500);
 
-                context.fillStyle = "rgb(255, 255, 255)";                            
-                context.fillText("Repositories sind geschlossen! Ihr könnt trotzdem noch testen.", 340, 480);
-                context.fillText("Dies hat keinerlei Auswirkungen auf den Wettbewerb!", 360, 500);
+                context.fillText("Repositories sind geschlossen! Ihr könnt trotzdem noch testen.", 210, 480);
+                context.fillText("Dies hat keinerlei Auswirkungen auf den Wettbewerb!", 260, 500);
+               
+                context.font="14px Arial";
                 
                 // Find center of all the blobs
                 if (cameraMode == cmShowBot) {

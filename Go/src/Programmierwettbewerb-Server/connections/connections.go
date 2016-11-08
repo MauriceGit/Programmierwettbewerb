@@ -214,6 +214,7 @@ type ServerGuiUpdateMessage struct {
     DeletedToxins               []ToxinId                       `json:"7"`
     StatisticsThisGame          map[string]Statistics           `json:"8"`
     StatisticsGlobal            map[string]Statistics           `json:"9"`
+    GameTime                    float32                         `json:"10"`
 }
 
 func NewServerGuiUpdateMessage() ServerGuiUpdateMessage {
@@ -228,6 +229,7 @@ func NewServerGuiUpdateMessage() ServerGuiUpdateMessage {
         DeletedToxins:              make([]ToxinId, 0),
         StatisticsThisGame:         make(map[string]Statistics),
         StatisticsGlobal:           make(map[string]Statistics),
+        GameTime:                   0,
     }
 }
 

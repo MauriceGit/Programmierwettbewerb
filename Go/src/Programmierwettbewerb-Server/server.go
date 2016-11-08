@@ -2017,6 +2017,12 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
             app.guiConnections.Foreach(func(index int, guiId GuiId, guiConnection GuiConnection) {
                 channel := guiConnection.MessageChannel
                 message := NewServerGuiUpdateMessage()
+                
+                if app.gameMode {
+                    message.GameTime = float32(int(app.gameTime*100)) / 100
+                } else {
+                    message.GameTime = -1
+                }
 
                 for botId, bot := range gameState.bots {
                     key := strconv.Itoa(int(botId))
