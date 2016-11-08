@@ -165,8 +165,8 @@ func parseRunCommand(commandSlice []string) []string {
 }
 
 func startBots(botsToStart, hosts []string, serverIP string) int {
-	fmt.Println("BotsToStart: ", botsToStart)
-	fmt.Println("Hosts: ", hosts)
+    fmt.Println("BotsToStart: ", botsToStart)
+    fmt.Println("Hosts: ", hosts)
 
     auth := userPassAuth()
 
@@ -184,9 +184,9 @@ func startBots(botsToStart, hosts []string, serverIP string) int {
         go func(hostname, botName string) {
             // Issue command as nohup, to be sure, it continues executing after ssh disconnect.
             //command := "nohup $(cd pwb_" + botName + "; ./Programmierwettbewerb-Middleware -connection ws://" + serverIP + "/middleware/) &"
-        
-command := "nohup ./bot.sh" + botName + " " + serverIP + " &"
-		executeCmd(command, hostname, auth)
+
+        command := "nohup ./runBot.sh" + botName + " " + serverIP + " &"
+        executeCmd(command, hostname, auth)
 
         }(hostname, bot)
         executeOnHost += 1
