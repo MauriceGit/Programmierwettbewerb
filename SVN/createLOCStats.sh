@@ -14,7 +14,7 @@ for i in pwb*
 do
     cd "$i"
     echo "$i:" >> $file
-    tmp=$(cloc . --csv | awk -v prefix=",$i,    " '{print prefix $0}')
+    tmp=$(cloc . | awk -v prefix="$i    " '{print prefix $0}')
     for t in "$tmp"
     do
         echo -e "$t" >> $file
