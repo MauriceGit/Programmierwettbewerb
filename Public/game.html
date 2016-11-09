@@ -7,7 +7,7 @@
             canvas {
                 background-color: #222222; // TODO(henk): Remove this
             }
-            
+
             body{
                 -webkit-touch-callout: none;
                 -webkit-user-select: none;
@@ -16,7 +16,7 @@
                 -ms-user-select: none;
                 user-select: none;
             }
-            
+
             .highscore {
                 position: fixed;
                 color: white;
@@ -25,18 +25,18 @@
                 width: 50%;
                 max-width: 600px;
             }
-            
+
             .highscoreEntry {
                 overflow: auto;
                 margin: 4 2 4 2;
                 padding: 4;
                 background-color: rgba(150,150,150,0.2);
             }
-            
+
             .highscoreEntry:hover {
                 background-color: rgba(200,200,200,0.3);
             }
-            
+
             html, body {
               width:  100%;
               height: 100%;
@@ -92,7 +92,7 @@
                 position: absolute;
                 display: inline-block;
             }
-            
+
             .nextStats a:hover {background-color: #f1f1f1}
             .nextStats {
                 top: 10;
@@ -101,12 +101,12 @@
                 position: absolute;
                 display: inline-block;
             }
-            
+
             .half {
-                float:left; 
-                display:inline; 
+                float:left;
+                display:inline;
             }
-            
+
             .show {display:block;}
         </style>
     </head>
@@ -136,7 +136,7 @@
             var botInfos = {};
             var toxins = {};
             var foods = {};
-            
+
             var gameTime = -1;
 
             var statisticsLocal  = {};
@@ -179,12 +179,12 @@
             var cameraBotToFollow = -1;
 
             var showStats = 1;
-            
+
             var translateX = 0;
             var translateY = 0;
-            
+
             var scale = 1;
-            
+
             var isMouseDown = false;
             var mousePositionX = 0;
             var mousePositionY = 0;
@@ -192,9 +192,9 @@
             var mouseDownPositionY = 0;
             var mouseDownTranslateX = 0;
             var mouseDownTranslateY = 0;
-            
+
             var parameterSet = 0;
-            
+
             function cameraDropDownHandler() {
                 document.getElementById("cameraDropDown").classList.toggle("show");
             }
@@ -203,7 +203,7 @@
                 showStats = !showStats;
                 updateHighscore();
             }
-            
+
             function nextStatsHandler() {
                 parameterSet = (parameterSet + 1) % 4;
                 updateHighscore();
@@ -221,7 +221,7 @@
                     }
                 }
             }
-            
+
             window.onmousemove = function(event) {
                 if (isMouseDown) {
                     var diffX = event.clientX - mouseDownPositionX;
@@ -232,22 +232,22 @@
                 mousePositionX = event.clientX;
                 mousePositionY = event.clientY;
             }
-            
-            window.onmousedown = function(event) { 
+
+            window.onmousedown = function(event) {
                 isMouseDown = true;
                 mouseDownPositionX = event.clientX;
                 mouseDownPositionY = event.clientY;
                 mouseDownTranslateX = translateX;
                 mouseDownTranslateY = translateY;
             }
-            
-            window.onmouseup = function() { 
-                isMouseDown = false; 
+
+            window.onmouseup = function() {
+                isMouseDown = false;
             }
-            
+
             window.onwheel = function(event) {
                 scale = Math.max(0.1, scale + event.wheelDelta / 1000);
-                
+
 
             }
 
@@ -280,7 +280,7 @@
             function makeCSSColor(color) {
                 return "rgb({0}, {1}, {2})".format(color.R, color.G, color.B);
             }
-            
+
             function convertStatistics(statistics) {
                 return {
                     "maxSize":            statistics[0],
@@ -310,10 +310,10 @@
                 };
                 resizeCanvas();
 
-                context = canvas.getContext('2d');                
-                
+                context = canvas.getContext('2d');
+
                 scale = Math.min(
-                    $(document).width()/1000, 
+                    $(document).width()/1000,
                     $(document).height()/1000);
 
                 //
@@ -445,7 +445,7 @@
             function radius(mass) {
                 return Math.max(1, Math.sqrt(mass / Math.PI));
             }
-            
+
             function render() {
                 context.setTransform(1, 0, 0, 1, 0, 0);
                 context.clearRect(0, 0, canvas.width, canvas.height);
@@ -465,9 +465,9 @@
                     context.fillText("Repositories sind geschlossen! Ihr könnt trotzdem noch testen.", 210, 480);
                     context.fillText("Dies hat keinerlei Auswirkungen auf den Wettbewerb!", 260, 500);
                 }
-               
+
                 context.font="18px Arial";
-                
+
                 // Find center of all the blobs
                 if (cameraMode == cmShowBot) {
                     if (cameraBotToFollow in bots) {
@@ -536,7 +536,7 @@
                 context.lineWidth = 1;
                 for (var botId in bots) {
                     var bot = bots[botId];
-                    
+
                     var centerX = 0;
                     var centerY = 0;
                     var minY = 10000;
@@ -545,7 +545,7 @@
 
                     for (var blobId in bot.blobs) {
                         var blob = bot.blobs[blobId];
-                        
+
                         centerX += blob.pos.X;
                         centerY += blob.pos.Y;
                         if (blob.pos.Y < minY) {
@@ -557,7 +557,7 @@
                             context.fillStyle = makeCSSColor(botInfos[botId].color);
                         } else {
                             // Render Error
-                            context.fillStyle = "rgb(255, 0, 0)";                            
+                            context.fillStyle = "rgb(255, 0, 0)";
                             context.fillText("Couldn't find the BotInfo", blob.pos.X, blob.pos.Y + 20);
                         }
 
@@ -566,10 +566,10 @@
                         context.fill();
 
                         context.stroke();
-                        
+
                         numBlobs += 1;
                     }
-                    
+
                     context.fillStyle = "rgb(255, 255, 255)";
                     var text = botInfos[botId].name;
                     if (text != "dummy") {
@@ -577,14 +577,14 @@
                         centerY /= numBlobs;
                                                 context.fillText(text, centerX - context.measureText(text).width/2, minY - minRadius - 10);
                     }
-                    
+
                     if (cameraMode == cmShowBot) {
                         context.beginPath();
                         context.rect(bot.viewWindow.pos.X, bot.viewWindow.pos.Y, bot.viewWindow.size.X, bot.viewWindow.size.Y);
                         context.stroke();
                     }
                 }
-                
+
                 window.requestAnimationFrame(render);
             }
 
@@ -621,17 +621,17 @@
                 }
                 return s;
             }
-            
+
             function updateHighscoreForBotId(number, name, relativeMass, color, fields) {
                 var makeDiv = function(content) { return $("<div>" + content + "</div>"); }
-                
+
                 var makeEntry = function(content, width) {
                     var entry = makeDiv(content);
                     entry.addClass("half");
                     entry.css({ "width": width + "%" });
                     return entry;
                 };
-                
+
                 var makeBold = function(node) {
                     node.css("font-weight", "bold");
                     return node;
@@ -639,22 +639,22 @@
 
                 var outerBar = makeDiv("");
                 var innerBar = makeDiv("");
-                
-                innerBar.css({ 
-                    "display": "inline-block", 
+
+                innerBar.css({
+                    "display": "inline-block",
                     "width": (100*relativeMass) + "%",
                     "height": 12,
                     "background-color": makeCSSColor(color),
                     "margin": "4 0 0 0",
                 });
-                
+
                 outerBar.css({
-                    "display": "inline-block", 
+                    "display": "inline-block",
                     "width": "100%",
                     "height": 20,
                 });
                 outerBar.append(innerBar);
-                                
+
                 var container = makeDiv("");
                 container.addClass("highscoreEntry");
                 container.append(makeEntry(number, 5));
@@ -663,13 +663,24 @@
                 } else {
                     container.append(makeBold(makeEntry(name, 35)));
                 }
-                
+
                 for (var i = 0; i < fields.length; ++i) {
                     container.append(makeEntry(fields[i], 60 / fields.length));
                 }
                 container.append(outerBar);
-                                
+
                 return container;
+            }
+
+            function calculateOverallRating(stats) {
+                return stats.maxSize/5000 +
+                       stats.maxSurvivalTime/300 +
+                       2*stats.blobKillCount/50 +
+                       3*stats.botKillCount/10 +
+                       4*stats.toxinThrow/10 +
+                       10*stats.successfulToxin/5 +
+                       2*stats.splitCount/30 +
+                       4*stats.successfulSplit/30;
             }
 
             function updateHighscore() {
@@ -684,8 +695,8 @@
                 var scores = calculateHighscore();
                 var tuples = scores[0];
                 var maxMass = scores[1];
-                
-                
+
+
                 var headerContainer = $("<div></div>");
                 headerContainer.addClass("highscoreEntry");
 
@@ -695,13 +706,13 @@
                     header.css({ "width": width + "%" });
                     return header;
                 };
-                
+
                 headerContainer.append(makeHeader("#", 5));
                 headerContainer.append(makeHeader("Name", 35));
 
                 var headerTitles = [[
+                    "Overall",
                     "Mass",
-                    "BotId",
                     "TeamId",
                 ], [
                     "Max Size",
@@ -717,35 +728,36 @@
                     "Successful Team",
                     "Bad Team",
                 ]];
-                                
+
                 var currentHeaderTitles = headerTitles[parameterSet];
                 for (var i = 0; i < currentHeaderTitles.length; ++i) {
                     headerContainer.append(makeHeader(currentHeaderTitles[i], 60 / currentHeaderTitles.length));
                 }
                 highscore.append(headerContainer);
-                
-                
+
+
                 for (var i = 0; i < tuples.length; i++) {
                     var mass = tuples[i].mass;
                     var botInfoId = tuples[i].id;
-                    var teamId = tuples[i].teamId
+                    var teamId = tuples[i].teamId;
+                    var overall = calculateOverallRating(statisticsLocal[botInfoId]).toFixed(2)*1000.0;
 
                     // VERY quick and dirty. Should be reworked, so that calculateHighscore is not called all the time.
                     // But we kinda need maxMass. Or we don't show the bar in follower-mode...
                     if (cameraMode == cmShowBot && botInfoId != cameraBotToFollow) {
                         continue;
                     }
-                    
+
                     // botInfoId, botTeamId, mass, maxMass
                     var botInfo = botInfos[botInfoId];
                     var relativeMass = mass / maxMass;
-                    
+
                     var fields;
                     switch (parameterSet) {
                     case 0:
                         fields = [
+                            overall,
                             mass,
-                            botInfoId,
                             teamId,
                         ];
                         break;
