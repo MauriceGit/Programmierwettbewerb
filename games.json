@@ -178,7 +178,7 @@
         "FoodSpawn" : "symbol_zelda.bmp",
         "ToxinSpawn" : "black.bmp",
         "BotSpawn" : "black.bmp"
-    }
+    },
     "duell":{
         "GameTime":120,
         "BotsToStart":["all"],
