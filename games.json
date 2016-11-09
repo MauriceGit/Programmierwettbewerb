@@ -1,7 +1,7 @@
 {
-    "game1":{
-        "GameTime":301,
-        "BotsToStart": ["04", "42", "97"],
+    "1_food_only":{
+        "GameTime":300,
+        "BotsToStart": ["all"],
         "BotCount":1,
         "Foods":1550,
         "Toxins" : 0,
@@ -9,87 +9,77 @@
         "ToxinSpawn" : "black.bmp",
         "BotSpawn" : "black.bmp"
     },
-    "game2":{
+    "2_food_and_center_toxin":{
         "GameTime":300,
         "BotsToStart": ["all"],
         "BotCount":1,
-        "Foods":1200,
+        "Foods":1800,
         "Toxins" : 50,
         "FoodSpawn" : "circular_gradient.bmp",
-        "ToxinSpawn" : "black.bmp",
+        "ToxinSpawn" : "center_dot.bmp",
         "BotSpawn" : "black.bmp"
     },
-    "nerdGame01":{
+    "3_food_and_toxin":{
+        "GameTime":300,
+        "BotsToStart": ["all"],
+        "BotCount":1,
+        "Foods":1600,
+        "Toxins" : 50,
+        "FoodSpawn" : "circular_gradient.bmp",
+        "ToxinSpawn" : "random_dots.bmp",
+        "BotSpawn" : "black.bmp"
+    },
+    "4_meeting":{
+        "GameTime":300,
+        "BotsToStart": ["all"],
+        "BotCount":1,
+        "Foods":2000,
+        "Toxins" : 50,
+        "FoodSpawn" : "meet.bmp",
+        "ToxinSpawn" : "meet_toxins.bmp",
+        "BotSpawn" : "meet_bots.bmp"
+    },
+    "5_deathlyhallows":{
         "GameTime":300,
         "BotsToStart":["all"],
         "BotCount":1,
         "Foods":2000,
         "Toxins" : 50,
         "FoodSpawn" : "symbol_deathlyhallows.bmp",
-        "ToxinSpawn" : "black.bmp",
-        "BotSpawn" : "black.bmp"
+        "ToxinSpawn" : "random_dots.bmp",
+        "BotSpawn" : "circle.bmp"
     },
-    "nerdGame02":{
-        "GameTime":300,
-        "BotsToStart":["all"],
-        "BotCount":1,
-        "Foods":2000,
-        "Toxins" : 50,
-        "FoodSpawn" : "symbol_dragonball.bmp",
-        "ToxinSpawn" : "black.bmp",
-        "BotSpawn" : "black.bmp"
-    },
-    "nerdGame03":{
+    "6_greenlantern":{
         "GameTime":300,
         "BotsToStart":["all"],
         "BotCount":1,
         "Foods":2000,
         "Toxins" : 50,
         "FoodSpawn" : "symbol_greenlantern.bmp",
-        "ToxinSpawn" : "black.bmp",
-        "BotSpawn" : "black.bmp"
+        "ToxinSpawn" : "symbol_greenlantern_toxin.bmp",
+        "BotSpawn" : "symbol_greenlantern_bots.bmp"
     },
-    "nerdGame04":{
+    "7_normal":{
         "GameTime":300,
         "BotsToStart":["all"],
         "BotCount":1,
-        "Foods":2000,
+        "Foods":1400,
+        "Toxins" : 30,
+        "FoodSpawn" : "black.bmp",
+        "ToxinSpawn" : "black.bmp",
+        "BotSpawn" : "black.bmp"
+    },
+    "8_hichhikersguide":{
+        "GameTime":300,
+        "BotsToStart":["all"],
+        "BotCount":1,
+        "Foods":2200,
         "Toxins" : 50,
         "FoodSpawn" : "symbol_hichhikersguide.bmp",
-        "ToxinSpawn" : "black.bmp",
+        "ToxinSpawn" : "symbol_hichhikersguide_toxin.bmp",
         "BotSpawn" : "black.bmp"
     },
-    "nerdGame05":{
-        "GameTime":300,
-        "BotsToStart":["all"],
-        "BotCount":1,
-        "Foods":2000,
-        "Toxins" : 50,
-        "FoodSpawn" : "symbol_japan.bmp",
-        "ToxinSpawn" : "black.bmp",
-        "BotSpawn" : "black.bmp"
-    },
-    "nerdGame06":{
-        "GameTime":300,
-        "BotsToStart":["all"],
-        "BotCount":1,
-        "Foods":2000,
-        "Toxins" : 50,
-        "FoodSpawn" : "symbol_leet.bmp",
-        "ToxinSpawn" : "black.bmp",
-        "BotSpawn" : "black.bmp"
-    },
-    "nerdGame07":{
-        "GameTime":300,
-        "BotsToStart":["all"],
-        "BotCount":1,
-        "Foods":2000,
-        "Toxins" : 50,
-        "FoodSpawn" : "symbol_playstation.bmp",
-        "ToxinSpawn" : "black.bmp",
-        "BotSpawn" : "black.bmp"
-    },
-    "nerdGame08":{
+    "9_power":{
         "GameTime":300,
         "BotsToStart":["all"],
         "BotCount":1,
@@ -97,9 +87,9 @@
         "Toxins" : 50,
         "FoodSpawn" : "symbol_power.bmp",
         "ToxinSpawn" : "black.bmp",
-        "BotSpawn" : "black.bmp"
+        "BotSpawn" : "symbol_greenlantern_bots.bmp"
     },
-    "nerdGame09":{
+    "10_rebelallicance":{
         "GameTime":300,
         "BotsToStart":["all"],
         "BotCount":1,
@@ -109,47 +99,17 @@
         "ToxinSpawn" : "black.bmp",
         "BotSpawn" : "black.bmp"
     },
-    "nerdGame10":{
+    "11_normal2":{
         "GameTime":300,
         "BotsToStart":["all"],
         "BotCount":1,
-        "Foods":2000,
-        "Toxins" : 50,
-        "FoodSpawn" : "symbol_spaceinvaders.bmp",
+        "Foods":2500,
+        "Toxins" : 80,
+        "FoodSpawn" : "black.bmp",
         "ToxinSpawn" : "black.bmp",
         "BotSpawn" : "black.bmp"
     },
-    "nerdGame11":{
-        "GameTime":300,
-        "BotsToStart":["all"],
-        "BotCount":1,
-        "Foods":2000,
-        "Toxins" : 50,
-        "FoodSpawn" : "symbol_stargate.bmp",
-        "ToxinSpawn" : "black.bmp",
-        "BotSpawn" : "black.bmp"
-    },
-    "nerdGame12":{
-        "GameTime":300,
-        "BotsToStart":["all"],
-        "BotCount":1,
-        "Foods":2000,
-        "Toxins" : 50,
-        "FoodSpawn" : "symbol_startrek.bmp",
-        "ToxinSpawn" : "black.bmp",
-        "BotSpawn" : "black.bmp"
-    },
-    "nerdGame13":{
-        "GameTime":300,
-        "BotsToStart":["all"],
-        "BotCount":1,
-        "Foods":2000,
-        "Toxins" : 50,
-        "FoodSpawn" : "symbol_ubuntu.bmp",
-        "ToxinSpawn" : "black.bmp",
-        "BotSpawn" : "black.bmp"
-    },
-    "nerdGame14":{
+    "12_xkcd":{
         "GameTime":300,
         "BotsToStart":["all"],
         "BotCount":1,
@@ -159,7 +119,47 @@
         "ToxinSpawn" : "black.bmp",
         "BotSpawn" : "black.bmp"
     },
-    "nerdGame15":{
+    "spaceinvaders":{
+        "GameTime":300,
+        "BotsToStart":["all"],
+        "BotCount":1,
+        "Foods":2000,
+        "Toxins" : 50,
+        "FoodSpawn" : "symbol_spaceinvaders.bmp",
+        "ToxinSpawn" : "black.bmp",
+        "BotSpawn" : "black.bmp"
+    },
+    "stargate":{
+        "GameTime":300,
+        "BotsToStart":["all"],
+        "BotCount":1,
+        "Foods":2000,
+        "Toxins" : 50,
+        "FoodSpawn" : "symbol_stargate.bmp",
+        "ToxinSpawn" : "black.bmp",
+        "BotSpawn" : "black.bmp"
+    },
+    "startrek":{
+        "GameTime":300,
+        "BotsToStart":["all"],
+        "BotCount":1,
+        "Foods":2000,
+        "Toxins" : 50,
+        "FoodSpawn" : "symbol_startrek.bmp",
+        "ToxinSpawn" : "black.bmp",
+        "BotSpawn" : "black.bmp"
+    },
+    "ubuntu":{
+        "GameTime":300,
+        "BotsToStart":["all"],
+        "BotCount":1,
+        "Foods":2000,
+        "Toxins" : 50,
+        "FoodSpawn" : "symbol_ubuntu.bmp",
+        "ToxinSpawn" : "black.bmp",
+        "BotSpawn" : "black.bmp"
+    },
+    "xmen":{
         "GameTime":300,
         "BotsToStart":["all"],
         "BotCount":1,
@@ -169,7 +169,7 @@
         "ToxinSpawn" : "black.bmp",
         "BotSpawn" : "black.bmp"
     },
-    "nerdGame16":{
+    "zelda":{
         "GameTime":300,
         "BotsToStart":["all"],
         "BotCount":1,
