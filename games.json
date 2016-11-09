@@ -179,4 +179,14 @@
         "ToxinSpawn" : "black.bmp",
         "BotSpawn" : "black.bmp"
     }
+    "duell":{
+        "GameTime":120,
+        "BotsToStart":["all"],
+        "BotCount":0,
+        "Foods":2000,
+        "Toxins" : 50,
+        "FoodSpawn" : "circular_gradient.bmp",
+        "ToxinSpawn" : "black.bmp",
+        "BotSpawn" : "black.bmp"
+    }
 }
