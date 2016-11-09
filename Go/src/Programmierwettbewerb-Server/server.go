@@ -245,9 +245,9 @@ func NewSettings() ServerSettings {
         toxinDistributionName:  defaultDistributionName,
         botDistributionName:    defaultDistributionName,
 
-        foodDistribution:       loadSpawnImage(defaultFieldSize, defaultDistributionName, 10),
-        toxinDistribution:      loadSpawnImage(defaultFieldSize, defaultDistributionName, 10),
-        botDistribution:        loadSpawnImage(defaultFieldSize, defaultDistributionName, 10),
+        foodDistribution:       loadSpawnImage(defaultFieldSize, defaultDistributionName, 20),
+        toxinDistribution:      loadSpawnImage(defaultFieldSize, defaultDistributionName, 20),
+        botDistribution:        loadSpawnImage(defaultFieldSize, defaultDistributionName, 20),
     }
 }
 
@@ -1023,7 +1023,7 @@ func update(gameState *GameState, settings *ServerSettings, ids *Ids, profile *P
     deadBots    := make([]BotKill, 0)
     eatenFoods  := make([]FoodId,  0)
     eatenToxins := make([]ToxinId, 0)
-    
+
     app.gameTime -= dt
 
     ////////////////////////////////////////////////////////////////
@@ -1607,15 +1607,15 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
         lastTime = t
 
         if dt >= 0.03 { dt = 0.03 }
-        
+
         gameFinished := app.gameMode && app.gameTime <= 0
-        
+
         if gameFinished {
             if !app.stopped {
                 LogfColored(LtDebug, LcGreen, "Game finished\n")
             }
             app.stopped = true
-            
+
         }
 
         if app.gameMode && !app.stopped && len(gameState.bots) <= 4 {
@@ -2035,7 +2035,7 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
             app.guiConnections.Foreach(func(index int, guiId GuiId, guiConnection GuiConnection) {
                 channel := guiConnection.MessageChannel
                 message := NewServerGuiUpdateMessage()
-                
+
                 if app.gameMode {
                     message.GameTime = float32(int(app.gameTime*100)) / 100
                 } else {
