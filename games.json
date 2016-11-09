@@ -1,8 +1,8 @@
 {
     "game1":{
         "GameTime":301,
-        "BotsToStart": ["all"],
-        "BotCount":"1",
+        "BotsToStart": ["04", "42", "97"],
+        "BotCount":1,
         "Foods":1550,
         "Toxins" : 0,
         "FoodSpawn" : "black.bmp",
@@ -12,7 +12,7 @@
     "game2":{
         "GameTime":300,
         "BotsToStart": ["all"],
-        "BotCount":"1",
+        "BotCount":1,
         "Foods":1200,
         "Toxins" : 50,
         "FoodSpawn" : "circular_gradient.bmp",
@@ -22,7 +22,7 @@
     "nerdGame01":{
         "GameTime":300,
         "BotsToStart":["all"],
-        "BotCount":"1",
+        "BotCount":1,
         "Foods":2000,
         "Toxins" : 50,
         "FoodSpawn" : "symbol_deathlyhallows.bmp",
@@ -32,7 +32,7 @@
     "nerdGame02":{
         "GameTime":300,
         "BotsToStart":["all"],
-        "BotCount":"1",
+        "BotCount":1,
         "Foods":2000,
         "Toxins" : 50,
         "FoodSpawn" : "symbol_dragonball.bmp",
@@ -42,7 +42,7 @@
     "nerdGame03":{
         "GameTime":300,
         "BotsToStart":["all"],
-        "BotCount":"1",
+        "BotCount":1,
         "Foods":2000,
         "Toxins" : 50,
         "FoodSpawn" : "symbol_greenlantern.bmp",
@@ -52,7 +52,7 @@
     "nerdGame04":{
         "GameTime":300,
         "BotsToStart":["all"],
-        "BotCount":"1",
+        "BotCount":1,
         "Foods":2000,
         "Toxins" : 50,
         "FoodSpawn" : "symbol_hichhikersguide.bmp",
@@ -62,7 +62,7 @@
     "nerdGame05":{
         "GameTime":300,
         "BotsToStart":["all"],
-        "BotCount":"1",
+        "BotCount":1,
         "Foods":2000,
         "Toxins" : 50,
         "FoodSpawn" : "symbol_japan.bmp",
@@ -72,7 +72,7 @@
     "nerdGame06":{
         "GameTime":300,
         "BotsToStart":["all"],
-        "BotCount":"1",
+        "BotCount":1,
         "Foods":2000,
         "Toxins" : 50,
         "FoodSpawn" : "symbol_leet.bmp",
@@ -82,7 +82,7 @@
     "nerdGame07":{
         "GameTime":300,
         "BotsToStart":["all"],
-        "BotCount":"1",
+        "BotCount":1,
         "Foods":2000,
         "Toxins" : 50,
         "FoodSpawn" : "symbol_playstation.bmp",
@@ -92,7 +92,7 @@
     "nerdGame08":{
         "GameTime":300,
         "BotsToStart":["all"],
-        "BotCount":"1",
+        "BotCount":1,
         "Foods":2000,
         "Toxins" : 50,
         "FoodSpawn" : "symbol_power.bmp",
@@ -102,7 +102,7 @@
     "nerdGame09":{
         "GameTime":300,
         "BotsToStart":["all"],
-        "BotCount":"1",
+        "BotCount":1,
         "Foods":2000,
         "Toxins" : 50,
         "FoodSpawn" : "symbol_rebelalliance.bmp",
@@ -112,7 +112,7 @@
     "nerdGame10":{
         "GameTime":300,
         "BotsToStart":["all"],
-        "BotCount":"1",
+        "BotCount":1,
         "Foods":2000,
         "Toxins" : 50,
         "FoodSpawn" : "symbol_spaceinvaders.bmp",
@@ -122,7 +122,7 @@
     "nerdGame11":{
         "GameTime":300,
         "BotsToStart":["all"],
-        "BotCount":"1",
+        "BotCount":1,
         "Foods":2000,
         "Toxins" : 50,
         "FoodSpawn" : "symbol_stargate.bmp",
@@ -132,7 +132,7 @@
     "nerdGame12":{
         "GameTime":300,
         "BotsToStart":["all"],
-        "BotCount":"1",
+        "BotCount":1,
         "Foods":2000,
         "Toxins" : 50,
         "FoodSpawn" : "symbol_startrek.bmp",
@@ -142,7 +142,7 @@
     "nerdGame13":{
         "GameTime":300,
         "BotsToStart":["all"],
-        "BotCount":"1",
+        "BotCount":1,
         "Foods":2000,
         "Toxins" : 50,
         "FoodSpawn" : "symbol_ubuntu.bmp",
@@ -152,7 +152,7 @@
     "nerdGame14":{
         "GameTime":300,
         "BotsToStart":["all"],
-        "BotCount":"1",
+        "BotCount":1,
         "Foods":2000,
         "Toxins" : 50,
         "FoodSpawn" : "symbol_xkcd.bmp",
@@ -162,7 +162,7 @@
     "nerdGame15":{
         "GameTime":300,
         "BotsToStart":["all"],
-        "BotCount":"1",
+        "BotCount":1,
         "Foods":2000,
         "Toxins" : 50,
         "FoodSpawn" : "symbol_xmen.bmp",
@@ -172,7 +172,7 @@
     "nerdGame16":{
         "GameTime":300,
         "BotsToStart":["all"],
-        "BotCount":"1",
+        "BotCount":1,
         "Foods":2000,
         "Toxins" : 50,
         "FoodSpawn" : "symbol_zelda.bmp",

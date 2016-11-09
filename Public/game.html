@@ -466,7 +466,7 @@
                     context.fillText("Dies hat keinerlei Auswirkungen auf den Wettbewerb!", 260, 500);
                 }
                
-                context.font="14px Arial";
+                context.font="18px Arial";
                 
                 // Find center of all the blobs
                 if (cameraMode == cmShowBot) {
@@ -533,7 +533,7 @@
 
                 // Render bots
                 context.strokeStyle = "rgb(255, 255, 255)";
-                context.lineWidth = 0.1;
+                context.lineWidth = 1;
                 for (var botId in bots) {
                     var bot = bots[botId];
                     
@@ -570,6 +570,7 @@
                         numBlobs += 1;
                     }
                     
+                    context.fillStyle = "rgb(255, 255, 255)";
                     var text = botInfos[botId].name;
                     if (text != "dummy") {
                         centerX /= numBlobs;

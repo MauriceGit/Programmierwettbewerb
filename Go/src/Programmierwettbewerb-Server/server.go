@@ -489,6 +489,8 @@ type Application struct {
 
     runningConfig               RunningConfig
 
+    game                        Game
+
     guiConnections              GuiConnections
     middlewareConnections       MiddlewareConnections
     settings                    ServerSettings
@@ -1616,6 +1618,11 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
             
         }
 
+        if app.gameMode && !app.stopped && len(gameState.bots) <= 4 {
+            app.settings.BotsToStart = app.game.BotsToStart
+            app.settings.BotCount = app.game.BotCount
+        }
+
         ////////////////////////////////////////////////////////////////
         // Save statistics
         ////////////////////////////////////////////////////////////////
@@ -1722,6 +1729,15 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                         game := games[command.GameName]
                         LogfColored(LtDebug, LcGreen, "Changing game to: %v\n", command.GameName)
 
+                        StartNewGame(command.GameName)
+
+                        go RemoteKillBots()
+                        killAllBots()
+
+                        LogfColored(LtDebug, LcGreen, "Bots killed: %v\n", botsKilledByServerGui)
+
+                        app.game = game
+
                         app.gameMode = true
                         app.gameTime = game.GameTime
 
@@ -1733,6 +1749,8 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
                         setFoodSpawn(game.FoodSpawn)
                         setToxinSpawn(game.ToxinSpawn)
                         setBotSpawn(game.BotSpawn)
+
+                        LogfColored(LtDebug, LcGreen, "BotsToStart: %v BotCount: %v\n", app.settings.BotsToStart, app.settings.BotCount)
 
                         LogfColored(LtDebug, LcGreen, "Settings changed\n")
 
@@ -1748,10 +1766,6 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
 
                         LogfColored(LtDebug, LcGreen, "Removed foods\n")
 
-                        go RemoteKillBots()
-                        killAllBots()
-
-                        LogfColored(LtDebug, LcGreen, "Bots killed: %v\n", botsKilledByServerGui)
 
                         app.stoppedMutex.Lock()
                         app.stopped = true
@@ -1839,6 +1853,8 @@ func (app* Application) startUpdateLoop(gameState* GameState) {
             startProfileEvent(&profile, "Add Interface Bot")
 
             if app.settings.BotCount > 0 {
+                Logf(LtDebug, "There are bots to start.\n")
+
                 // To create a list with all svns multiple times. They all start together.
                 var finalSvnList []string
                 for i:=0; i < app.settings.BotCount; i++ {

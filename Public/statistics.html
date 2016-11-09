@@ -91,7 +91,7 @@
                        3*stats.botKillCount/10 +
                        4*stats.toxinThrow/10 + 
                        10*stats.successfulToxin/5 + 
-                       2*stats.splitCount/10 +
+                       2*stats.splitCount/30 +
                        4*stats.successfulSplit/30;
             }
             
@@ -206,9 +206,9 @@
                 result.blobKillCount = 0;
                 result.botKillCount = 0;
                 result.toxinThrow = 0;
-                result.successfulToxinThrows = 0;
+                result.successfulToxin = 0;
                 result.splitCount = 0;
-                result.successfulSplits = 0;
+                result.successfulSplit = 0;
                 return result;
             }
             
